@@ -1,0 +1,43 @@
+{
+  "status": {
+    "code": 200,
+    "message": "Invoice created successfully"
+  },
+  "data": {
+    "invoiceId": "INV-2025-001234",
+    "invoiceNumber": "INV-001234",
+    "customerId": "CUST-12345",
+    "customerName": "Acme Corporation",
+    "invoiceDate": "2025-01-15T00:00:00Z",
+    "dueDate": "2025-02-15T00:00:00Z",
+    "subtotal": 1749.85,
+    "taxAmount": 139.99,
+    "totalAmount": 1889.84,
+    "currency": "USD",
+    "status": "pending",
+    "paymentTerms": "NET30",
+    "lineItems": [
+      {
+        "lineNumber": 1,
+        "itemId": "ITEM-001",
+        "description": "Widget A",
+        "quantity": 10,
+        "unitPrice": 99.99,
+        "lineTotal": 999.90,
+        "taxAmount": 79.99
+      },
+      {
+        "lineNumber": 2,
+        "itemId": "ITEM-002",
+        "description": "Service B",
+        "quantity": 5,
+        "unitPrice": 149.99,
+        "lineTotal": 749.95,
+        "taxAmount": 60.00
+      }
+    ],
+    "createdDate": "2025-01-15T10:30:00Z",
+    "createdBy": "system",
+    "_etag": "\"abc123def456789\""
+  }
+}

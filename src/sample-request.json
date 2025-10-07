@@ -1,0 +1,27 @@
+{
+  "type": "CustomerInvoice",
+  "action": "create",
+  "parameters": {
+    "customerId": "CUST-12345",
+    "invoiceDate": "2025-01-15",
+    "dueDate": "2025-02-15",
+    "items": [
+      {
+        "itemId": "ITEM-001",
+        "description": "Widget A",
+        "quantity": 10,
+        "unitPrice": 99.99,
+        "taxRate": 0.08
+      },
+      {
+        "itemId": "ITEM-002",
+        "description": "Service B",
+        "quantity": 5,
+        "unitPrice": 149.99,
+        "taxRate": 0.08
+      }
+    ],
+    "currency": "USD",
+    "paymentTerms": "NET30"
+  }
+}
