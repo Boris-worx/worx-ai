@@ -52,4 +52,4 @@ jobs:
           app-name: 'bsfplatform'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_13C216A4BC634A40951BD6B6F45FF91F }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_9D608168D4CE4621B45ADE7395F7F7E9 }}
