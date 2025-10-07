@@ -304,10 +304,10 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
 
       <div className="flex justify-center items-center py-8">
         <img
-          src="/src/img/logo.png"
+          src="/src/img/logo-small.png"
           alt="Logo"
-          width={200}
-          height={74}
+          width={308}
+          height={44}
           style={{ objectFit: 'contain' }}
         />
       </div>

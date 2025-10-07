@@ -53,13 +53,14 @@ export default function App() {
         <Alert className="mb-6">
           <Info className="h-4 w-4" />
           <AlertDescription>
-            <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2 w-full">
               <div>
                 <strong>BFS API:</strong> <code className="bg-muted px-1 py-0.5 rounded text-xs">dp-eastus-poc-txservices-apis.azurewebsites.net</code>
                 {isLoading && <span className="text-muted-foreground"> • Loading...</span>}
                 {!isLoading && tenants.length > 0 && <span className="text-green-600"> • {tenants.length} tenant(s) ✓</span>}
               </div>
               <Button
+                className="!rounded-full"
                 variant="outline"
                 size="sm"
                 onClick={refreshData}
