@@ -1,7 +1,9 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Card } from './ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Transaction } from '../lib/api';
 
 interface TransactionDetailProps {
@@ -11,58 +13,133 @@ interface TransactionDetailProps {
 }
 
 export function TransactionDetail({ transaction, open, onOpenChange }: TransactionDetailProps) {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[75vw] min-w-[500px] max-w-[90vw] max-h-[80vh]">
+      <DialogContent className="max-w-[95vw] w-[1400px] max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>{transaction.TransactionName}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            Transaction Detail
+            <Badge variant="secondary">{transaction.TxnType}</Badge>
+          </DialogTitle>
           <DialogDescription>
-            Transaction ID: {transaction.TransactionId}
+            View transaction details and data
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="request" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="request">Request JSON</TabsTrigger>
-            <TabsTrigger value="response">Response JSON</TabsTrigger>
-          </TabsList>
+        <ScrollArea className="max-h-[calc(90vh-140px)]">
+          <div className="space-y-4 pr-4">
+            {/* Metadata - Always Visible */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-muted-foreground mb-1">Transaction ID</div>
+                    <code className="text-xs bg-muted px-2 py-1 rounded block">
+                      {transaction.TxnId || 'N/A'}
+                    </code>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1">Type</div>
+                    <Badge variant="outline">{transaction.TxnType}</Badge>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1">Created</div>
+                    <div>{formatDate(transaction.CreateTime)}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1">Updated</div>
+                    <div>{formatDate(transaction.UpdateTime)}</div>
+                  </div>
+                </div>
 
-          <TabsContent value="request" className="mt-4">
-            <Card className="p-4">
-              <ScrollArea className="h-[400px] w-full">
-                <pre className="text-sm whitespace-pre-wrap break-words">
-                  <code>
-                    {JSON.stringify(transaction.RequestJSON, null, 2) || 'No request data'}
-                  </code>
-                </pre>
-              </ScrollArea>
+                {transaction._etag && (
+                  <>
+                    <Separator />
+                    <div className="text-sm">
+                      <div className="text-muted-foreground mb-1">ETag</div>
+                      <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
+                        {transaction._etag}
+                      </code>
+                    </div>
+                  </>
+                )}
+              </CardContent>
             </Card>
-          </TabsContent>
 
-          <TabsContent value="response" className="mt-4">
-            <Card className="p-4">
-              <ScrollArea className="h-[400px] w-full">
-                <pre className="text-sm whitespace-pre-wrap break-words">
-                  <code>
-                    {JSON.stringify(transaction.ResponseJSON, null, 2) || 'No response data'}
-                  </code>
-                </pre>
-              </ScrollArea>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            {/* Accordion for Collapsible Sections */}
+            <Accordion type="multiple" defaultValue={['txn-data']} className="w-full space-y-2">
+              {/* Transaction Data (Txn) */}
+              <AccordionItem value="txn-data" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <span className="font-medium">Transaction Data (Txn)</span>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="bg-muted rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
+                      {JSON.stringify(transaction.Txn, null, 2)}
+                    </pre>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-        {/* Metadata */}
-        {(transaction.CreateTime || transaction._etag) && (
-          <div className="text-sm text-muted-foreground space-y-1 pt-4 border-t">
-            {transaction.CreateTime && (
-              <div>Created: {new Date(transaction.CreateTime).toLocaleString()}</div>
-            )}
-            {transaction._etag && (
-              <div className="font-mono">ETag: {transaction._etag}</div>
-            )}
+              {/* Raw API Response */}
+              <AccordionItem value="raw-response" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <span className="font-medium">Raw API Response</span>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="bg-muted rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
+                      {JSON.stringify(transaction, null, 2)}
+                    </pre>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* API Usage Examples */}
+              <AccordionItem value="api-examples" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <span className="font-medium">API Usage Examples</span>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-sm font-medium mb-2">GET Request:</div>
+                      <div className="bg-muted rounded-lg p-3">
+                        <code className="text-[11px] font-mono">
+                          GET /1.0/txns?TxnType={transaction.TxnType}
+                        </code>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-sm font-medium mb-2">POST Request:</div>
+                      <div className="bg-muted rounded-lg p-3 overflow-x-auto">
+                        <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
+{`POST /1.0/txns
+Content-Type: application/json
+
+{
+  "TxnType": "${transaction.TxnType}",
+  "Txn": ${JSON.stringify(transaction.Txn, null, 2).split('\n').join('\n  ')}
+}`}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
-        )}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

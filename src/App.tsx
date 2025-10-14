@@ -2,73 +2,81 @@ import { useState, useEffect } from 'react';
 import './styles/globals.css';
 import { Alert, AlertDescription } from './components/ui/alert';
 import { Button } from './components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Toaster } from './components/ui/sonner';
 import { TenantsView } from './components/TenantsView';
-import { Info, RefreshCw } from 'lucide-react';
-import { getAllTenants, Tenant } from './lib/api';
-import { toast } from 'sonner';
+import { TransactionsView } from './components/TransactionsView';
+import { ModelSchemaView } from './components/ModelSchemaView';
+import { Info, RefreshCw, Building2, Receipt, FileJson } from 'lucide-react';
+import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
+import { toast } from 'sonner@2.0.3';
 
 export default function App() {
+  // Active tab
+  const [activeTab, setActiveTab] = useState('tenants');
+  
   // Shared state for tenants
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingTenants, setIsLoadingTenants] = useState(false);
 
-  // Auto-load tenants from API on mount (CORS is now configured)
+  // Shared state for transactions
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+
+  // Auto-load tenants from API on mount
+  // Don't auto-load transactions - API requires TxnType parameter
   useEffect(() => {
-    refreshData();
+    refreshTenants();
   }, []);
 
-  // Callback to refresh data from API
-  const refreshData = async () => {
-    setIsLoading(true);
+  // Refresh tenants from API
+  const refreshTenants = async () => {
+    setIsLoadingTenants(true);
     try {
       const tenantsData = await getAllTenants();
       setTenants(tenantsData);
-
+      
       if (tenantsData.length > 0) {
-        toast.success(`✅ Loaded ${tenantsData.length} tenant(s) from BFS API`);
-      } else {
-        toast.info('Connected to API. Database is empty - create your first tenant!');
+        toast.success(`✅ Loaded ${tenantsData.length} tenant(s)`);
       }
     } catch (error: any) {
-      // Handle errors gracefully
-      if (error.message === 'CORS_BLOCKED') {
-        toast.error(
-          'Cannot connect to API\n\n' +
-          'Please check if the API server is accessible.',
-          { duration: 6000 }
-        );
-      } else {
+      if (error.message !== 'CORS_BLOCKED') {
         toast.error(`Could not load tenants: ${error.message}`, { duration: 5000 });
       }
     } finally {
-      setIsLoading(false);
+      setIsLoadingTenants(false);
     }
   };
 
+  // Refresh transactions - no-op since transactions are loaded per-type
+  const refreshTransactions = async () => {
+    // Transactions are loaded per-type in TransactionsView
+    // This is just a placeholder for the interface
+  };
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4 max-w-7xl">
-        {/* API Status Banner */}
-        <Alert className="mb-6">
+        {/* API Status Banner - Hidden but kept in code */}
+        <Alert className="mb-6 hidden">
           <Info className="h-4 w-4" />
           <AlertDescription>
-            <div className="flex items-center justify-between flex-wrap gap-2 w-full">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <strong>BFS API:</strong> <code className="bg-muted px-1 py-0.5 rounded text-xs">dp-eastus-poc-txservices-apis.azurewebsites.net</code>
-                {isLoading && <span className="text-muted-foreground"> • Loading...</span>}
-                {!isLoading && tenants.length > 0 && <span className="text-green-600"> • {tenants.length} tenant(s) ✓</span>}
+                {activeTab === 'tenants' && (
+                  <>
+                    {isLoadingTenants && <span className="text-muted-foreground"> • Loading tenants...</span>}
+                    {!isLoadingTenants && tenants.length > 0 && <span className="text-green-600"> • {tenants.length} tenant(s) ✓</span>}
+                  </>
+                )}
+                {activeTab === 'transactions' && (
+                  <>
+                    {isLoadingTransactions && <span className="text-muted-foreground"> • Loading transactions...</span>}
+                    {!isLoadingTransactions && transactions.length > 0 && <span className="text-green-600"> • {transactions.length} transaction(s) ✓</span>}
+                  </>
+                )}
               </div>
-              <Button
-                className="!rounded-full"
-                variant="outline"
-                size="sm"
-                onClick={refreshData}
-                disabled={isLoading}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Load from API
-              </Button>
             </div>
           </AlertDescription>
         </Alert>
@@ -81,19 +89,50 @@ export default function App() {
           </p>
         </div>
 
-        {/* Tenants View */}
-        <TenantsView
-          tenants={tenants}
-          setTenants={setTenants}
-          isLoading={isLoading}
-          refreshData={refreshData}
-        />
+        {/* Tabs Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex justify-center mb-6">
+            <TabsList>
+              <TabsTrigger value="tenants" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                Tenants
+              </TabsTrigger>
+              <TabsTrigger value="transactions" className="gap-2">
+                <Receipt className="h-4 w-4" />
+                Transactions
+              </TabsTrigger>
+              <TabsTrigger value="modelschema" className="gap-2">
+                <FileJson className="h-4 w-4" />
+                Model Schema
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="tenants">
+            <TenantsView
+              tenants={tenants}
+              setTenants={setTenants}
+              isLoading={isLoadingTenants}
+              refreshData={refreshTenants}
+            />
+          </TabsContent>
+
+          <TabsContent value="transactions">
+            <TransactionsView
+              transactions={transactions}
+              setTransactions={setTransactions}
+              isLoading={isLoadingTransactions}
+              refreshData={refreshTransactions}
+            />
+          </TabsContent>
+
+          <TabsContent value="modelschema">
+            <ModelSchemaView />
+          </TabsContent>
+        </Tabs>
       </div>
 
-
       <Toaster />
-
     </div>
-
   );
 }

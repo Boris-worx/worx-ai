@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { updateTenant, Tenant } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface TenantEditFormProps {
   tenant: Tenant;
@@ -117,12 +117,10 @@ export function TenantEditForm({ tenant, open, onOpenChange, onSuccess }: Tenant
         </div>
 
         <DialogFooter>
-          <Button className="!rounded-full"
-            variant="outline" onClick={handleClose} disabled={isSubmitting}>
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button className="!rounded-full"
-            onClick={handleSubmit} disabled={isSubmitting}>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? 'Updating...' : 'Update Tenant'}
           </Button>
         </DialogFooter>

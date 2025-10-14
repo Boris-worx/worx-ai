@@ -6,9 +6,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { DataTable } from './DataTable';
-import { Plus, RefreshCw, Trash2, Pencil, Upload } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { TenantDetail } from './TenantDetail';
 import { TenantEditForm } from './TenantEditForm';
 import { TenantImportDialog } from './TenantImportDialog';
@@ -26,15 +26,15 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   const [newTenantName, setNewTenantName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   // Detail view state
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-
+  
   // Edit state
   const [tenantToEdit, setTenantToEdit] = useState<Tenant | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
-
+  
   // Import state
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -51,7 +51,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
       toast.success(`Tenant "${newTenant.TenantName}" created with ID: ${newTenant.TenantId}`);
       setIsCreateDialogOpen(false);
       setNewTenantName('');
-
+      
       // Auto-refresh to get complete data from server
       refreshData();
     } catch (error: any) {
@@ -71,7 +71,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
       toast.success(`Tenant "${tenantToDelete.TenantName}" deleted successfully`);
       setIsDeleteDialogOpen(false);
       setTenantToDelete(null);
-
+      
       // Auto-refresh to get updated list from server
       refreshData();
     } catch (error: any) {
@@ -131,10 +131,24 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Tenant Management</CardTitle>
-          <CardDescription>
-            View and manage supplier tenants on the BFS platform
-          </CardDescription>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex-1 min-w-[300px]">
+              <CardTitle className="font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Supplier Tenants</CardTitle>
+              <CardDescription>
+                View and manage supplier tenants on the BFS platform
+              </CardDescription>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-full">
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Add New Tenant
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {tenants.length === 0 ? (
@@ -145,7 +159,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               <p className="text-muted-foreground mb-6 max-w-md">
                 Get started by importing tenants from a JSON file. Upload your tenant data to begin managing suppliers on the BFS platform.
               </p>
-              <Button onClick={() => setIsImportOpen(true)} size="lg">
+              <Button onClick={() => setIsImportOpen(true)} size="lg" className="rounded-full">
                 <Upload className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Import Tenants from JSON</span>
                 <span className="sm:hidden">Import JSON</span>
@@ -154,24 +168,6 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
           ) : (
             /* Full Functionality - Show after tenants are imported */
             <>
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 mb-6">
-                <Button className="!rounded-full" onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Tenant
-                </Button>
-
-                <Button variant="secondary" className="!hidden" onClick={() => setIsImportOpen(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import JSON
-                </Button>
-
-                <Button className="!rounded-full" variant="outline" onClick={refreshData} disabled={isLoading}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                  {isLoading ? 'Loading...' : 'Refresh'}
-                </Button>
-              </div>
-
               {/* Tenants Table */}
               <DataTable
                 data={tenants}
@@ -182,7 +178,14 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
                 actions={(tenant) => (
                   <div className="flex gap-2 justify-end">
                     <Button
-                      className="!rounded-full"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTenantIdClick(tenant)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      View
+                    </Button>
+                    <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(tenant)}
@@ -191,7 +194,6 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
                       Edit
                     </Button>
                     <Button
-                      className="!rounded-full"
                       variant="destructive"
                       size="sm"
                       onClick={() => openDeleteDialog(tenant)}
@@ -216,7 +218,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               Enter the tenant name. A unique Tenant ID will be automatically generated.
             </DialogDescription>
           </DialogHeader>
-
+          
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="tenantName">Tenant Name</Label>
@@ -233,10 +235,9 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               />
             </div>
           </div>
-
+          
           <DialogFooter>
             <Button
-              className="!rounded-full"
               variant="outline"
               onClick={() => {
                 setIsCreateDialogOpen(false);
@@ -246,9 +247,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
             >
               Cancel
             </Button>
-            <Button
-              className="!rounded-full"
-              onClick={handleCreate} disabled={isSubmitting}>
+            <Button onClick={handleCreate} disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create Tenant'}
             </Button>
           </DialogFooter>
@@ -301,18 +300,6 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
         onOpenChange={setIsImportOpen}
         onSuccess={handleImportSuccess}
       />
-
-      <div className="flex justify-center items-center py-8">
-        <img
-          src="/src/img/logo-small.png"
-          alt="Logo"
-          width={308}
-          height={44}
-          style={{ objectFit: 'contain' }}
-        />
-      </div>
-
     </div>
-
   );
 }

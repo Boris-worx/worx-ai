@@ -48,7 +48,7 @@ export function DataTable<T extends Record<string, any>>({
           String(item[key] || '').toLowerCase().includes(lowerSearch)
         );
       }
-
+      
       // Otherwise search all string values
       return Object.values(item).some((value) =>
         String(value).toLowerCase().includes(lowerSearch)
@@ -65,7 +65,7 @@ export function DataTable<T extends Record<string, any>>({
       const bValue = b[sortConfig.key];
 
       if (aValue === bValue) return 0;
-
+      
       const comparison = aValue < bValue ? -1 : 1;
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
@@ -129,12 +129,12 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="border border-border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               {columns.map((column) => (
-                <TableHead key={column.key}>
+                <TableHead key={column.key} className="whitespace-nowrap">
                   {column.sortable !== false ? (
                     <Button
                       variant="ghost"
@@ -150,7 +150,7 @@ export function DataTable<T extends Record<string, any>>({
                   )}
                 </TableHead>
               ))}
-              {actions && <TableHead className="text-right">Actions</TableHead>}
+              {actions && <TableHead className="text-right whitespace-nowrap">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -181,11 +181,6 @@ export function DataTable<T extends Record<string, any>>({
         Showing {sortedData.length} of {data.length} {data.length === 1 ? 'item' : 'items'}
         {searchTerm && ` (filtered)`}
       </div>
-
-
     </div>
-
-
-
   );
 }
