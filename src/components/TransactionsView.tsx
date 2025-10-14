@@ -12,7 +12,7 @@ import { TransactionFormDialog } from './TransactionFormDialog';
 import { TransactionEditDialog } from './TransactionEditDialog';
 import { Alert, AlertDescription } from './ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -42,10 +42,10 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   const loadAllTypeCounts = async () => {
     setIsLoadingCounts(true);
     const counts: Record<string, number> = {};
-    
+
     try {
       console.log('🔍 Loading transaction counts for all types...');
-      
+
       // Load counts for all types in parallel
       const results = await Promise.allSettled(
         TRANSACTION_TYPES.map(async (type) => {
@@ -86,7 +86,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         setSelectedTxnType('Customer');
         loadTransactionsForType('Customer');
       }
-      
+
     } catch (error) {
       console.error('Error loading type counts:', error);
     } finally {
@@ -97,15 +97,15 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   // Load transactions for selected type
   const loadTransactionsForType = async (txnType: string) => {
     if (!txnType) return;
-    
+
     setIsLoadingType(true);
     try {
       console.log(`📋 ========== Loading transactions for type: ${txnType} ==========`);
       const txns = await getTransactionsByType(txnType);
       console.log(`📋 ========== Received ${txns.length} transactions ==========`);
-      
+
       setTransactions(txns);
-      
+
       if (txns.length === 0) {
         toast.info(`No ${txnType} transactions found. Check browser Console (F12) for API response details.`, {
           duration: 6000,
@@ -170,7 +170,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       await deleteTransaction(selectedTransaction.TxnId!, selectedTransaction._etag);
       toast.success(`Deleted ${selectedTransaction.TxnType} transaction`);
       setIsDeleteDialogOpen(false);
-      
+
       // Refresh current type
       loadTransactionsForType(selectedTxnType);
     } catch (error: any) {
@@ -184,12 +184,12 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       const newTxn = await createTransaction(txnType, txnData);
       toast.success(`Created ${txnType} transaction successfully!`);
       setIsCreateDialogOpen(false);
-      
+
       // Refresh if we're viewing this type
       if (selectedTxnType === txnType) {
         loadTransactionsForType(txnType);
       }
-      
+
       return newTxn;
     } catch (error: any) {
       toast.error(`Failed to create transaction: ${error.message}`);
@@ -203,7 +203,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       await updateTransaction(txnId, txnType, txnData, etag);
       toast.success(`Updated ${txnType} transaction successfully!`);
       setIsEditDialogOpen(false);
-      
+
       // Refresh current type
       loadTransactionsForType(selectedTxnType);
     } catch (error: any) {
@@ -359,28 +359,27 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                       <p className="text-sm text-muted-foreground mt-2">Loading types...</p>
                     </div>
                   ) : (
-                      <div className="space-y-1 p-2">
-                        {filteredTypes.map((type) => {
-                          const count = typeCounts[type] || 0;
-                          const isActive = count > 0;
-                          
-                          return (
-                            <Button
-                              key={type}
-                              variant={selectedTxnType === type ? 'default' : 'ghost'}
-                              className={`w-full justify-start text-left h-auto py-1.5 px-3 ${
-                                !isActive ? 'opacity-40 cursor-not-allowed' : ''
+                    <div className="space-y-1 p-2">
+                      {filteredTypes.map((type) => {
+                        const count = typeCounts[type] || 0;
+                        const isActive = count > 0;
+
+                        return (
+                          <Button
+                            key={type}
+                            variant={selectedTxnType === type ? 'default' : 'ghost'}
+                            className={`w-full justify-start text-left h-auto py-1.5 px-3 ${!isActive ? 'opacity-40 cursor-not-allowed' : ''
                               }`}
-                              onClick={() => isActive && handleTypeChange(type)}
-                              disabled={!isActive}
-                              title={isActive ? `${count} transaction(s)` : 'No transactions'}
-                            >
-                              <span className="text-sm truncate">{type}</span>
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    )}
+                            onClick={() => isActive && handleTypeChange(type)}
+                            disabled={!isActive}
+                            title={isActive ? `${count} transaction(s)` : 'No transactions'}
+                          >
+                            <span className="text-sm truncate">{type}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </ScrollArea>
               </Card>
             </div>

@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { updateTenant, Tenant } from '../lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface TenantEditFormProps {
   tenant: Tenant;
