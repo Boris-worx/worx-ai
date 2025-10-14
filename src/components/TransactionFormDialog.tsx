@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription } from './ui/alert';
 import { Upload, Info, FileJson } from 'lucide-react';
 import { TRANSACTION_TYPES } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface TransactionFormDialogProps {
   open: boolean;
@@ -40,23 +40,23 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
 
     setIsUploading(true);
     const reader = new FileReader();
-
+    
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
         const txnData = JSON.parse(text);
-
+        
         console.log('📤 Uploading transaction:', { txnType, txnData });
-
+        
         // Submit to server
         await onSubmit(txnType, txnData);
-
+        
         // Close dialog on success
         onOpenChange(false);
-
+        
         // Reset file input
         event.target.value = '';
-
+        
       } catch (error: any) {
         console.error('❌ Upload error:', error);
         if (error.message?.includes('JSON')) {
@@ -69,13 +69,13 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
         setIsUploading(false);
       }
     };
-
+    
     reader.onerror = () => {
       toast.error('Failed to read file');
       setIsUploading(false);
       event.target.value = '';
     };
-
+    
     reader.readAsText(file);
   };
 
@@ -87,8 +87,8 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
             {defaultTxnType ? `Create ${defaultTxnType} Transaction` : 'Create New Transaction'}
           </DialogTitle>
           <DialogDescription>
-            {defaultTxnType
-              ? `Upload a JSON file with ${defaultTxnType} data`
+            {defaultTxnType 
+              ? `Upload a JSON file with ${defaultTxnType} data` 
               : 'Select transaction type and upload JSON file'
             }
           </DialogDescription>
@@ -123,7 +123,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              Upload a JSON file containing the transaction data.
+              Upload a JSON file containing the transaction data. 
               The transaction will be created immediately upon file selection.
             </AlertDescription>
           </Alert>
@@ -169,7 +169,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
               <Label className="text-xs text-muted-foreground">Example JSON format:</Label>
               <div className="bg-muted rounded-lg p-3">
                 <pre className="text-xs overflow-auto">
-                  {`{
+{`{
   "CustomerId": "CUST123",
   "Name": "Company Name",
   "Address": {

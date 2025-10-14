@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { DataTable } from './DataTable';
 import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { TenantDetail } from './TenantDetail';
 import { TenantEditForm } from './TenantEditForm';
 import { TenantImportDialog } from './TenantImportDialog';
@@ -26,15 +26,15 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   const [newTenantName, setNewTenantName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   // Detail view state
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-
+  
   // Edit state
   const [tenantToEdit, setTenantToEdit] = useState<Tenant | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
-
+  
   // Import state
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -51,7 +51,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
       toast.success(`Tenant "${newTenant.TenantName}" created with ID: ${newTenant.TenantId}`);
       setIsCreateDialogOpen(false);
       setNewTenantName('');
-
+      
       // Auto-refresh to get complete data from server
       refreshData();
     } catch (error: any) {
@@ -71,7 +71,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
       toast.success(`Tenant "${tenantToDelete.TenantName}" deleted successfully`);
       setIsDeleteDialogOpen(false);
       setTenantToDelete(null);
-
+      
       // Auto-refresh to get updated list from server
       refreshData();
     } catch (error: any) {
@@ -218,7 +218,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               Enter the tenant name. A unique Tenant ID will be automatically generated.
             </DialogDescription>
           </DialogHeader>
-
+          
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="tenantName">Tenant Name</Label>
@@ -235,7 +235,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               />
             </div>
           </div>
-
+          
           <DialogFooter>
             <Button
               variant="outline"

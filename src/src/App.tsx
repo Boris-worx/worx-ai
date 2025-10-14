@@ -5,7 +5,7 @@ import { Toaster } from './components/ui/sonner';
 import { TenantsView } from './components/TenantsView';
 import { Info, RefreshCw } from 'lucide-react';
 import { getAllTenants, Tenant } from './lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export default function App() {
   // Shared state for tenants
@@ -23,7 +23,7 @@ export default function App() {
     try {
       const tenantsData = await getAllTenants();
       setTenants(tenantsData);
-
+      
       if (tenantsData.length > 0) {
         toast.success(`✅ Loaded ${tenantsData.length} tenant(s) from BFS API`);
       } else {

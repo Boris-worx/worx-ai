@@ -192,3 +192,38 @@
 html {
   font-size: var(--font-size);
 }
+
+/**
+ * Custom button styles
+ */
+@layer components {
+  /* All rounded buttons (base styles) */
+  button[data-slot="button"] {
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Primary button specific styles */
+  button[data-slot="button"]:where(.bg-primary) {
+    border: 1px solid #2360d2;
+    background-color: #2f6cde;
+    border-radius: 50px;
+    padding-top: 12px;
+    padding-right: 30px;
+    padding-bottom: 12px;
+    padding-left: 30px;
+    font-size: 16px;
+    line-height: 1.2;
+    color: #ffffff;
+    transition: all 0.2s linear;
+    -moz-transition: all 0.2s linear;
+    -webkit-transition: all 0.2s linear;
+    -o-transition: all 0.2s linear;
+  }
+
+  button[data-slot="button"]:where(.bg-primary):hover:not(:disabled) {
+    background-color: #ffffff;
+    border: 1px solid #f3f3f3;
+    color: #2f6cde;
+  }
+}

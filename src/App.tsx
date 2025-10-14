@@ -9,12 +9,12 @@ import { TransactionsView } from './components/TransactionsView';
 import { ModelSchemaView } from './components/ModelSchemaView';
 import { Info, RefreshCw, Building2, Receipt, FileJson } from 'lucide-react';
 import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export default function App() {
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
-
+  
   // Shared state for tenants
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoadingTenants, setIsLoadingTenants] = useState(false);
@@ -35,7 +35,7 @@ export default function App() {
     try {
       const tenantsData = await getAllTenants();
       setTenants(tenantsData);
-
+      
       if (tenantsData.length > 0) {
         toast.success(`✅ Loaded ${tenantsData.length} tenant(s)`);
       }
@@ -83,7 +83,7 @@ export default function App() {
 
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1>BFS Platform Management</h1>
+          <h1>BFS Transaction and Data Management</h1>
           <p className="text-muted-foreground">
             Manage supplier tenants and ERP transactions
           </p>
@@ -99,13 +99,12 @@ export default function App() {
               </TabsTrigger>
               <TabsTrigger value="modelschema" className="gap-2">
                 <FileJson className="h-4 w-4" />
-                Models
+                Transaction Onboarding
               </TabsTrigger>
               <TabsTrigger value="transactions" className="gap-2">
                 <Receipt className="h-4 w-4" />
-                Transactions
+                Data Plane
               </TabsTrigger>
-
             </TabsList>
           </div>
 
