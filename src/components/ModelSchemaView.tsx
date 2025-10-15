@@ -72,11 +72,10 @@ export function ModelSchemaView() {
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-[300px]">
               <CardTitle className="flex items-center gap-2 font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">
-              
-                Global Model Schemas
+                Global Transaction Spec
               </CardTitle>
               <CardDescription>
-                All available model schemas from <code className="bg-muted px-2 py-0.5 rounded text-xs">GET /1.0/txns?TxnType=ModelSchema</code>
+                All available Transaction Spec from <code className="bg-muted px-2 py-0.5 rounded text-xs">GET /1.0/txns?TxnType=ModelSchema</code>
               </CardDescription>
             </div>
             <div className="flex gap-2 flex-shrink-0">

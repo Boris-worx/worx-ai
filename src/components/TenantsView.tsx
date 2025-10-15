@@ -108,22 +108,39 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
     refreshData();
   };
 
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   const columns = [
     {
       key: 'TenantId',
       header: 'Tenant ID',
       render: (tenant: Tenant) => (
-        <button
-          onClick={() => handleTenantIdClick(tenant)}
-          className="font-mono text-primary hover:underline cursor-pointer"
-        >
-          {tenant.TenantId}
-        </button>
+        <div className="max-w-[140px]">
+          <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded truncate block">
+            {tenant.TenantId}
+          </code>
+        </div>
       ),
     },
     {
       key: 'TenantName',
       header: 'Tenant Name',
+    },
+    {
+      key: 'CreateTime',
+      header: 'Created',
+      render: (tenant: Tenant) => (
+        <div className="text-sm">
+          {formatDate(tenant.CreateTime)}
+        </div>
+      ),
     },
   ];
 

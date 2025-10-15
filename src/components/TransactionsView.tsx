@@ -104,15 +104,22 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       const txns = await getTransactionsByType(txnType);
       console.log(`📋 ========== Received ${txns.length} transactions ==========`);
       
-      setTransactions(txns);
+      // Sort by CreateTime descending (newest first)
+      const sortedTxns = [...txns].sort((a, b) => {
+        const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
+        const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
+        return dateB - dateA; // Descending order (newest first)
+      });
       
-      if (txns.length === 0) {
+      setTransactions(sortedTxns);
+      
+      if (sortedTxns.length === 0) {
         toast.info(`No ${txnType} transactions found. Check browser Console (F12) for API response details.`, {
           duration: 6000,
         });
       } else {
-        toast.success(`✅ Loaded ${txns.length} ${txnType} transaction(s)`);
-        console.log('✅ Transactions set to state. First transaction:', txns[0]);
+        toast.success(`✅ Loaded ${sortedTxns.length} ${txnType} transaction(s)`);
+        console.log('✅ Transactions set to state. First transaction:', sortedTxns[0]);
       }
     } catch (error: any) {
       console.error('❌ Error loading transactions:', error);
@@ -293,7 +300,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="font-bold">Data Plane</CardTitle>
+          <CardTitle className="font-bold">Data Plan</CardTitle>
           <CardDescription>
             View and manage ERP transactions across all suppliers
           </CardDescription>
@@ -305,7 +312,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
             <div className="flex items-center gap-2">
               <h3 className="text-lg">Transaction Types</h3>
               <Badge variant="secondary">
-                {filteredTypes.filter(type => typeCounts[type] > 0).length} / {filteredTypes.length}
+                {filteredTypes.filter(type => typeCounts[type] > 0).length}
               </Badge>
             </div>
 
@@ -360,25 +367,26 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                     </div>
                   ) : (
                       <div className="space-y-1 p-2">
-                        {filteredTypes.map((type) => {
-                          const count = typeCounts[type] || 0;
-                          const isActive = count > 0;
-                          
-                          return (
-                            <Button
-                              key={type}
-                              variant={selectedTxnType === type ? 'default' : 'ghost'}
-                              className={`w-full justify-start text-left h-auto py-1.5 px-3 ${
-                                !isActive ? 'opacity-40 cursor-not-allowed' : ''
-                              }`}
-                              onClick={() => isActive && handleTypeChange(type)}
-                              disabled={!isActive}
-                              title={isActive ? `${count} transaction(s)` : 'No transactions'}
-                            >
-                              <span className="text-sm truncate">{type}</span>
-                            </Button>
-                          );
-                        })}
+                        {filteredTypes
+                          .filter((type) => {
+                            const count = typeCounts[type] || 0;
+                            return count > 0; // Показываем только типы с данными
+                          })
+                          .map((type) => {
+                            const count = typeCounts[type] || 0;
+                            
+                            return (
+                              <Button
+                                key={type}
+                                variant={selectedTxnType === type ? 'default' : 'ghost'}
+                                className="w-full justify-start text-left h-auto py-1.5 px-3"
+                                onClick={() => handleTypeChange(type)}
+                                title={`${count} transaction(s)`}
+                              >
+                                <span className="text-sm truncate">{type}</span>
+                              </Button>
+                            );
+                          })}
                       </div>
                     )}
                 </ScrollArea>

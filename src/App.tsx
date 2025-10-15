@@ -34,10 +34,18 @@ export default function App() {
     setIsLoadingTenants(true);
     try {
       const tenantsData = await getAllTenants();
-      setTenants(tenantsData);
       
-      if (tenantsData.length > 0) {
-        toast.success(`✅ Loaded ${tenantsData.length} tenant(s)`);
+      // Sort by CreateTime descending (newest first)
+      const sortedTenants = [...tenantsData].sort((a, b) => {
+        const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
+        const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      setTenants(sortedTenants);
+      
+      if (sortedTenants.length > 0) {
+        toast.success(`✅ Loaded ${sortedTenants.length} tenant(s)`);
       }
     } catch (error: any) {
       if (error.message !== 'CORS_BLOCKED') {
@@ -56,7 +64,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <div className="container mx-auto py-8 px-4 max-w-full">
         {/* API Status Banner - Hidden but kept in code */}
         <Alert className="mb-6 hidden">
           <Info className="h-4 w-4" />
@@ -103,7 +111,7 @@ export default function App() {
               </TabsTrigger>
               <TabsTrigger value="transactions" className="gap-2">
                 <Receipt className="h-4 w-4" />
-                Data Plane
+                Data Plan
               </TabsTrigger>
             </TabsList>
           </div>
