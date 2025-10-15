@@ -9,12 +9,12 @@ import { TransactionsView } from './components/TransactionsView';
 import { ModelSchemaView } from './components/ModelSchemaView';
 import { Info, RefreshCw, Building2, Receipt, FileJson } from 'lucide-react';
 import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export default function App() {
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
-  
+
   // Shared state for tenants
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoadingTenants, setIsLoadingTenants] = useState(false);
@@ -34,16 +34,16 @@ export default function App() {
     setIsLoadingTenants(true);
     try {
       const tenantsData = await getAllTenants();
-      
+
       // Sort by CreateTime descending (newest first)
       const sortedTenants = [...tenantsData].sort((a, b) => {
         const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
         const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
         return dateB - dateA; // Descending order (newest first)
       });
-      
+
       setTenants(sortedTenants);
-      
+
       if (sortedTenants.length > 0) {
         toast.success(`✅ Loaded ${sortedTenants.length} tenant(s)`);
       }

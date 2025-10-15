@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Upload, X, FileJson } from 'lucide-react';
 import { createTransaction, Transaction } from '../lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface TransactionFormProps {
   open: boolean;
@@ -19,7 +19,7 @@ export function TransactionForm({ open, onOpenChange, onSuccess }: TransactionFo
   const [requestJSON, setRequestJSON] = useState<any>(null);
   const [responseJSON, setResponseJSON] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const requestFileRef = useRef<HTMLInputElement>(null);
   const responseFileRef = useRef<HTMLInputElement>(null);
 
