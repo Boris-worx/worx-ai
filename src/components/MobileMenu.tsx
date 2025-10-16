@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Button } from './ui/button';
 import { TenantsIcon } from './icons/TenantsIcon';
+import { GridIcon } from './icons/GridIcon';
+import { ListIcon } from './icons/ListIcon';
+import { BugIcon } from './icons/BugIcon';
+import { MoonIcon } from './icons/MoonIcon';
+import { SunIcon } from './icons/SunIcon';
 import { Menu, Building2, FileJson, Receipt, Bug, Moon, Sun } from 'lucide-react';
 import { Separator } from './ui/separator';
 
@@ -54,7 +59,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                 onClick={() => handleTabClick('modelschema')}
                 className="w-full justify-start"
               >
-                <FileJson className="h-4 w-4 mr-3" />
+                <GridIcon className="h-4 w-4 mr-3" />
                 Transaction Onboarding
               </Button>
               <Button
@@ -62,7 +67,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                 onClick={() => handleTabClick('transactions')}
                 className="w-full justify-start"
               >
-                <Receipt className="h-4 w-4 mr-3" />
+                <ListIcon className="h-4 w-4 mr-3" />
                 Data Plane
               </Button>
             </nav>
@@ -82,7 +87,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                 }}
                 className="w-full justify-start"
               >
-                <Bug className="h-4 w-4 mr-3" />
+                <BugIcon className="h-4 w-4 mr-3" />
                 Report a Bug
               </Button>
               <Button
@@ -92,12 +97,12 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
               >
                 {theme === 'light' ? (
                   <>
-                    <Moon className="h-4 w-4 mr-3" />
+                    <MoonIcon className="h-4 w-4 mr-3" />
                     Dark Mode
                   </>
                 ) : (
                   <>
-                    <Sun className="h-4 w-4 mr-3" />
+                    <SunIcon className="h-4 w-4 mr-3" />
                     Light Mode
                   </>
                 )}

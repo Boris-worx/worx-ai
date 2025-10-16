@@ -4,8 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
-import { FileJson, RefreshCw, Eye, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from './ui/alert';
+import { RefreshIcon } from './icons/RefreshIcon';
+import { ViewIcon } from './icons/ViewIcon';
+import { FileJson, RefreshCw, Eye, CheckCircle2, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { ModelSchema, getAllModelSchemas } from '../lib/api';
+import { TransactionFormDialog } from './TransactionFormDialog';
 import { toast } from 'sonner@2.0.3';
 
 export function ModelSchemaView() {
@@ -83,9 +87,9 @@ export function ModelSchemaView() {
                 variant="outline" 
                 onClick={loadGlobalSchemas}
                 disabled={isLoadingSchemas}
-                className="rounded-[2px]"
+                className="rounded-[4px]"
               >
-                <RefreshCw className={`h-4 w-4 ${isLoadingSchemas ? 'animate-spin' : ''} md:mr-2`} />
+                <RefreshIcon className={`h-4 w-4 ${isLoadingSchemas ? 'animate-spin' : ''} md:mr-2`} />
                 <span className="hidden md:inline">Refresh</span>
               </Button>
             </div>
@@ -109,7 +113,7 @@ export function ModelSchemaView() {
                 <h3 className="mb-2">Could not load schemas</h3>
                 <p className="text-muted-foreground mb-4">{schemaError}</p>
                 <Button variant="outline" size="sm" onClick={loadGlobalSchemas} className="rounded-full">
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshIcon className="h-4 w-4 mr-2" />
                   Try Again
                 </Button>
               </div>
@@ -182,13 +186,13 @@ export function ModelSchemaView() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full rounded-[2px]"
+                        className="w-full rounded-[4px]"
                         onClick={() => {
                           setSelectedSchemaForDetail(schema);
                           setIsSchemaDetailOpen(true);
                         }}
                       >
-                        <Eye className="h-4 w-4 mr-2" />
+                        <ViewIcon className="h-4 w-4 mr-2" />
                         View Full Schema
                       </Button>
                     </Card>

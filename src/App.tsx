@@ -11,6 +11,11 @@ import { BugReportDialog } from './components/BugReportDialog';
 import { MobileMenu } from './components/MobileMenu';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
 import { TenantsIcon } from './components/icons/TenantsIcon';
+import { GridIcon } from './components/icons/GridIcon';
+import { ListIcon } from './components/icons/ListIcon';
+import { BugIcon } from './components/icons/BugIcon';
+import { MoonIcon } from './components/icons/MoonIcon';
+import { SunIcon } from './components/icons/SunIcon';
 import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun } from 'lucide-react';
 import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
 import { toast } from 'sonner@2.0.3';
@@ -125,14 +130,14 @@ export default function App() {
                 variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
                 onClick={() => setActiveTab('modelschema')}
               >
-                <FileJson className="h-4 w-4 mr-2" />
+                <GridIcon className="h-4 w-4 mr-2" />
                 Transaction Onboarding
               </Button>
               <Button
                 variant={activeTab === 'transactions' ? 'default' : 'ghost'}
                 onClick={() => setActiveTab('transactions')}
               >
-                <Receipt className="h-4 w-4 mr-2" />
+                <ListIcon className="h-4 w-4 mr-2" />
                 Data Plane
               </Button>
             </nav>
@@ -149,7 +154,7 @@ export default function App() {
                   className="shrink-0"
                   title="Report a bug"
                 >
-                  <Bug className="h-5 w-5" />
+                  <BugIcon className="h-5 w-5" />
                 </Button>
 
                 {/* Theme Toggle */}
@@ -161,9 +166,9 @@ export default function App() {
                   title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
                 >
                   {theme === 'light' ? (
-                    <Moon className="h-5 w-5" />
+                    <MoonIcon className="h-5 w-5" />
                   ) : (
-                    <Sun className="h-5 w-5" />
+                    <SunIcon className="h-5 w-5" />
                   )}
                 </Button>
               </div>

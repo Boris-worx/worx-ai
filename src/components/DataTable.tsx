@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { SearchIcon } from './icons/SearchIcon';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface Column<T> {
   key: string;
@@ -127,7 +128,7 @@ export function DataTable<T extends Record<string, any>>({
       {/* Search Bar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}
             value={searchTerm}

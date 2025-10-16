@@ -5,14 +5,19 @@ import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Alert, AlertDescription } from './ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { RefreshIcon } from './icons/RefreshIcon';
+import { SearchIcon } from './icons/SearchIcon';
+import { ViewIcon } from './icons/ViewIcon';
+import { EditIcon } from './icons/EditIcon';
+import { DeleteIcon } from './icons/DeleteIcon';
 import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle, Trash2, Pencil } from 'lucide-react';
 import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction } from '../lib/api';
 import { DataTable } from './DataTable';
 import { TransactionDetail } from './TransactionDetail';
 import { TransactionFormDialog } from './TransactionFormDialog';
 import { TransactionEditDialog } from './TransactionEditDialog';
-import { Alert, AlertDescription } from './ui/alert';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { toast } from 'sonner@2.0.3';
 
 interface TransactionsViewProps {
@@ -384,7 +389,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                   disabled={isLoadingType}
                   className="flex-1 sm:flex-none"
                 >
-                  <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
+                  <RefreshIcon className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
                 <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
@@ -402,7 +407,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
             <div className="space-y-3 md:block hidden">
               {/* Search Types */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search types..."
                   value={searchTerm}

@@ -6,6 +6,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { DataTable } from './DataTable';
+import { RefreshIcon } from './icons/RefreshIcon';
+import { ViewIcon } from './icons/ViewIcon';
+import { EditIcon } from './icons/EditIcon';
+import { DeleteIcon } from './icons/DeleteIcon';
 import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
@@ -156,11 +160,11 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
               </CardDescription>
             </div>
             <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
-              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-[2px] flex-1 sm:flex-none">
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} md:mr-2`} />
+              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-[4px] flex-1 sm:flex-none">
+                <RefreshIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} md:mr-2`} />
                 <span className="hidden md:inline">Refresh</span>
               </Button>
-              <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-[2px] flex-1 sm:flex-none">
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-[4px] flex-1 sm:flex-none">
                 <Plus className="h-4 w-4 md:mr-2" />
                 <span className="hidden md:inline">Add New Tenant</span>
                 <span className="md:hidden">Add</span>
@@ -200,7 +204,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
                       size="sm"
                       onClick={() => handleTenantIdClick(tenant)}
                     >
-                      <Eye className="h-4 w-4 mr-1" />
+                      <ViewIcon className="h-4 w-4 mr-1" />
                       View
                     </Button>
                     <Button
@@ -208,7 +212,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
                       size="sm"
                       onClick={() => handleEdit(tenant)}
                     >
-                      <Pencil className="h-4 w-4 mr-1" />
+                      <EditIcon className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
                     <Button
@@ -217,7 +221,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
                       onClick={() => openDeleteDialog(tenant)}
                       className="text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="h-4 w-4 mr-1" />
+                      <DeleteIcon className="h-4 w-4 mr-1" />
                       Delete
                     </Button>
                   </div>

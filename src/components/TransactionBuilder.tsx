@@ -179,7 +179,7 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
         {/* Action Buttons */}
         <div className="flex gap-3 mb-6">
           <Button variant="outline" onClick={refreshData} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? 'Loading...' : 'Refresh'}
           </Button>
         </div>
@@ -192,7 +192,7 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
             <div className="space-y-2">
               <Label className="text-sm">Search Tenants</Label>
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Filter..."
                   value={tenantSearch}
@@ -271,7 +271,7 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
             <div className="space-y-2">
               <Label className="text-sm">Search Transactions</Label>
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Filter..."
                   value={transactionSearch}
