@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle } from 'lucide-react';
 import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction } from '../lib/api';
 import { DataTable } from './DataTable';
@@ -307,45 +308,68 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         </CardHeader>
         <CardContent>
           {/* Top Bar - Headers */}
-          <div className="grid grid-cols-[280px_1fr] gap-6 mb-3">
-            {/* Left: Transaction Types Header */}
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg">Transaction Types</h3>
+          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[200px_1fr] gap-6 mb-3">
+            {/* Left: Transaction Types Header - Hidden on mobile */}
+            <div className="hidden md:flex items-center gap-2">
+              <h3 className="text-base md:text-lg">Transaction Types</h3>
               <Badge variant="secondary">
                 {filteredTypes.filter(type => typeCounts[type] > 0).length}
               </Badge>
             </div>
 
             {/* Right: Current Type and Actions */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-muted-foreground" />
-                <h3 className="text-lg">{selectedTxnType}</h3>
-                <Badge variant="secondary">
-                  {transactions.length} transaction(s)
-                </Badge>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Mobile type selector */}
+                <div className="md:hidden flex-1">
+                  <Select value={selectedTxnType} onValueChange={handleTypeChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredTypes
+                        .filter((type) => (typeCounts[type] || 0) > 0)
+                        .map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type} ({typeCounts[type] || 0})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Desktop type display */}
+                <div className="hidden md:flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="text-base md:text-lg">{selectedTxnType}</h3>
+                  <Badge variant="secondary">
+                    {transactions.length}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
                   onClick={handleRefresh}
                   disabled={isLoadingType}
+                  className="flex-1 sm:flex-none"
                 >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
-                  Refresh
+                  <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Transaction
+                <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Create Transaction</span>
+                  <span className="sm:hidden">Create</span>
                 </Button>
               </div>
             </div>
           </div>
 
           {/* Main Layout: Sidebar + Content */}
-          <div className="grid grid-cols-[280px_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
             {/* Left Sidebar - Transaction Types List */}
-            <div className="space-y-3">
+            <div className="space-y-3 md:block hidden">
               {/* Search Types */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />

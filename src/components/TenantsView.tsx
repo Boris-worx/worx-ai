@@ -149,20 +149,21 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData }: Ten
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[300px]">
-              <CardTitle className="font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Supplier Tenants</CardTitle>
-              <CardDescription>
+            <div className="flex-1 min-w-[200px]">
+              <CardTitle className="font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px] text-lg md:text-xl">Supplier Tenants</CardTitle>
+              <CardDescription className="text-xs md:text-sm">
                 View and manage supplier tenants on the BFS platform
               </CardDescription>
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-full">
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+            <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-full flex-1 sm:flex-none">
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} md:mr-2`} />
+                <span className="hidden md:inline">Refresh</span>
               </Button>
-              <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Tenant
+              <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-full flex-1 sm:flex-none">
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Add New Tenant</span>
+                <span className="md:hidden">Add</span>
               </Button>
             </div>
           </div>

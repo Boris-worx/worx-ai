@@ -36,6 +36,24 @@ export function DataTable<T extends Record<string, any>>({
     direction: 'asc' | 'desc';
   } | null>(null);
 
+  // Helper function to recursively search in nested objects
+  const searchInValue = (value: any, searchTerm: string): boolean => {
+    if (value === null || value === undefined) return false;
+    
+    // If it's an object, search recursively in all its properties
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return Object.values(value).some(v => searchInValue(v, searchTerm));
+    }
+    
+    // If it's an array, search in all items
+    if (Array.isArray(value)) {
+      return value.some(v => searchInValue(v, searchTerm));
+    }
+    
+    // Otherwise convert to string and search
+    return String(value).toLowerCase().includes(searchTerm);
+  };
+
   // Filter data based on search term
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
@@ -45,13 +63,13 @@ export function DataTable<T extends Record<string, any>>({
       // If specific search keys provided, search only those
       if (searchKeys.length > 0) {
         return searchKeys.some((key) =>
-          String(item[key] || '').toLowerCase().includes(lowerSearch)
+          searchInValue(item[key], lowerSearch)
         );
       }
       
-      // Otherwise search all string values
+      // Otherwise search all values (including nested objects)
       return Object.values(item).some((value) =>
-        String(value).toLowerCase().includes(lowerSearch)
+        searchInValue(value, lowerSearch)
       );
     });
   }, [data, searchTerm, searchKeys]);

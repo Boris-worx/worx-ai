@@ -70,12 +70,12 @@ export function ModelSchemaView() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[300px]">
-              <CardTitle className="flex items-center gap-2 font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">
+            <div className="flex-1 min-w-[200px]">
+              <CardTitle className="flex items-center gap-2 font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px] text-lg md:text-xl">
                 Global Transaction Spec
               </CardTitle>
-              <CardDescription>
-                All available Transaction Spec from <code className="bg-muted px-2 py-0.5 rounded text-xs">GET /1.0/txns?TxnType=ModelSchema</code>
+              <CardDescription className="text-xs md:text-sm">
+                All available Transaction Spec from <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] md:text-xs">GET /1.0/txns?TxnType=ModelSchema</code>
               </CardDescription>
             </div>
             <div className="flex gap-2 flex-shrink-0">
@@ -85,8 +85,8 @@ export function ModelSchemaView() {
                 disabled={isLoadingSchemas}
                 className="rounded-full"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingSchemas ? 'animate-spin' : ''}`} />
-                Refresh
+                <RefreshCw className={`h-4 w-4 ${isLoadingSchemas ? 'animate-spin' : ''} md:mr-2`} />
+                <span className="hidden md:inline">Refresh</span>
               </Button>
             </div>
           </div>
