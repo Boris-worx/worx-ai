@@ -97,7 +97,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
   }
 
   try {
-    console.log('🌐 Attempting to connect to BFS API...');
+    console.log('Attempting to connect to BFS API...');
     
     const response = await fetch(`${API_BASE_URL}/tenants`, {
       method: "GET",
@@ -109,7 +109,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
       throw new Error('CORS_ERROR');
     });
 
-    console.log('✅ Connected! Response status:', response.status);
+    console.log('Connected! Response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -136,7 +136,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
       tenants = data.value;
     }
 
-    console.log('✅ Loaded', tenants.length, 'tenant(s) from API');
+    console.log('Loaded', tenants.length, 'tenant(s) from API');
     return tenants;
   } catch (error: any) {
     // Don't log scary errors to console - just throw clean error
@@ -623,52 +623,59 @@ export async function getTransactionsByType(txnType: string): Promise<Transactio
         return []; 
       }
       
-      console.error('❌ Error response body:', errorText);
+      console.error('Error response body:', errorText);
       throw new Error(errorData.status?.message || `API returned ${response.status}`);
     }
 
     const responseText = await response.text();
-    console.log('📦 Response body (raw, first 2000 chars):', responseText.substring(0, 2000));
+    console.log('Response body (raw, first 2000 chars):', responseText.substring(0, 2000));
     
     const responseData = JSON.parse(responseText);
-    console.log('📊 Parsed response type:', typeof responseData);
-    console.log('📊 Is array?', Array.isArray(responseData));
-    console.log('📊 Response keys:', Object.keys(responseData));
-    console.log('📊 Full parsed response:', responseData);
+    console.log('Parsed response type:', typeof responseData);
+    console.log('Is array?', Array.isArray(responseData));
+    console.log('Response keys:', Object.keys(responseData));
+    console.log('Full parsed response:', responseData);
     
     // Handle BFS API response format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
     let txns: Transaction[] = [];
     
     if (responseData.status && responseData.data) {
-      console.log('✅ Format: { status, data }');
+      console.log('Format: { status, data }');
       console.log('  status:', responseData.status);
       console.log('  data keys:', Object.keys(responseData.data));
       
       // BFS API returns: data.Txns array
       if (responseData.data.Txns && Array.isArray(responseData.data.Txns)) {
-        console.log('✅ Found data.Txns array with', responseData.data.Txns.length, 'items');
+        console.log('Found data.Txns array with', responseData.data.Txns.length, 'items');
         const rawTxns = responseData.data.Txns;
         const returnedTxnType = responseData.data.TxnType || txnType;
         
         // Transform each raw transaction to our Transaction format
-        txns = rawTxns.map((rawTxn: any) => ({
-          TxnId: rawTxn.id || rawTxn.CustomerId || rawTxn.InvoiceId || `txn-${Date.now()}`,
-          TxnType: returnedTxnType,
-          Txn: rawTxn,
-          CreateTime: rawTxn.CreateTime,
-          UpdateTime: rawTxn.UpdateTime,
-          _etag: rawTxn._etag,
-          _rid: rawTxn._rid,
-          _ts: rawTxn._ts,
-          _self: rawTxn._self,
-          _attachments: rawTxn._attachments,
-        }));
+        txns = rawTxns.map((rawTxn: any) => {
+          // Get the entity ID from the transaction
+          const entityId = rawTxn.id || rawTxn.CustomerId || rawTxn.InvoiceId || `txn-${Date.now()}`;
+          // Store the full TxnId in format "TxnType:EntityId" for API compatibility
+          const fullTxnId = `${returnedTxnType}:${entityId}`;
+          
+          return {
+            TxnId: fullTxnId,
+            TxnType: returnedTxnType,
+            Txn: rawTxn,
+            CreateTime: rawTxn.CreateTime,
+            UpdateTime: rawTxn.UpdateTime,
+            _etag: rawTxn._etag,
+            _rid: rawTxn._rid,
+            _ts: rawTxn._ts,
+            _self: rawTxn._self,
+            _attachments: rawTxn._attachments,
+          };
+        });
         
-        console.log(`✅ Transformed ${txns.length} transactions to internal format`);
+        console.log(`Transformed ${txns.length} transactions to internal format`);
       }
       // Fallback: data is array directly
       else if (Array.isArray(responseData.data)) {
-        console.log('✅ data is array directly');
+        console.log('data is array directly');
         txns = responseData.data;
       }
       else {
@@ -677,13 +684,13 @@ export async function getTransactionsByType(txnType: string): Promise<Transactio
     }
     // Direct array format
     else if (Array.isArray(responseData)) {
-      console.log('✅ Format: Direct array');
+      console.log('Format: Direct array');
       txns = responseData;
     }
 
-    console.log(`📊 Final result: ${txns.length} transaction(s) for type: ${txnType}`);
+    console.log(`Final result: ${txns.length} transaction(s) for type: ${txnType}`);
     if (txns.length > 0) {
-      console.log('📋 First transaction:', txns[0]);
+      console.log('First transaction:', txns[0]);
     }
     return txns;
   } catch (error: any) {
@@ -764,7 +771,7 @@ export async function createTransaction(
       Txn: txnData,
     };
     
-    console.log('🌐 POST Transaction Request:');
+    console.log('POST Transaction Request:');
     console.log('  URL:', url);
     console.log('  Headers:', headers);
     console.log('  Body:', JSON.stringify(requestBody, null, 2));
@@ -775,12 +782,12 @@ export async function createTransaction(
       body: JSON.stringify(requestBody),
     });
 
-    console.log('📡 Response received:');
+    console.log('Response received:');
     console.log('  Status:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Error response body:', errorText);
+      console.error('Error response body:', errorText);
       
       let errorData;
       try {
@@ -792,14 +799,14 @@ export async function createTransaction(
     }
 
     const responseText = await response.text();
-    console.log('📦 Response body:', responseText);
+    console.log('Response body:', responseText);
     
     const data: ApiResponse<Transaction> = JSON.parse(responseText);
-    console.log('✅ Created transaction:', data.data);
+    console.log('Created transaction:', data.data);
     
     return data.data;
   } catch (error) {
-    console.error("❌ createTransaction error:", error);
+    console.error("createTransaction error:", error);
     throw error;
   }
 }
@@ -825,11 +832,12 @@ export async function updateTransaction(
   }
 
   try {
-    console.log('🌐 PUT Transaction Request:');
-    console.log('  URL:', `${API_BASE_URL}/txns/${txnId}`);
+    console.log('PUT Transaction Request:');
+    console.log('  TxnId:', txnId);
+    console.log('  URL:', `${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`);
     console.log('  ETag:', etag);
     
-    const response = await fetch(`${API_BASE_URL}/txns/${txnId}`, {
+    const response = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`, {
       method: "PUT",
       headers: getHeaders(etag),
       body: JSON.stringify({
@@ -837,15 +845,15 @@ export async function updateTransaction(
         Txn: txnData,
       }),
     }).catch((fetchError) => {
-      console.error('❌ Fetch error:', fetchError);
+      console.error('Fetch error:', fetchError);
       throw new Error('Network error or CORS issue');
     });
 
-    console.log('📡 Response:', response.status, response.statusText);
+    console.log('Response:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Error response:', errorText);
+      console.error('Error response:', errorText);
       
       let errorData;
       try {
@@ -857,12 +865,12 @@ export async function updateTransaction(
     }
 
     const responseText = await response.text();
-    console.log('✅ Updated successfully');
+    console.log('Updated successfully');
     
     const data: ApiResponse<Transaction> = JSON.parse(responseText);
     return data.data;
   } catch (error) {
-    console.error("❌ updateTransaction error:", error);
+    console.error("updateTransaction error:", error);
     throw error;
   }
 }
@@ -883,23 +891,24 @@ export async function deleteTransaction(
   }
 
   try {
-    console.log('🌐 DELETE Transaction Request:');
-    console.log('  URL:', `${API_BASE_URL}/txns/${txnId}`);
+    console.log('DELETE Transaction Request:');
+    console.log('  TxnId:', txnId);
+    console.log('  URL:', `${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`);
     console.log('  ETag:', etag);
     
-    const response = await fetch(`${API_BASE_URL}/txns/${txnId}`, {
+    const response = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`, {
       method: "DELETE",
       headers: getHeaders(etag),
     }).catch((fetchError) => {
-      console.error('❌ Fetch error:', fetchError);
+      console.error('Fetch error:', fetchError);
       throw new Error('Network error or CORS issue');
     });
 
-    console.log('📡 Response:', response.status, response.statusText);
+    console.log('Response:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Error response:', errorText);
+      console.error('Error response:', errorText);
       
       let errorData;
       try {
@@ -910,9 +919,9 @@ export async function deleteTransaction(
       throw new Error(errorData.status?.message || "Failed to delete transaction");
     }
 
-    console.log('✅ Deleted successfully');
+    console.log('Deleted successfully');
   } catch (error) {
-    console.error("❌ deleteTransaction error:", error);
+    console.error("deleteTransaction error:", error);
     throw error;
   }
 }

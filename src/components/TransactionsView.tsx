@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle } from 'lucide-react';
+import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle, Trash2, Pencil } from 'lucide-react';
 import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction } from '../lib/api';
 import { DataTable } from './DataTable';
 import { TransactionDetail } from './TransactionDetail';
@@ -13,7 +13,7 @@ import { TransactionFormDialog } from './TransactionFormDialog';
 import { TransactionEditDialog } from './TransactionEditDialog';
 import { Alert, AlertDescription } from './ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -43,10 +43,10 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   const loadAllTypeCounts = async () => {
     setIsLoadingCounts(true);
     const counts: Record<string, number> = {};
-
+    
     try {
-      console.log('🔍 Loading transaction counts for all types...');
-
+      console.log('Loading transaction counts for all types...');
+      
       // Load counts for all types in parallel
       const results = await Promise.allSettled(
         TRANSACTION_TYPES.map(async (type) => {
@@ -73,8 +73,8 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         }
       });
 
-      console.log(`✅ Loaded ${supportedCount} supported type(s) with data`);
-      console.log('📊 Type counts:', counts);
+      console.log(`Loaded ${supportedCount} supported type(s) with data`);
+      console.log('Type counts:', counts);
       setTypeCounts(counts);
 
       // Find first type with data and load it
@@ -87,7 +87,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         setSelectedTxnType('Customer');
         loadTransactionsForType('Customer');
       }
-
+      
     } catch (error) {
       console.error('Error loading type counts:', error);
     } finally {
@@ -98,32 +98,32 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   // Load transactions for selected type
   const loadTransactionsForType = async (txnType: string) => {
     if (!txnType) return;
-
+    
     setIsLoadingType(true);
     try {
-      console.log(`📋 ========== Loading transactions for type: ${txnType} ==========`);
+      console.log(`========== Loading transactions for type: ${txnType} ==========`);
       const txns = await getTransactionsByType(txnType);
-      console.log(`📋 ========== Received ${txns.length} transactions ==========`);
-
+      console.log(`========== Received ${txns.length} transactions ==========`);
+      
       // Sort by CreateTime descending (newest first)
       const sortedTxns = [...txns].sort((a, b) => {
         const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
         const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
         return dateB - dateA; // Descending order (newest first)
       });
-
+      
       setTransactions(sortedTxns);
-
+      
       if (sortedTxns.length === 0) {
         toast.info(`No ${txnType} transactions found. Check browser Console (F12) for API response details.`, {
           duration: 6000,
         });
       } else {
-        toast.success(`✅ Loaded ${sortedTxns.length} ${txnType} transaction(s)`);
-        console.log('✅ Transactions set to state. First transaction:', sortedTxns[0]);
+        toast.success(`Loaded ${sortedTxns.length} ${txnType} transaction(s)`);
+        console.log('Transactions set to state. First transaction:', sortedTxns[0]);
       }
     } catch (error: any) {
-      console.error('❌ Error loading transactions:', error);
+      console.error('Error loading transactions:', error);
       if (error.message !== 'CORS_BLOCKED') {
         toast.error(`Failed to load transactions: ${error.message}. Check Console (F12) for details.`, {
           duration: 6000,
@@ -169,18 +169,26 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
 
   // Confirm delete
   const confirmDelete = async () => {
-    if (!selectedTransaction || !selectedTransaction._etag) {
-      toast.error('Cannot delete: missing transaction or ETag');
+    if (!selectedTransaction || !selectedTransaction._etag || !selectedTransaction.TxnId) {
+      toast.error('Cannot delete: missing transaction data');
       return;
     }
 
     try {
-      await deleteTransaction(selectedTransaction.TxnId!, selectedTransaction._etag);
+      // TxnId is already in format "TxnType:EntityId" from the API response
+      console.log('Deleting transaction:', {
+        TxnId: selectedTransaction.TxnId,
+        TxnType: selectedTransaction.TxnType,
+        etag: selectedTransaction._etag
+      });
+      
+      await deleteTransaction(selectedTransaction.TxnId, selectedTransaction._etag);
       toast.success(`Deleted ${selectedTransaction.TxnType} transaction`);
       setIsDeleteDialogOpen(false);
-
-      // Refresh current type
-      loadTransactionsForType(selectedTxnType);
+      
+      // Refresh current type and update counts
+      await loadTransactionsForType(selectedTxnType);
+      await loadAllTypeCounts();
     } catch (error: any) {
       toast.error(`Failed to delete: ${error.message}`);
     }
@@ -192,12 +200,12 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       const newTxn = await createTransaction(txnType, txnData);
       toast.success(`Created ${txnType} transaction successfully!`);
       setIsCreateDialogOpen(false);
-
+      
       // Refresh if we're viewing this type
       if (selectedTxnType === txnType) {
         loadTransactionsForType(txnType);
       }
-
+      
       return newTxn;
     } catch (error: any) {
       toast.error(`Failed to create transaction: ${error.message}`);
@@ -211,7 +219,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       await updateTransaction(txnId, txnType, txnData, etag);
       toast.success(`Updated ${txnType} transaction successfully!`);
       setIsEditDialogOpen(false);
-
+      
       // Refresh current type
       loadTransactionsForType(selectedTxnType);
     } catch (error: any) {
@@ -232,13 +240,17 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     {
       key: 'TxnId',
       header: 'ID',
-      render: (row: Transaction) => (
-        <div className="max-w-[140px]">
-          <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded truncate block">
-            {row.TxnId || row.Txn?.CustomerId || row.Txn?.id || 'N/A'}
-          </code>
-        </div>
-      ),
+      render: (row: Transaction) => {
+        // TxnId is now in format "TxnType:EntityId", show the full ID
+        const displayId = row.TxnId || 'N/A';
+        return (
+          <div className="max-w-[180px]">
+            <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded truncate block" title={displayId}>
+              {displayId}
+            </code>
+          </div>
+        );
+      },
     },
     {
       key: 'Name',
@@ -263,7 +275,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         // Normalize status: always show "Active" capitalized
         const normalizedStatus = 'Active';
         return (
-          <Badge variant="default" className="whitespace-nowrap text-xs bg-[#2f6cde] hover:bg-[#2558b8]">
+          <Badge variant="default" className="whitespace-nowrap text-xs bg-[#1D6BCD] hover:bg-[#1858A8]">
             {normalizedStatus}
           </Badge>
         );
@@ -277,31 +289,49 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         return <span className="whitespace-nowrap text-sm">{new Date(row.CreateTime).toLocaleDateString()}</span>;
       },
     },
-    {
-      key: 'actions',
-      header: 'Actions',
-      sortable: false,
-      render: (row: Transaction) => (
-        <div className="flex gap-2 whitespace-nowrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleViewDetail(row)}
-            className="h-8"
-          >
-            <Eye className="h-3.5 w-3.5 mr-1" />
-            View
-          </Button>
-        </div>
-      ),
-    },
   ];
+
+  // Actions render function (displayed as last column on the right)
+  const renderActions = (row: Transaction) => (
+    <div className="flex gap-1 whitespace-nowrap justify-end">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleViewDetail(row)}
+        className="h-8 px-2"
+        title="View transaction details"
+      >
+        <Eye className="h-3.5 w-3.5 md:mr-1" />
+        <span className="hidden md:inline">View</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleEditTransaction(row)}
+        className="h-8 px-2"
+        title="Edit transaction"
+      >
+        <Pencil className="h-3.5 w-3.5 md:mr-1" />
+        <span className="hidden md:inline">Edit</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleDeleteTransaction(row)}
+        className="h-8 px-2 text-muted-foreground hover:text-destructive"
+        title="Delete transaction"
+      >
+        <Trash2 className="h-3.5 w-3.5 md:mr-1" />
+        <span className="hidden md:inline">Delete</span>
+      </Button>
+    </div>
+  );
 
   return (
     <div className="w-full max-w-[1440px] mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle className="font-bold">Data Plan</CardTitle>
+          <CardTitle className="font-bold text-[20px]">Data Plane</CardTitle>
           <CardDescription>
             View and manage ERP transactions across all suppliers
           </CardDescription>
@@ -337,7 +367,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                     </SelectContent>
                   </Select>
                 </div>
-
+                
                 {/* Desktop type display */}
                 <div className="hidden md:flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-muted-foreground" />
@@ -390,29 +420,29 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                       <p className="text-sm text-muted-foreground mt-2">Loading types...</p>
                     </div>
                   ) : (
-                    <div className="space-y-1 p-2">
-                      {filteredTypes
-                        .filter((type) => {
-                          const count = typeCounts[type] || 0;
-                          return count > 0; // Показываем только типы с данными
-                        })
-                        .map((type) => {
-                          const count = typeCounts[type] || 0;
-
-                          return (
-                            <Button
-                              key={type}
-                              variant={selectedTxnType === type ? 'default' : 'ghost'}
-                              className="w-full justify-start text-left h-auto py-1.5 px-3"
-                              onClick={() => handleTypeChange(type)}
-                              title={`${count} transaction(s)`}
-                            >
-                              <span className="text-sm truncate">{type}</span>
-                            </Button>
-                          );
-                        })}
-                    </div>
-                  )}
+                      <div className="space-y-1 p-2">
+                        {filteredTypes
+                          .filter((type) => {
+                            const count = typeCounts[type] || 0;
+                            return count > 0; // Показываем только типы с данными
+                          })
+                          .map((type) => {
+                            const count = typeCounts[type] || 0;
+                            
+                            return (
+                              <Button
+                                key={type}
+                                variant={selectedTxnType === type ? 'default' : 'ghost'}
+                                className="w-full justify-start text-left h-auto py-1.5 px-3"
+                                onClick={() => handleTypeChange(type)}
+                                title={`${count} transaction(s)`}
+                              >
+                                <span className="text-sm truncate">{type}</span>
+                              </Button>
+                            );
+                          })}
+                      </div>
+                    )}
                 </ScrollArea>
               </Card>
             </div>
@@ -441,6 +471,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                 <DataTable
                   data={transactions}
                   columns={columns}
+                  actions={renderActions}
                   searchPlaceholder="Search transactions..."
                   emptyMessage={`No ${selectedTxnType} transactions found`}
                 />

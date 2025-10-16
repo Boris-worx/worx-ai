@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Card } from './ui/card';
 import { Upload, X, FileJson, AlertCircle } from 'lucide-react';
 import { Tenant, createTenant, importTenantsToDemo } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 import { Alert, AlertDescription } from './ui/alert';
 
 interface TenantImportDialogProps {
@@ -37,16 +37,16 @@ const extractTenantsFromPostmanCollection = (collection: any): any[] => {
       // Check if item has request with body
       if (item.request && item.request.body) {
         const body = item.request.body;
-
+        
         // Parse raw JSON body
         if (body.mode === 'raw' && body.raw) {
           try {
             const parsed = JSON.parse(body.raw);
-
+            
             // Check if it's a tenant object
             if (parsed.TenantName) {
               const tenantId = parsed.TenantId || `tenant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
+              
               // Avoid duplicates
               if (!seenIds.has(tenantId)) {
                 seenIds.add(tenantId);
@@ -76,19 +76,19 @@ const extractTenantsFromPostmanCollection = (collection: any): any[] => {
 const findTenantsInObject = (obj: any): any[] | null => {
   if (Array.isArray(obj)) {
     // Check if this is a tenant array
-    if (obj.length > 0 && obj[0] && typeof obj[0] === 'object' &&
-      ('TenantName' in obj[0] || 'TenantId' in obj[0])) {
+    if (obj.length > 0 && obj[0] && typeof obj[0] === 'object' && 
+        ('TenantName' in obj[0] || 'TenantId' in obj[0])) {
       return obj;
     }
     return null;
   }
-
+  
   // Search for tenant arrays in object properties
   for (const key in obj) {
     if (Array.isArray(obj[key]) && obj[key].length > 0) {
       const firstItem = obj[key][0];
-      if (firstItem && typeof firstItem === 'object' &&
-        ('TenantName' in firstItem || 'TenantId' in firstItem)) {
+      if (firstItem && typeof firstItem === 'object' && 
+          ('TenantName' in firstItem || 'TenantId' in firstItem)) {
         return obj[key];
       }
     }
@@ -104,7 +104,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
   const [tenantsJSON, setTenantsJSON] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (file: File | undefined) => {
@@ -115,10 +115,10 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
       try {
         const jsonText = e.target?.result as string;
         console.log('📄 Raw JSON:', jsonText.substring(0, 200)); // Debug log
-
+        
         const json = JSON.parse(jsonText);
         console.log('📦 Parsed JSON structure:', json); // Debug log
-
+        
         let tenantsArray: any[] = [];
 
         // Support multiple formats:
@@ -129,7 +129,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
         // 5. API response: { data: [...] }
         // 6. Single tenant: { TenantName: "..." }
         // 7. Any nested structure containing tenant array
-
+        
         // Check for Postman Collection first
         if (json.info && json.item && Array.isArray(json.item)) {
           console.log('✅ Format detected: Postman Collection');
@@ -181,7 +181,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
         }
 
         console.log('📊 Tenants array length:', tenantsArray.length);
-
+        
         if (tenantsArray.length === 0) {
           toast.error('No tenants found in JSON file');
           return;
@@ -190,9 +190,9 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
         // Validate tenant objects - check if they have TenantName OR can be created
         const validTenants = tenantsArray.filter(
           (tenant: any) => {
-            const isValid = tenant && typeof tenant === 'object' &&
+            const isValid = tenant && typeof tenant === 'object' && 
               tenant.TenantName && typeof tenant.TenantName === 'string';
-
+            
             if (!isValid) {
               console.log('⚠️ Invalid tenant object:', tenant);
             }
@@ -203,7 +203,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
         console.log('✅ Valid tenants:', validTenants.length, 'out of', tenantsArray.length);
 
         if (validTenants.length === 0) {
-          console.error('❌ No valid tenants. Sample item:', tenantsArray[0]);
+          console.error('No valid tenants. Sample item:', tenantsArray[0]);
           toast.error(
             'No valid tenants found. Each tenant must have a "TenantName" field.',
             { duration: 6000 }
@@ -219,7 +219,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
         setImportResult(null);
         toast.success(`JSON loaded successfully - ${validTenants.length} tenant(s) found`);
       } catch (error: any) {
-        console.error('❌ JSON parse error:', error);
+        console.error('JSON parse error:', error);
         toast.error(`Invalid JSON file: ${error.message || 'Unable to parse'}`, {
           duration: 6000
         });
@@ -246,7 +246,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
     for (const tenantData of tenantsJSON) {
       try {
         let tenant: Tenant;
-
+        
         // If tenant already has full data (from API export), use it directly
         if (tenantData.TenantId) {
           // Complete tenant object from API export
@@ -271,7 +271,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
     if (result.success > 0) {
       // Also import to demo mode storage for persistence
       importTenantsToDemo(importedTenants);
-
+      
       toast.success(`Successfully imported ${result.success} tenant(s)`);
       onSuccess(importedTenants);
     }
@@ -372,8 +372,8 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
               <AlertDescription>
                 <p className="font-medium mb-2">Import Results:</p>
                 <ul className="text-sm space-y-1">
-                  <li>✅ Successfully imported: {importResult.success}</li>
-                  <li>❌ Failed: {importResult.failed}</li>
+                  <li>Successfully imported: {importResult.success}</li>
+                  <li>Failed: {importResult.failed}</li>
                 </ul>
                 {importResult.errors.length > 0 && (
                   <details className="mt-2 text-xs">

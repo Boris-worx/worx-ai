@@ -152,7 +152,7 @@ export function DataTable<T extends Record<string, any>>({
           <TableHeader>
             <TableRow>
               {columns.map((column) => (
-                <TableHead key={column.key} className="whitespace-nowrap">
+                <TableHead key={column.key} className="whitespace-nowrap text-left">
                   {column.sortable !== false ? (
                     <Button
                       variant="ghost"
@@ -168,7 +168,7 @@ export function DataTable<T extends Record<string, any>>({
                   )}
                 </TableHead>
               ))}
-              {actions && <TableHead className="text-right whitespace-nowrap">Actions</TableHead>}
+              {actions && <TableHead className="text-right whitespace-nowrap pr-4">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -184,7 +184,7 @@ export function DataTable<T extends Record<string, any>>({
                   </TableCell>
                 ))}
                 {actions && (
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
                     {actions(item)}
                   </TableCell>
                 )}

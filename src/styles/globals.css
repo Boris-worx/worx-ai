@@ -10,7 +10,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #2f6cde;
+  --primary: #1D6BCD;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
@@ -50,7 +50,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #2f6cde;
+  --primary: #1D6BCD;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -221,29 +221,5 @@ html {
   button[data-slot="button"] {
     font-weight: 600;
     font-family: 'Inter', sans-serif;
-  }
-
-  /* Primary button specific styles */
-  button[data-slot="button"]:where(.bg-primary) {
-    border: 1px solid #2360d2;
-    background-color: #2f6cde;
-    border-radius: 50px;
-    padding-top: 12px;
-    padding-right: 30px;
-    padding-bottom: 12px;
-    padding-left: 30px;
-    font-size: 16px;
-    line-height: 1.2;
-    color: #ffffff;
-    transition: all 0.2s linear;
-    -moz-transition: all 0.2s linear;
-    -webkit-transition: all 0.2s linear;
-    -o-transition: all 0.2s linear;
-  }
-
-  button[data-slot="button"]:where(.bg-primary):hover:not(:disabled) {
-    background-color: #ffffff;
-    border: 1px solid #f3f3f3;
-    color: #2f6cde;
   }
 }

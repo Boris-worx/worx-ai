@@ -10,7 +10,7 @@ import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Upload, Link2, Save, Search, X, RefreshCw } from 'lucide-react';
 import { Tenant, Transaction } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface BuilderAction {
   store: boolean;

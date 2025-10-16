@@ -43,7 +43,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
               <Button
                 variant={activeTab === 'tenants' ? 'default' : 'ghost'}
                 onClick={() => handleTabClick('tenants')}
-                className={`w-full justify-start ${activeTab === 'tenants' ? 'bg-[#2f6cde] hover:bg-[#2f6cde]/90' : ''}`}
+                className="w-full justify-start"
               >
                 <Building2 className="h-4 w-4 mr-3" />
                 Tenants
@@ -51,7 +51,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
               <Button
                 variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
                 onClick={() => handleTabClick('modelschema')}
-                className={`w-full justify-start ${activeTab === 'modelschema' ? 'bg-[#2f6cde] hover:bg-[#2f6cde]/90' : ''}`}
+                className="w-full justify-start"
               >
                 <FileJson className="h-4 w-4 mr-3" />
                 Transaction Onboarding
@@ -59,10 +59,10 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
               <Button
                 variant={activeTab === 'transactions' ? 'default' : 'ghost'}
                 onClick={() => handleTabClick('transactions')}
-                className={`w-full justify-start ${activeTab === 'transactions' ? 'bg-[#2f6cde] hover:bg-[#2f6cde]/90' : ''}`}
+                className="w-full justify-start"
               >
                 <Receipt className="h-4 w-4 mr-3" />
-                Data Plan
+                Data Plane
               </Button>
             </nav>
           </div>

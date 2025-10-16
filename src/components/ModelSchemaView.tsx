@@ -6,7 +6,7 @@ import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { FileJson, RefreshCw, Eye, CheckCircle2, AlertCircle } from 'lucide-react';
 import { ModelSchema, getAllModelSchemas } from '../lib/api';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 export function ModelSchemaView() {
   const [globalSchemas, setGlobalSchemas] = useState<ModelSchema[]>([]);
@@ -30,7 +30,7 @@ export function ModelSchemaView() {
       if (schemas.length === 0) {
         setSchemaError('No schemas found. ModelSchema API may not be enabled yet.');
       } else {
-        toast.success(`✅ Loaded ${schemas.length} schema(s)`);
+        toast.success(`Loaded ${schemas.length} schema(s)`);
       }
     } catch (error: any) {
       setSchemaError(error.message || 'Failed to load schemas');
@@ -79,11 +79,11 @@ export function ModelSchemaView() {
               </CardDescription>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <Button
-                variant="outline"
+              <Button 
+                variant="outline" 
                 onClick={loadGlobalSchemas}
                 disabled={isLoadingSchemas}
-                className="rounded-full"
+                className="rounded-[2px]"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoadingSchemas ? 'animate-spin' : ''} md:mr-2`} />
                 <span className="hidden md:inline">Refresh</span>
@@ -182,7 +182,7 @@ export function ModelSchemaView() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full rounded-full"
+                        className="w-full rounded-[2px]"
                         onClick={() => {
                           setSelectedSchemaForDetail(schema);
                           setIsSchemaDetailOpen(true);
@@ -296,7 +296,7 @@ export function ModelSchemaView() {
                               <td className="p-2 font-[Inter] text-[rgb(0,0,0)]">{key}</td>
                               <td className="p-2 text-muted-foreground">{value.type || 'any'}</td>
                               <td className="p-2">
-                                <Badge
+                                <Badge 
                                   variant={isRequired ? 'destructive' : 'secondary'}
                                   className={`text-xs py-0 px-2 ${isRequired ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-400 text-gray-700'}`}
                                 >

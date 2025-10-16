@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
 
 interface BugReportDialogProps {
   open: boolean;
@@ -18,14 +18,14 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!title.trim() || !description.trim()) {
       toast.error('Please fill in all fields');
       return;
     }
 
     setIsSubmitting(true);
-
+    
     // Simulate bug report submission
     setTimeout(() => {
       toast.success('Bug report submitted successfully!');
@@ -45,7 +45,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
             Please describe the issue you encountered. We'll look into it as soon as possible.
           </DialogDescription>
         </DialogHeader>
-
+        
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="bug-title">Title</Label>
@@ -57,7 +57,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
               required
             />
           </div>
-
+          
           <div className="space-y-2">
             <Label htmlFor="bug-description">Description</Label>
             <Textarea
@@ -69,7 +69,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
               required
             />
           </div>
-
+          
           <div className="flex justify-end gap-2 pt-4">
             <Button
               type="button"
@@ -82,7 +82,6 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-[#2f6cde] hover:bg-[#2f6cde]/90"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Report'}
             </Button>
