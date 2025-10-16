@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Button } from './ui/button';
+import { TenantsIcon } from './icons/TenantsIcon';
 import { Menu, Building2, FileJson, Receipt, Bug, Moon, Sun } from 'lucide-react';
 import { Separator } from './ui/separator';
 
@@ -45,7 +46,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                 onClick={() => handleTabClick('tenants')}
                 className="w-full justify-start"
               >
-                <Building2 className="h-4 w-4 mr-3" />
+                <TenantsIcon className="h-4 w-4 mr-3" />
                 Tenants
               </Button>
               <Button
