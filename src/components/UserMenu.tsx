@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
-import { UserIcon } from './icons/UserIcon';
 import { useAuth } from './AuthContext';
 import {
   DropdownMenu,
@@ -10,28 +9,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { LogOut, User, Shield, Mail, RefreshCw } from 'lucide-react';
+import { LogOut, RefreshCw, UserCircle } from 'lucide-react';
 import { RoleTestDialog } from './RoleTestDialog';
+import { ProfileDialog } from './ProfileDialog';
 
 export const UserMenu = () => {
   const { user, logout } = useAuth();
   const [showRoleDialog, setShowRoleDialog] = useState(false);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
 
   if (!user) return null;
 
   // Check if user is in test mode
   const isTestMode = localStorage.getItem('bfs_test_role') !== null;
 
-  const getRoleBadgeColor = (role: string) => {
+  // Get role label
+  const getRoleLabel = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+        return 'Admin';
       case 'edit':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'Editor';
       case 'view':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
+        return 'Viewer';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'Viewer';
     }
   };
 
@@ -68,7 +70,10 @@ export const UserMenu = () => {
               <p className="text-sm">
                 {user.isAzureAuth ? 'Azure AD User' : 'Signed in as'}
               </p>
-              <p className="text-sm text-muted-foreground">{user.username}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">{user.username}</p>
+                <span className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</span>
+              </div>
               {isTestMode && (
                 <div className="flex items-center gap-1 mt-1">
                   <span className="relative flex h-2 w-2">
@@ -82,36 +87,11 @@ export const UserMenu = () => {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           
-          {/* Show email for Azure users */}
-          {user.isAzureAuth && user.email && (
-            <>
-              <DropdownMenuItem disabled className="cursor-default">
-                <Mail className="mr-2 h-4 w-4" />
-                <span className="text-sm truncate">{user.email}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          
-          {/* Show Azure role for Azure users */}
-          {user.isAzureAuth && user.azureRole && (
-            <>
-              <DropdownMenuItem disabled className="cursor-default">
-                <Shield className="mr-2 h-4 w-4" />
-                <span className="flex-1 text-sm">{user.azureRole}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          
-          <DropdownMenuItem disabled className="cursor-default">
-            <User className="mr-2 h-4 w-4" />
-            <span className="flex-1 text-sm">Access Level</span>
-            <span className={`ml-2 px-2 py-0.5 rounded text-sm capitalize ${getRoleBadgeColor(user.role)}`}>
-              {user.role}
-            </span>
+          {/* View Profile */}
+          <DropdownMenuItem onClick={() => setShowProfileDialog(true)} className="cursor-pointer">
+            <UserCircle className="mr-2 h-4 w-4" />
+            <span className="text-sm">View Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
           
           {/* Change Role for Testing */}
           <DropdownMenuItem onClick={() => setShowRoleDialog(true)} className="cursor-pointer">
@@ -130,6 +110,9 @@ export const UserMenu = () => {
 
       {/* Role Test Dialog */}
       <RoleTestDialog open={showRoleDialog} onOpenChange={setShowRoleDialog} />
+
+      {/* Profile Dialog */}
+      <ProfileDialog open={showProfileDialog} onOpenChange={setShowProfileDialog} />
     </>
   );
 };

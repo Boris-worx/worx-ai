@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useAuth, UserRole, AccessLevel, AccessSection } from './AuthContext';
-import { RotateCcw, Layers, UserCircle, Lock } from 'lucide-react';
+import { RotateCcw, UserCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface RoleTestDialogProps {
@@ -66,9 +66,10 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
     const roleToApply = selectedRole || user?.role || 'view';
     
     // Convert selected access to AccessLevel
-    const access: AccessLevel = selectedAccess === 'All' 
-      ? 'All' 
-      : [selectedAccess as AccessSection];
+    // NOTE: Section Access is currently disabled - always use 'All'
+    // To enable, uncomment the Section Access UI below and use this line:
+    // const access: AccessLevel = selectedAccess === 'All' ? 'All' : [selectedAccess as AccessSection];
+    const access: AccessLevel = 'All';
 
     // For Azure users, we'll temporarily override the role and access in localStorage
     if (user?.isAzureAuth) {
@@ -93,8 +94,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
       updateUser(updatedUser);
       
       // Show success message
-      const accessText = selectedAccess === 'All' ? 'all sections' : selectedAccess;
-      toast.success(`Settings updated! Role: ${roleToApply}, Access: ${accessText}`);
+      toast.success(`Settings updated! Role: ${roleToApply}`);
       
       // Close dialog
       onOpenChange(false);
@@ -122,8 +122,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
       updateUser(updatedUser);
       
       // Show success message
-      const accessText = selectedAccess === 'All' ? 'all sections' : selectedAccess;
-      toast.success(`Settings updated! Role: ${roleToApply}, Access: ${accessText}`);
+      toast.success(`Settings updated! Role: ${roleToApply}`);
       
       // Close dialog
       onOpenChange(false);
@@ -147,7 +146,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
             Change Role & Access
           </DialogTitle>
           <DialogDescription>
-            Configure role permissions and section access for testing
+            Configure role permissions for testing
           </DialogDescription>
         </DialogHeader>
 
@@ -204,8 +203,17 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
             </p>
           </div>
 
-          {/* Access Level Selection */}
-          <div className="space-y-3 pt-2 border-t">
+          {/* ========================================
+              SECTION ACCESS - CURRENTLY DISABLED
+              ========================================
+              To enable Section Access selection:
+              1. Uncomment the block below
+              2. In handleApplyChanges(), use:
+                 const access: AccessLevel = selectedAccess === 'All' ? 'All' : [selectedAccess as AccessSection];
+              ======================================== */}
+          
+          {/* Access Level Selection - UNCOMMENT TO ENABLE */}
+          {/* <div className="space-y-3 pt-2 border-t">
             <div className="flex items-center gap-2">
               <Layers className="h-4 w-4 text-[#1D6BCD]" />
               <Label htmlFor="access-select" className="text-sm">
@@ -232,7 +240,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
                 : `User will only have access to ${selectedAccess}`
               }
             </p>
-          </div>
+          </div> */}
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
