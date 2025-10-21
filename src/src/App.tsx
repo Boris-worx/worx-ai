@@ -1,26 +1,30 @@
 import { useState, useEffect } from 'react';
-import './styles/globals.css';
-import { Alert, AlertDescription } from './components/ui/alert';
-import { Button } from './components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Toaster } from './components/ui/sonner';
-import { TenantsView } from './components/TenantsView';
-import { TransactionsView } from './components/TransactionsView';
-import { ModelSchemaView } from './components/ModelSchemaView';
-import { BugReportDialog } from './components/BugReportDialog';
-import { MobileMenu } from './components/MobileMenu';
-import { ImageWithFallback } from './components/figma/ImageWithFallback';
-import { TenantsIcon } from './components/icons/TenantsIcon';
-import { GridIcon } from './components/icons/GridIcon';
-import { ListIcon } from './components/icons/ListIcon';
-import { BugIcon } from './components/icons/BugIcon';
-import { MoonIcon } from './components/icons/MoonIcon';
-import { SunIcon } from './components/icons/SunIcon';
+import '../styles/globals.css';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Button } from '../components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Toaster } from '../components/ui/sonner';
+import { TenantsView } from '../components/TenantsView';
+import { TransactionsView } from '../components/TransactionsView';
+import { ModelSchemaView } from '../components/ModelSchemaView';
+import { BugReportDialog } from '../components/BugReportDialog';
+import { MobileMenu } from '../components/MobileMenu';
+import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { TenantsIcon } from '../components/icons/TenantsIcon';
+import { GridIcon } from '../components/icons/GridIcon';
+import { ListIcon } from '../components/icons/ListIcon';
+import { BugIcon } from '../components/icons/BugIcon';
+import { MoonIcon } from '../components/icons/MoonIcon';
+import { SunIcon } from '../components/icons/SunIcon';
 import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun } from 'lucide-react';
-import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
+import { getAllTenants, getAllTransactions, Tenant, Transaction } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
+import { AuthProvider, useAuth } from '../components/AuthContext';
+import { LoginDialog } from '../components/LoginDialog';
+import { UserMenu } from '../components/UserMenu';
 
-export default function App() {
+function AppContent() {
+  const { user, isAuthenticated } = useAuth();
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -90,7 +94,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white dark:bg-card">
+      <header className={`sticky top-0 z-50 w-full border-b bg-white dark:bg-card ${!isAuthenticated ? 'blur-sm' : ''}`}>
         <div className="container mx-auto px-4 py-3 max-w-[1440px]">
           <div className="flex items-center justify-between">
             {/* Left - Logo */}
@@ -107,10 +111,10 @@ export default function App() {
 <path d="M80.5582 55.3558L49.0326 16.9722C48.3983 16.1963 47.1838 16.1963 46.5495 16.9722L15.0239 55.3558C14.1736 56.3993 14.9159 57.9512 16.2654 57.9512H26.6165L46.5495 33.7358C47.1972 32.9598 48.3983 32.9598 49.0326 33.7358L68.9656 57.9512H79.3301C80.6797 57.9512 81.422 56.3993 80.5717 55.3558" fill="white"/>
 <defs>
 <linearGradient id="paint0_linear_12402_1400" x1="50.3855" y1="-0.546216" x2="50.3855" y2="96.0033" gradientUnits="userSpaceOnUse">
-<stop stop-color="#E11837"/>
-<stop offset="0.34" stop-color="#DC1734"/>
-<stop offset="0.73" stop-color="#CD152D"/>
-<stop offset="1" stop-color="#C01327"/>
+<stop stopColor="#E11837"/>
+<stop offset="0.34" stopColor="#DC1734"/>
+<stop offset="0.73" stopColor="#CD152D"/>
+<stop offset="1" stopColor="#C01327"/>
 </linearGradient>
 </defs>
 </svg>
@@ -171,6 +175,9 @@ export default function App() {
                     <SunIcon className="h-5 w-5" />
                   )}
                 </Button>
+
+                {/* User Menu */}
+                <UserMenu />
               </div>
 
               {/* Mobile Menu */}
@@ -186,7 +193,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full">
+      <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full ${!isAuthenticated ? 'blur-sm' : ''}`}>
         {/* Header Title */}
         <div className="mb-6 md:mb-8 text-center">
           <h1 className="text-2xl md:text-[38px] font-[Inter] font-bold">BFS Transaction and Data Management</h1>
@@ -203,6 +210,7 @@ export default function App() {
               setTenants={setTenants}
               isLoading={isLoadingTenants}
               refreshData={refreshTenants}
+              userRole={user?.role || 'view'}
             />
           </TabsContent>
 
@@ -212,17 +220,18 @@ export default function App() {
               setTransactions={setTransactions}
               isLoading={isLoadingTransactions}
               refreshData={refreshTransactions}
+              userRole={user?.role || 'view'}
             />
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView />
+            <ModelSchemaView userRole={user?.role || 'view'} />
           </TabsContent>
         </Tabs>
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t bg-background mt-auto">
+      <footer className={`w-full border-t bg-background mt-auto ${!isAuthenticated ? 'blur-sm' : ''}`}>
         <div className="container mx-auto px-4 py-6 w-full max-w-[1440px]  ">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left - Logo */}
@@ -261,7 +270,18 @@ export default function App() {
       {/* Bug Report Dialog */}
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
 
+      {/* Login Dialog */}
+      <LoginDialog />
+
       <Toaster />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

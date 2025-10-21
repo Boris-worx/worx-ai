@@ -153,13 +153,13 @@ export function DataTable<T extends Record<string, any>>({
           <TableHeader>
             <TableRow>
               {columns.map((column) => (
-                <TableHead key={column.key} className="whitespace-nowrap text-left">
+                <TableHead key={column.key} className="whitespace-nowrap text-left text-xs md:text-sm">
                   {column.sortable !== false ? (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort(column.key)}
-                      className="h-auto p-0 hover:bg-transparent"
+                      className="h-auto p-0 hover:bg-transparent text-xs md:text-sm"
                     >
                       {column.header}
                       {getSortIcon(column.key)}
@@ -169,7 +169,7 @@ export function DataTable<T extends Record<string, any>>({
                   )}
                 </TableHead>
               ))}
-              {actions && <TableHead className="text-right whitespace-nowrap pr-4">Actions</TableHead>}
+              {actions && <TableHead className="text-right whitespace-nowrap pr-2 md:pr-4 text-xs md:text-sm">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,12 +180,12 @@ export function DataTable<T extends Record<string, any>>({
                 className={onRowClick ? 'cursor-pointer' : ''}
               >
                 {columns.map((column) => (
-                  <TableCell key={column.key}>
+                  <TableCell key={column.key} className="py-2 md:py-3">
                     {column.render ? column.render(item) : item[column.key]}
                   </TableCell>
                 ))}
                 {actions && (
-                  <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-right pr-2 md:pr-4 py-2 md:py-3" onClick={(e) => e.stopPropagation()}>
                     {actions(item)}
                   </TableCell>
                 )}

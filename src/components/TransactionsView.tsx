@@ -18,16 +18,19 @@ import { DataTable } from './DataTable';
 import { TransactionDetail } from './TransactionDetail';
 import { TransactionFormDialog } from './TransactionFormDialog';
 import { TransactionEditDialog } from './TransactionEditDialog';
+import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
+import { UserRole } from './AuthContext';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
   setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
   isLoading: boolean;
   refreshData: () => void;
+  userRole: UserRole;
 }
 
-export function TransactionsView({ transactions, setTransactions, isLoading, refreshData }: TransactionsViewProps) {
+export function TransactionsView({ transactions, setTransactions, isLoading, refreshData, userRole }: TransactionsViewProps) {
   const [selectedTxnType, setSelectedTxnType] = useState<string>('Customer'); // Default to Customer
   const [isLoadingType, setIsLoadingType] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -38,6 +41,105 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   const [searchTerm, setSearchTerm] = useState('');
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
   const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+
+  // Helper to format field labels
+  const formatFieldLabel = (field: string): string => {
+    if (field.startsWith('Txn.')) {
+      field = field.substring(4);
+    }
+    // Convert camelCase to Title Case
+    return field.replace(/([A-Z])/g, ' $1').trim();
+  };
+
+  // Default columns - commonly used fields
+  const getDefaultColumns = (): ColumnConfig[] => [
+    { key: 'TxnId', label: 'ID', enabled: true, locked: true },
+    { key: 'Name', label: 'Name', enabled: true },
+    { key: 'TxnType', label: 'Type', enabled: false },
+    { key: 'Txn.Status', label: 'Status', enabled: false },
+    { key: 'Txn.Email', label: 'Email', enabled: false },
+    { key: 'Txn.Phone', label: 'Phone', enabled: false },
+    { key: 'Txn.Address', label: 'Address', enabled: false },
+    { key: 'Txn.Amount', label: 'Amount', enabled: false },
+    { key: 'Txn.Currency', label: 'Currency', enabled: false },
+    { key: 'CreateTime', label: 'Created', enabled: true },
+    { key: 'UpdateTime', label: 'Updated', enabled: false },
+  ];
+
+  // Column configuration state with localStorage persistence
+  const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
+    const saved = localStorage.getItem('transactionsViewColumns');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved columns:', e);
+      }
+    }
+    return getDefaultColumns();
+  });
+
+  // Reset columns to default
+  const handleResetColumns = () => {
+    setColumnConfigs(getDefaultColumns());
+    localStorage.removeItem('transactionsViewColumns');
+    toast.success('Column settings reset to default');
+  };
+
+  // Save column configs to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('transactionsViewColumns', JSON.stringify(columnConfigs));
+  }, [columnConfigs]);
+
+  // Extract available fields from transactions to offer as columns
+  const availableFields = useMemo(() => {
+    if (transactions.length === 0) return [];
+    
+    const fieldsSet = new Set<string>();
+    transactions.forEach(txn => {
+      // Add top-level fields
+      Object.keys(txn).forEach(key => {
+        if (!key.startsWith('_') && key !== 'Txn') {
+          fieldsSet.add(key);
+        }
+      });
+      // Add Txn object fields
+      if (txn.Txn && typeof txn.Txn === 'object') {
+        Object.keys(txn.Txn).forEach(key => {
+          fieldsSet.add(`Txn.${key}`);
+        });
+      }
+    });
+    
+    return Array.from(fieldsSet).sort();
+  }, [transactions]);
+
+  // Update column configs when new fields are detected
+  useEffect(() => {
+    if (availableFields.length > 0) {
+      setColumnConfigs(prev => {
+        const existingKeys = new Set(prev.map(c => c.key));
+        const newColumns: ColumnConfig[] = [];
+        
+        availableFields.forEach(field => {
+          if (!existingKeys.has(field)) {
+            // Add new field as disabled by default
+            newColumns.push({
+              key: field,
+              label: formatFieldLabel(field),
+              enabled: false,
+            });
+          }
+        });
+        
+        if (newColumns.length > 0) {
+          console.log(`Found ${newColumns.length} new field(s):`, newColumns.map(c => c.key));
+          return [...prev, ...newColumns];
+        }
+        return prev;
+      });
+    }
+  }, [availableFields]);
 
   // Load transaction counts for all types on mount
   useEffect(() => {
@@ -240,95 +342,200 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     return TRANSACTION_TYPES.filter(type => type.toLowerCase().includes(lower));
   }, [searchTerm]);
 
-  // DataTable columns configuration
-  const columns = [
-    {
-      key: 'TxnId',
-      header: 'ID',
-      render: (row: Transaction) => {
-        // TxnId is now in format "TxnType:EntityId", show the full ID
-        const displayId = row.TxnId || 'N/A';
-        return (
-          <div className="max-w-[180px]">
-            <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded truncate block" title={displayId}>
-              {displayId}
-            </code>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'Name',
-      header: 'Name',
-      render: (row: Transaction) => {
-        const name = row.Txn?.Name || row.Txn?.CustomerName || row.Txn?.InvoiceId || '-';
-        return (
-          <div className="max-w-[250px]">
-            <span className="text-sm truncate block" title={name}>{name}</span>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'Status',
-      header: 'Status',
-      render: (row: Transaction) => {
-        const rawStatus = row.Txn?.Status;
-        if (!rawStatus || rawStatus === '-') {
-          return <span className="text-sm text-muted-foreground">-</span>;
-        }
-        // Normalize status: always show "Active" capitalized
-        const normalizedStatus = 'Active';
-        return (
-          <Badge variant="default" className="whitespace-nowrap text-xs bg-[#1D6BCD] hover:bg-[#1858A8]">
-            {normalizedStatus}
-          </Badge>
-        );
-      },
-    },
-    {
-      key: 'CreateTime',
-      header: 'Created',
-      render: (row: Transaction) => {
-        if (!row.CreateTime) return <span className="text-sm text-muted-foreground">-</span>;
-        return <span className="whitespace-nowrap text-sm">{new Date(row.CreateTime).toLocaleDateString()}</span>;
-      },
-    },
-  ];
+  // Helper function to get nested value from object
+  const getNestedValue = (obj: any, path: string): any => {
+    if (path.includes('.')) {
+      const parts = path.split('.');
+      let value = obj;
+      for (const part of parts) {
+        value = value?.[part];
+        if (value === undefined) return undefined;
+      }
+      return value;
+    }
+    return obj[path];
+  };
+
+  // DataTable columns configuration - dynamically generated based on enabled columns
+  const columns = useMemo(() => {
+    const enabledColumns = columnConfigs.filter(col => col.enabled);
+    
+    return enabledColumns.map(colConfig => {
+      // Special rendering for known columns
+      if (colConfig.key === 'TxnId') {
+        return {
+          key: 'TxnId',
+          header: 'ID',
+          render: (row: Transaction) => {
+            const displayId = row.TxnId || 'N/A';
+            return (
+              <div className="max-w-[120px] md:max-w-[180px]">
+                <code className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block" title={displayId}>
+                  {displayId}
+                </code>
+              </div>
+            );
+          },
+        };
+      }
+      
+      if (colConfig.key === 'Name') {
+        return {
+          key: 'Name',
+          header: 'Name',
+          render: (row: Transaction) => {
+            const name = row.Txn?.Name || row.Txn?.CustomerName || row.Txn?.InvoiceId || '-';
+            return (
+              <div className="max-w-[150px] md:max-w-[250px]">
+                <span className="text-xs md:text-sm truncate block" title={name}>{name}</span>
+              </div>
+            );
+          },
+        };
+      }
+      
+      if (colConfig.key === 'CreateTime') {
+        return {
+          key: 'CreateTime',
+          header: 'Created',
+          render: (row: Transaction) => {
+            if (!row.CreateTime) return <span className="text-xs md:text-sm text-muted-foreground">-</span>;
+            return <span className="whitespace-nowrap text-xs md:text-sm">{new Date(row.CreateTime).toLocaleDateString()}</span>;
+          },
+        };
+      }
+
+      // Special rendering for Status
+      if (colConfig.key === 'Txn.Status' || colConfig.key === 'Status') {
+        return {
+          key: colConfig.key,
+          header: colConfig.label,
+          render: (row: Transaction) => {
+            const value = getNestedValue(row, colConfig.key);
+            if (!value || value === '-') {
+              return <span className="text-xs md:text-sm text-muted-foreground">-</span>;
+            }
+            return (
+              <Badge variant="default" className="whitespace-nowrap text-xs bg-[#1D6BCD] hover:bg-[#1858A8]">
+                {String(value)}
+              </Badge>
+            );
+          },
+        };
+      }
+
+      // Special rendering for Amount/Currency
+      if (colConfig.key.toLowerCase().includes('amount') || colConfig.key.toLowerCase().includes('price')) {
+        return {
+          key: colConfig.key,
+          header: colConfig.label,
+          render: (row: Transaction) => {
+            const value = getNestedValue(row, colConfig.key);
+            if (value === null || value === undefined) {
+              return <span className="text-xs md:text-sm text-muted-foreground">-</span>;
+            }
+            const numValue = typeof value === 'number' ? value : parseFloat(value);
+            if (!isNaN(numValue)) {
+              return <span className="text-xs md:text-sm tabular-nums">{numValue.toLocaleString()}</span>;
+            }
+            return <span className="text-xs md:text-sm">{String(value)}</span>;
+          },
+        };
+      }
+
+      // Generic rendering for other columns
+      return {
+        key: colConfig.key,
+        header: colConfig.label,
+        render: (row: Transaction) => {
+          const value = getNestedValue(row, colConfig.key);
+          
+          if (value === null || value === undefined) {
+            return <span className="text-xs md:text-sm text-muted-foreground">-</span>;
+          }
+          
+          // Handle dates
+          if (colConfig.key.toLowerCase().includes('time') || colConfig.key.toLowerCase().includes('date')) {
+            try {
+              const date = new Date(value);
+              if (!isNaN(date.getTime())) {
+                return <span className="whitespace-nowrap text-xs md:text-sm">{date.toLocaleDateString()}</span>;
+              }
+            } catch (e) {
+              // Not a date, continue
+            }
+          }
+          
+          // Handle booleans
+          if (typeof value === 'boolean') {
+            return (
+              <Badge variant={value ? 'default' : 'secondary'} className="text-xs">
+                {value ? 'Yes' : 'No'}
+              </Badge>
+            );
+          }
+          
+          // Handle objects and arrays
+          if (typeof value === 'object') {
+            return (
+              <div className="max-w-[150px]">
+                <code className="text-[10px] md:text-[11px] bg-muted px-1 py-0.5 rounded truncate block" title={JSON.stringify(value)}>
+                  {JSON.stringify(value)}
+                </code>
+              </div>
+            );
+          }
+          
+          // Handle primitives
+          return (
+            <div className="max-w-[150px] md:max-w-[200px]">
+              <span className="text-xs md:text-sm truncate block" title={String(value)}>
+                {String(value)}
+              </span>
+            </div>
+          );
+        },
+      };
+    });
+  }, [columnConfigs]);
 
   // Actions render function (displayed as last column on the right)
   const renderActions = (row: Transaction) => (
-    <div className="flex gap-1 whitespace-nowrap justify-end">
+    <div className="flex gap-0.5 md:gap-1 whitespace-nowrap justify-end">
       <Button
         variant="outline"
         size="sm"
         onClick={() => handleViewDetail(row)}
-        className="h-8 px-2"
+        className="h-7 md:h-8 px-1.5 md:px-2"
         title="View transaction details"
       >
-        <Eye className="h-3.5 w-3.5 md:mr-1" />
+        <Eye className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
         <span className="hidden md:inline">View</span>
       </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleEditTransaction(row)}
-        className="h-8 px-2"
-        title="Edit transaction"
-      >
-        <Pencil className="h-3.5 w-3.5 md:mr-1" />
-        <span className="hidden md:inline">Edit</span>
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => handleDeleteTransaction(row)}
-        className="h-8 px-2 text-muted-foreground hover:text-destructive"
-        title="Delete transaction"
-      >
-        <Trash2 className="h-3.5 w-3.5 md:mr-1" />
-        <span className="hidden md:inline">Delete</span>
-      </Button>
+      {userRole !== 'view' && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleEditTransaction(row)}
+          className="h-7 md:h-8 px-1.5 md:px-2"
+          title="Edit transaction"
+        >
+          <Pencil className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
+          <span className="hidden md:inline">Edit</span>
+        </Button>
+      )}
+      {userRole !== 'view' && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDeleteTransaction(row)}
+          className="h-7 md:h-8 px-1.5 md:px-2 text-muted-foreground hover:text-destructive"
+          title="Delete transaction"
+        >
+          <Trash2 className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
+          <span className="hidden md:inline">Delete</span>
+        </Button>
+      )}
     </div>
   );
 
@@ -383,6 +590,12 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                 </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
+                <ColumnSelector
+                  columns={columnConfigs}
+                  onColumnsChange={setColumnConfigs}
+                  availableFields={availableFields}
+                  onReset={handleResetColumns}
+                />
                 <Button
                   variant="outline"
                   onClick={handleRefresh}
@@ -392,11 +605,13 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                   <RefreshIcon className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
-                <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
-                  <Plus className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Create Transaction</span>
-                  <span className="sm:hidden">Create</span>
-                </Button>
+                {userRole === 'admin' && (
+                  <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
+                    <Plus className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Create Transaction</span>
+                    <span className="sm:hidden">Create</span>
+                  </Button>
+                )}
               </div>
             </div>
           </div>

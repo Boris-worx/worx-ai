@@ -11,8 +11,13 @@ import { FileJson, RefreshCw, Eye, CheckCircle2, AlertCircle, ChevronDown, Chevr
 import { ModelSchema, getAllModelSchemas } from '../lib/api';
 import { TransactionFormDialog } from './TransactionFormDialog';
 import { toast } from 'sonner@2.0.3';
+import { UserRole } from './AuthContext';
 
-export function ModelSchemaView() {
+interface ModelSchemaViewProps {
+  userRole: UserRole;
+}
+
+export function ModelSchemaView({ userRole }: ModelSchemaViewProps) {
   const [globalSchemas, setGlobalSchemas] = useState<ModelSchema[]>([]);
   const [isLoadingSchemas, setIsLoadingSchemas] = useState(false);
   const [schemaError, setSchemaError] = useState<string | null>(null);

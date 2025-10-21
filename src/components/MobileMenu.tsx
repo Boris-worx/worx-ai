@@ -7,8 +7,10 @@ import { ListIcon } from './icons/ListIcon';
 import { BugIcon } from './icons/BugIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { SunIcon } from './icons/SunIcon';
-import { Menu, Building2, FileJson, Receipt, Bug, Moon, Sun } from 'lucide-react';
+import { Menu, Building2, FileJson, Receipt, Bug, Moon, Sun, LogOut, User } from 'lucide-react';
 import { Separator } from './ui/separator';
+import { useAuth } from './AuthContext';
+import { Badge } from './ui/badge';
 
 interface MobileMenuProps {
   activeTab: string;
@@ -19,6 +21,7 @@ interface MobileMenuProps {
 }
 
 export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBugReportClick }: MobileMenuProps) {
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
   const handleTabClick = (tab: string) => {
@@ -42,6 +45,23 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
         </SheetHeader>
         
         <div className="mt-6 space-y-4">
+          {/* User Info */}
+          {user && (
+            <>
+              <div className="bg-muted rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Signed in as</span>
+                </div>
+                <p className="font-medium">{user.username}</p>
+                <Badge className="mt-2 capitalize" variant="secondary">
+                  {user.role}
+                </Badge>
+              </div>
+              <Separator />
+            </>
+          )}
+
           {/* Navigation */}
           <div className="space-y-2">
             <p className="px-2 text-xs text-muted-foreground uppercase tracking-wider">Navigation</p>
@@ -109,6 +129,29 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
               </Button>
             </div>
           </div>
+
+          {user && (
+            <>
+              <Separator />
+              {/* User Actions */}
+              <div className="space-y-2">
+                <p className="px-2 text-xs text-muted-foreground uppercase tracking-wider">Account</p>
+                <div className="space-y-1">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      logout();
+                      setOpen(false);
+                    }}
+                    className="w-full justify-start text-red-600 dark:text-red-400"
+                  >
+                    <LogOut className="h-4 w-4 mr-3" />
+                    Log Out
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>
