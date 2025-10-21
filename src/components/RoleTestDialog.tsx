@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { useAuth, UserRole } from './AuthContext';
-import { Shield, Eye, Edit, Lock } from 'lucide-react';
+import { Shield, Eye, Edit, Lock, RotateCcw } from 'lucide-react';
 
 interface RoleTestDialogProps {
   open: boolean;
@@ -35,6 +35,9 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
   const { user, login } = useAuth();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
+  // Check if user is in test mode
+  const isTestMode = localStorage.getItem('bfs_test_role') !== null;
+
   const handleRoleChange = (role: UserRole) => {
     setSelectedRole(role);
     
@@ -46,6 +49,9 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
         azureRole: role === 'admin' ? 'Portal.Admin' : role === 'edit' ? 'Portal.Editor' : 'Portal.Reader',
       };
       localStorage.setItem('bfs_user', JSON.stringify(updatedUser));
+      
+      // Set test mode flag
+      localStorage.setItem('bfs_test_role', role);
       
       // Reload the page to apply the role change
       setTimeout(() => {
@@ -63,6 +69,14 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
       login(cred.username, cred.password);
       onOpenChange(false);
     }
+  };
+
+  const handleResetToRealRole = () => {
+    // Remove test mode flag
+    localStorage.removeItem('bfs_test_role');
+    
+    // Reload to fetch real Azure role
+    window.location.reload();
   };
 
   const getRoleBadgeColor = (role: UserRole) => {
@@ -99,13 +113,43 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
               <Badge className={getRoleBadgeColor(user?.role || 'view')}>
                 {user?.role || 'view'}
               </Badge>
-              {user?.isAzureAuth && (
+              {user?.isAzureAuth && user.azureRole && (
                 <span className="text-xs text-muted-foreground">
                   ({user.azureRole})
                 </span>
               )}
+              {isTestMode && (
+                <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-800 border-yellow-300">
+                  Test Mode
+                </Badge>
+              )}
             </div>
           </div>
+
+          {/* Reset to Real Role Button (only for Azure users in test mode) */}
+          {user?.isAzureAuth && isTestMode && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <p className="text-xs mb-1">
+                    <strong>Testing Mode Active</strong>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    You're currently testing a different role. Click to return to your real Azure role.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleResetToRealRole}
+                  className="shrink-0"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Role Selection */}
           <div className="space-y-2">
@@ -113,7 +157,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
             
             {ROLES.map((roleOption) => {
               const Icon = roleOption.icon;
-              const isCurrentRole = user?.role === roleOption.role;
+              const isCurrentRole = user?.role === roleOption.role && !isTestMode;
               const isSelected = selectedRole === roleOption.role;
 
               return (
@@ -162,7 +206,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
             <p className="text-xs text-yellow-800">
               <strong>⚠️ Testing Only:</strong> This feature is for UI testing purposes. 
               Changing roles here temporarily overrides your actual permissions. 
-              {user?.isAzureAuth && ' The page will reload to apply the role change.'}
+              {user?.isAzureAuth && ' The page will reload to apply the role change. Use the "Reset" button to return to your real role.'}
             </p>
           </div>
         </div>

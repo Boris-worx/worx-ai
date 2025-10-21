@@ -39,6 +39,9 @@ function AppContent() {
   // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
+  // Login dialog state
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -94,7 +97,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className={`sticky top-0 z-50 w-full border-b bg-white dark:bg-card ${!isAuthenticated ? 'blur-sm' : ''}`}>
+      <header className={`sticky top-0 z-50 w-full border-b bg-white dark:bg-card`}>
         <div className="container mx-auto px-4 py-3 max-w-[1440px]">
           <div className="flex items-center justify-between">
             {/* Left - Logo */}
@@ -193,7 +196,7 @@ function AppContent() {
         </div>
       </header>
 
-      <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full ${!isAuthenticated ? 'blur-sm' : ''}`}>
+      <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full`}>
         {/* Header Title */}
         <div className="mb-6 md:mb-8 text-center">
           <h1 className="text-2xl md:text-[38px] font-[Inter] font-bold">BFS Transaction and Data Management</h1>
@@ -231,7 +234,7 @@ function AppContent() {
       </main>
 
       {/* Footer */}
-      <footer className={`w-full border-t bg-background mt-auto ${!isAuthenticated ? 'blur-sm' : ''}`}>
+      <footer className={`w-full border-t bg-background mt-auto`}>
         <div className="container mx-auto px-4 py-6 w-full max-w-[1440px]  ">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left - Logo */}
@@ -271,7 +274,7 @@ function AppContent() {
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
 
       {/* Login Dialog */}
-      <LoginDialog />
+      <LoginDialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen} />
 
       <Toaster />
     </div>

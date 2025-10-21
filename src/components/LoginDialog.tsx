@@ -8,7 +8,12 @@ import { Badge } from './ui/badge';
 import { useAuth } from './AuthContext';
 import { Shield, Mail, RefreshCw, User } from 'lucide-react';
 
-export const LoginDialog = () => {
+interface LoginDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
   const { login, isAuthenticated, user, isLoadingAuth, refreshAzureAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +33,11 @@ export const LoginDialog = () => {
       if (!success) {
         setError('Invalid username or password');
         setPassword('');
+      } else {
+        // Close dialog on successful login
+        onOpenChange(false);
+        setUsername('');
+        setPassword('');
       }
       
       setIsLoading(false);
@@ -43,7 +53,7 @@ export const LoginDialog = () => {
   // Show loading state while checking Azure auth
   if (isLoadingAuth) {
     return (
-      <Dialog open={true} onOpenChange={() => {}}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent 
           className="sm:max-w-[425px]" 
           onPointerDownOutside={(e) => e.preventDefault()}
@@ -64,14 +74,9 @@ export const LoginDialog = () => {
     );
   }
 
-  // Don't show dialog if user is authenticated (Azure or local)
-  if (isAuthenticated) {
-    return null;
-  }
-
-  // Show login form only for local development (not Azure)
+  // Show login form
   return (
-    <Dialog open={!isAuthenticated} onOpenChange={() => {}}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         className="sm:max-w-[425px]" 
         onPointerDownOutside={(e) => e.preventDefault()}

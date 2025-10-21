@@ -40,6 +40,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initAuth = async () => {
       setIsLoadingAuth(true);
       
+      // Check if user is in test mode (testing different roles)
+      const testRole = localStorage.getItem('bfs_test_role');
+      const storedUser = localStorage.getItem('bfs_user');
+      
+      if (testRole && storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          // Use the test role instead of real Azure role
+          if (parsedUser.isAzureAuth) {
+            console.log('Using test role:', testRole);
+            setUser(parsedUser);
+            setIsLoadingAuth(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to parse stored user:', error);
+        }
+      }
+      
       // Try Azure AD authentication first
       try {
         const azureUser = await fetchAzureAuthData();
@@ -63,21 +82,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Fallback to local authentication for development
-      const storedUser = localStorage.getItem('bfs_user');
       if (storedUser) {
         try {
           const parsedUser = JSON.parse(storedUser);
           // If it's an Azure user but we couldn't refresh, clear it
-          if (parsedUser.isAzureAuth) {
+          if (parsedUser.isAzureAuth && !testRole) {
             localStorage.removeItem('bfs_user');
           } else {
             setUser(parsedUser);
+            setIsLoadingAuth(false);
+            return;
           }
         } catch (error) {
           localStorage.removeItem('bfs_user');
         }
       }
       
+      // Default: Create guest user with viewer role
+      const guestUser: User = {
+        username: 'guest',
+        role: 'view',
+        isAzureAuth: false,
+      };
+      setUser(guestUser);
       setIsLoadingAuth(false);
     };
 
