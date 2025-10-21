@@ -2,10 +2,13 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { fetchAzureAuthData, isAzureAuthEnabled } from '../lib/azure-auth';
 
 export type UserRole = 'admin' | 'view' | 'edit';
+export type AccessSection = 'Tenants' | 'Transactions' | 'Data Plane';
+export type AccessLevel = 'All' | AccessSection[];
 
 interface User {
   username: string;
   role: UserRole;
+  access: AccessLevel;
   email?: string;
   name?: string;
   azureRole?: string;
@@ -19,15 +22,17 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoadingAuth: boolean;
   refreshAzureAuth: () => Promise<void>;
+  hasAccessTo: (section: AccessSection) => boolean;
+  updateUser: (updatedUser: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock credentials for testing
-const MOCK_USERS: Record<string, { password: string; role: UserRole }> = {
-  admin: { password: 'admin123', role: 'admin' },
-  viewer: { password: 'view123', role: 'view' },
-  editor: { password: 'edit123', role: 'edit' },
+const MOCK_USERS: Record<string, { password: string; role: UserRole; access: AccessLevel }> = {
+  admin: { password: 'admin123', role: 'admin', access: 'All' },
+  viewer: { password: 'view123', role: 'view', access: 'All' },
+  editor: { password: 'edit123', role: 'edit', access: 'All' },
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -71,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             role: azureUser.role,
             azureRole: azureUser.azureRole,
             isAzureAuth: true,
+            access: azureUser.access,
           };
           setUser(authenticatedUser);
           localStorage.setItem('bfs_user', JSON.stringify(authenticatedUser));
@@ -89,6 +95,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (parsedUser.isAzureAuth && !testRole) {
             localStorage.removeItem('bfs_user');
           } else {
+            // Migrate old users without access field
+            if (!parsedUser.access) {
+              parsedUser.access = 'All';
+            }
             setUser(parsedUser);
             setIsLoadingAuth(false);
             return;
@@ -103,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         username: 'guest',
         role: 'view',
         isAzureAuth: false,
+        access: 'All', // Assuming guest users have full access
       };
       setUser(guestUser);
       setIsLoadingAuth(false);
@@ -122,6 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: azureUser.role,
         azureRole: azureUser.azureRole,
         isAzureAuth: true,
+        access: azureUser.access, // Assuming Azure users have full access
       };
       setUser(authenticatedUser);
       localStorage.setItem('bfs_user', JSON.stringify(authenticatedUser));
@@ -136,6 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         username, 
         role: userCredentials.role,
         isAzureAuth: false,
+        access: userCredentials.access,
       };
       setUser(loggedInUser);
       localStorage.setItem('bfs_user', JSON.stringify(loggedInUser));
@@ -155,6 +168,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const hasAccessTo = (section: AccessSection): boolean => {
+    // If no access defined, give full access (backward compatibility)
+    if (!user?.access) {
+      return true;
+    }
+    
+    if (user.access === 'All') {
+      return true;
+    }
+    
+    if (Array.isArray(user.access)) {
+      return user.access.includes(section);
+    }
+    
+    return false;
+  };
+
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('bfs_user', JSON.stringify(updatedUser));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -164,6 +199,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!user,
         isLoadingAuth,
         refreshAzureAuth,
+        hasAccessTo,
+        updateUser,
       }}
     >
       {children}

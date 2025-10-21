@@ -1,72 +1,131 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { useAuth, UserRole } from './AuthContext';
-import { Shield, Eye, Edit, Lock, RotateCcw } from 'lucide-react';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useAuth, UserRole, AccessLevel, AccessSection } from './AuthContext';
+import { RotateCcw, Layers, UserCircle, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface RoleTestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const ROLES: { role: UserRole; label: string; description: string; icon: any }[] = [
-  {
-    role: 'admin',
-    label: 'Admin (Portal.Admin)',
-    description: 'Full access: View, Create, Edit, Delete',
-    icon: Shield,
-  },
-  {
-    role: 'edit',
-    label: 'Editor (Portal.Editor)',
-    description: 'View, Edit, Delete (no Create)',
-    icon: Edit,
-  },
-  {
-    role: 'view',
-    label: 'Reader (Portal.Reader)',
-    description: 'View only access',
-    icon: Eye,
-  },
+const ROLE_OPTIONS = [
+  { value: 'admin', label: 'Admin (Portal.Admin)', description: 'Full access: View, Create, Edit, Delete' },
+  { value: 'edit', label: 'Editor (Portal.Editor)', description: 'View, Edit, Delete (no Create)' },
+  { value: 'view', label: 'Viewer (Portal.Reader)', description: 'View only (read-only access)' },
+];
+
+const ACCESS_OPTIONS = [
+  { value: 'All', label: 'All sections' },
+  { value: 'Tenants', label: 'Tenants' },
+  { value: 'Transactions', label: 'Transactions' },
+  { value: 'Data Plane', label: 'Data Plane' },
 ];
 
 export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
-  const { user, login } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const { user, updateUser } = useAuth();
+  
+  // Initialize selectedRole based on current user's role
+  const [selectedRole, setSelectedRole] = useState<string>(user?.role || 'view');
+  
+  // Initialize selectedAccess based on current user's access
+  const getCurrentAccessValue = (): string => {
+    if (!user?.access || user.access === 'All') return 'All';
+    if (Array.isArray(user.access) && user.access.length === 1) {
+      return user.access[0];
+    }
+    return 'All';
+  };
+  
+  const [selectedAccess, setSelectedAccess] = useState<string>(getCurrentAccessValue());
+
+  // Reset selections when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedRole(user?.role || 'view');
+      setSelectedAccess(getCurrentAccessValue());
+    }
+  }, [open, user]);
 
   // Check if user is in test mode
   const isTestMode = localStorage.getItem('bfs_test_role') !== null;
 
-  const handleRoleChange = (role: UserRole) => {
+  const handleRoleChange = (role: string) => {
     setSelectedRole(role);
+  };
+
+  const handleAccessChange = (value: string) => {
+    setSelectedAccess(value);
+  };
+
+  const handleApplyChanges = () => {
+    // Determine what to apply
+    const roleToApply = selectedRole || user?.role || 'view';
     
-    // For Azure users, we'll temporarily override the role in localStorage
+    // Convert selected access to AccessLevel
+    const access: AccessLevel = selectedAccess === 'All' 
+      ? 'All' 
+      : [selectedAccess as AccessSection];
+
+    // For Azure users, we'll temporarily override the role and access in localStorage
     if (user?.isAzureAuth) {
       const updatedUser = {
-        ...user,
-        role: role,
-        azureRole: role === 'admin' ? 'Portal.Admin' : role === 'edit' ? 'Portal.Editor' : 'Portal.Reader',
+        username: user.username,
+        email: user.email,
+        name: user.name,
+        role: roleToApply,
+        access: access,
+        azureRole: roleToApply === 'admin' ? 'Portal.Admin' : roleToApply === 'edit' ? 'Portal.Editor' : 'Portal.Reader',
+        isAzureAuth: true,
       };
-      localStorage.setItem('bfs_user', JSON.stringify(updatedUser));
       
-      // Set test mode flag
-      localStorage.setItem('bfs_test_role', role);
+      console.log('Saving updated user:', updatedUser);
       
-      // Reload the page to apply the role change
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      // Set test mode flag if role changed
+      if (selectedRole && selectedRole !== user.role) {
+        localStorage.setItem('bfs_test_role', roleToApply);
+      }
+      
+      // Update user state without reload
+      updateUser(updatedUser);
+      
+      // Show success message
+      const accessText = selectedAccess === 'All' ? 'all sections' : selectedAccess;
+      toast.success(`Settings updated! Role: ${roleToApply}, Access: ${accessText}`);
+      
+      // Close dialog
+      onOpenChange(false);
     } else {
-      // For local users, use the test credentials
+      // For local users, update with new access
       const credentials: Record<UserRole, { username: string; password: string }> = {
         admin: { username: 'admin', password: 'admin123' },
         edit: { username: 'editor', password: 'edit123' },
         view: { username: 'viewer', password: 'view123' },
       };
       
-      const cred = credentials[role];
-      login(cred.username, cred.password);
+      const cred = credentials[roleToApply];
+      
+      // Update the user with custom access directly
+      const updatedUser = {
+        username: cred.username,
+        role: roleToApply,
+        access: access,
+        isAzureAuth: false,
+      };
+      
+      console.log('Saving local user:', updatedUser);
+      
+      // Update user state without reload
+      updateUser(updatedUser);
+      
+      // Show success message
+      const accessText = selectedAccess === 'All' ? 'all sections' : selectedAccess;
+      toast.success(`Settings updated! Role: ${roleToApply}, Access: ${accessText}`);
+      
+      // Close dialog
       onOpenChange(false);
     }
   };
@@ -79,53 +138,20 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
     window.location.reload();
   };
 
-  const getRoleBadgeColor = (role: UserRole) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'edit':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'view':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-[#1D6BCD]" />
-            Change Role for Testing
+            Change Role & Access
           </DialogTitle>
           <DialogDescription>
-            Switch between different roles to test how the interface looks for each permission level
+            Configure role permissions and section access for testing
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 mt-4">
-          {/* Current Role */}
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs mb-1">
-              <strong>Current Role:</strong>
-            </p>
-            <div className="flex items-center gap-2">
-              <Badge className={getRoleBadgeColor(user?.role || 'view')}>
-                {user?.role || 'view'}
-              </Badge>
-              {user?.isAzureAuth && user.azureRole && (
-                <span className="text-xs text-muted-foreground">
-                  ({user.azureRole})
-                </span>
-              )}
-              {isTestMode && (
-                <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-800 border-yellow-300">
-                  Test Mode
-                </Badge>
-              )}
-            </div>
-          </div>
-
+        <div className="space-y-4 mt-4">
           {/* Reset to Real Role Button (only for Azure users in test mode) */}
           {user?.isAzureAuth && isTestMode && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -135,7 +161,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
                     <strong>Testing Mode Active</strong>
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    You're currently testing a different role. Click to return to your real Azure role.
+                    Click to return to your real Azure settings
                   </p>
                 </div>
                 <Button
@@ -152,61 +178,59 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
           )}
 
           {/* Role Selection */}
-          <div className="space-y-2">
-            <p className="text-sm">Select a role to test:</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <UserCircle className="h-4 w-4 text-[#1D6BCD]" />
+              <Label htmlFor="role-select" className="text-sm">
+                Select Role:
+              </Label>
+            </div>
             
-            {ROLES.map((roleOption) => {
-              const Icon = roleOption.icon;
-              const isCurrentRole = user?.role === roleOption.role && !isTestMode;
-              const isSelected = selectedRole === roleOption.role;
+            <Select value={selectedRole} onValueChange={handleRoleChange}>
+              <SelectTrigger id="role-select" className="w-full">
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              return (
-                <button
-                  key={roleOption.role}
-                  onClick={() => handleRoleChange(roleOption.role)}
-                  disabled={isCurrentRole}
-                  className={`
-                    w-full p-4 rounded-lg border-2 transition-all text-left
-                    ${isCurrentRole 
-                      ? 'border-[#1D6BCD] bg-blue-50 cursor-default' 
-                      : 'border-gray-200 hover:border-[#1D6BCD] hover:bg-gray-50 cursor-pointer'
-                    }
-                    ${isSelected && !isCurrentRole ? 'border-[#1D6BCD] bg-blue-50' : ''}
-                  `}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`
-                      p-2 rounded-lg 
-                      ${isCurrentRole ? 'bg-[#1D6BCD] text-white' : 'bg-gray-100 text-gray-600'}
-                    `}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium">{roleOption.label}</p>
-                        {isCurrentRole && (
-                          <Badge variant="default" className="text-xs">
-                            Current
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {roleOption.description}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            <p className="text-xs text-muted-foreground">
+              {ROLE_OPTIONS.find(r => r.value === selectedRole)?.description || ''}
+            </p>
           </div>
 
-          {/* Warning */}
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-xs text-yellow-800">
-              <strong>⚠️ Testing Only:</strong> This feature is for UI testing purposes. 
-              Changing roles here temporarily overrides your actual permissions. 
-              {user?.isAzureAuth && ' The page will reload to apply the role change. Use the "Reset" button to return to your real role.'}
+          {/* Access Level Selection */}
+          <div className="space-y-3 pt-2 border-t">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-[#1D6BCD]" />
+              <Label htmlFor="access-select" className="text-sm">
+                Section Access:
+              </Label>
+            </div>
+            
+            <Select value={selectedAccess} onValueChange={handleAccessChange}>
+              <SelectTrigger id="access-select" className="w-full">
+                <SelectValue placeholder="Select access level" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACCESS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <p className="text-xs text-muted-foreground">
+              {selectedAccess === 'All' 
+                ? 'User will have access to all sections of the application'
+                : `User will only have access to ${selectedAccess}`
+              }
             </p>
           </div>
         </div>
@@ -217,6 +241,12 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
             onClick={() => onOpenChange(false)}
           >
             Cancel
+          </Button>
+          <Button
+            onClick={handleApplyChanges}
+            className="bg-[#1D6BCD] hover:bg-[#1557a8]"
+          >
+            Apply Changes
           </Button>
         </div>
       </DialogContent>

@@ -24,7 +24,7 @@ import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
 
 function AppContent() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, hasAccessTo } = useAuth();
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -39,9 +39,6 @@ function AppContent() {
   // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
-  // Login dialog state
-  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
-
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -54,6 +51,30 @@ function AppContent() {
       root.classList.remove('dark');
     }
   }, [theme]);
+
+  // Auto-redirect to first accessible tab
+  useEffect(() => {
+    const getFirstAccessibleTab = () => {
+      if (hasAccessTo('Tenants')) return 'tenants';
+      if (hasAccessTo('Transactions')) return 'modelschema';
+      if (hasAccessTo('Data Plane')) return 'transactions';
+      return 'tenants'; // default fallback
+    };
+
+    const tabMapping: Record<string, 'Tenants' | 'Transactions' | 'Data Plane'> = {
+      'tenants': 'Tenants',
+      'modelschema': 'Transactions',
+      'transactions': 'Data Plane',
+    };
+
+    // Check if user has access to current tab
+    const currentTabSection = tabMapping[activeTab];
+    if (currentTabSection && !hasAccessTo(currentTabSection)) {
+      // Redirect to first accessible tab
+      const firstAccessibleTab = getFirstAccessibleTab();
+      setActiveTab(firstAccessibleTab);
+    }
+  }, [user, hasAccessTo, activeTab]);
 
   // Auto-load tenants from API on mount
   // Don't auto-load transactions - API requires TxnType parameter
@@ -97,7 +118,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className={`sticky top-0 z-50 w-full border-b bg-white dark:bg-card`}>
+      <header className={`sticky top-0 z-50 w-full border-b bg-white dark:bg-card ${!isAuthenticated ? 'blur-sm' : ''}`}>
         <div className="container mx-auto px-4 py-3 max-w-[1440px]">
           <div className="flex items-center justify-between">
             {/* Left - Logo */}
@@ -126,27 +147,33 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              <Button
-                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('tenants')}
-              >
-                <TenantsIcon className="h-4 w-4 mr-2" />
-                Tenants
-              </Button>
-              <Button
-                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('modelschema')}
-              >
-                <GridIcon className="h-4 w-4 mr-2" />
-                Transaction Onboarding
-              </Button>
-              <Button
-                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('transactions')}
-              >
-                <ListIcon className="h-4 w-4 mr-2" />
-                Data Plane
-              </Button>
+              {hasAccessTo('Tenants') && (
+                <Button
+                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('tenants')}
+                >
+                  <TenantsIcon className="h-4 w-4 mr-2" />
+                  Tenants
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('modelschema')}
+                >
+                  <GridIcon className="h-4 w-4 mr-2" />
+                  Transaction Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Data Plane') && (
+                <Button
+                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('transactions')}
+                >
+                  <ListIcon className="h-4 w-4 mr-2" />
+                  Data Plane
+                </Button>
+              )}
             </nav>
 
             {/* Right - Actions + Mobile Menu */}
@@ -196,7 +223,7 @@ function AppContent() {
         </div>
       </header>
 
-      <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full`}>
+      <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full ${!isAuthenticated ? 'blur-sm' : ''}`}>
         {/* Header Title */}
         <div className="mb-6 md:mb-8 text-center">
           <h1 className="text-2xl md:text-[38px] font-[Inter] font-bold">BFS Transaction and Data Management</h1>
@@ -234,7 +261,7 @@ function AppContent() {
       </main>
 
       {/* Footer */}
-      <footer className={`w-full border-t bg-background mt-auto`}>
+      <footer className={`w-full border-t bg-background mt-auto ${!isAuthenticated ? 'blur-sm' : ''}`}>
         <div className="container mx-auto px-4 py-6 w-full max-w-[1440px]  ">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left - Logo */}
@@ -274,7 +301,7 @@ function AppContent() {
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
 
       {/* Login Dialog */}
-      <LoginDialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen} />
+      <LoginDialog />
 
       <Toaster />
     </div>

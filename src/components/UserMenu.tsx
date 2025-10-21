@@ -68,14 +68,14 @@ export const UserMenu = () => {
               <p className="text-sm">
                 {user.isAzureAuth ? 'Azure AD User' : 'Signed in as'}
               </p>
-              <p className="text-xs text-muted-foreground">{user.username}</p>
+              <p className="text-sm text-muted-foreground">{user.username}</p>
               {isTestMode && (
                 <div className="flex items-center gap-1 mt-1">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
                   </span>
-                  <span className="text-xs font-medium text-yellow-600">Test Mode Active</span>
+                  <span className="text-sm text-yellow-600">Test Mode Active</span>
                 </div>
               )}
             </div>
@@ -87,7 +87,7 @@ export const UserMenu = () => {
             <>
               <DropdownMenuItem disabled className="cursor-default">
                 <Mail className="mr-2 h-4 w-4" />
-                <span className="text-xs truncate">{user.email}</span>
+                <span className="text-sm truncate">{user.email}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -98,7 +98,7 @@ export const UserMenu = () => {
             <>
               <DropdownMenuItem disabled className="cursor-default">
                 <Shield className="mr-2 h-4 w-4" />
-                <span className="flex-1 text-xs">{user.azureRole}</span>
+                <span className="flex-1 text-sm">{user.azureRole}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -106,8 +106,8 @@ export const UserMenu = () => {
           
           <DropdownMenuItem disabled className="cursor-default">
             <User className="mr-2 h-4 w-4" />
-            <span className="flex-1">Access Level</span>
-            <span className={`ml-2 px-2 py-0.5 rounded text-xs capitalize ${getRoleBadgeColor(user.role)}`}>
+            <span className="flex-1 text-sm">Access Level</span>
+            <span className={`ml-2 px-2 py-0.5 rounded text-sm capitalize ${getRoleBadgeColor(user.role)}`}>
               {user.role}
             </span>
           </DropdownMenuItem>
@@ -116,14 +116,14 @@ export const UserMenu = () => {
           {/* Change Role for Testing */}
           <DropdownMenuItem onClick={() => setShowRoleDialog(true)} className="cursor-pointer">
             <RefreshCw className="mr-2 h-4 w-4" />
-            <span>Change Role</span>
+            <span className="text-sm">Change Role</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           
           {/* Logout */}
           <DropdownMenuItem onClick={logout} className="text-red-600 dark:text-red-400 cursor-pointer">
             <LogOut className="mr-2 h-4 w-4" />
-            <span>{user.isAzureAuth ? 'Sign Out from Azure' : 'Log Out'}</span>
+            <span className="text-sm">{user.isAzureAuth ? 'Sign Out from Azure' : 'Log Out'}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

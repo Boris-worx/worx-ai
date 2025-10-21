@@ -21,7 +21,7 @@ interface MobileMenuProps {
 }
 
 export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBugReportClick }: MobileMenuProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasAccessTo } = useAuth();
   const [open, setOpen] = useState(false);
 
   const handleTabClick = (tab: string) => {
@@ -66,30 +66,36 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
           <div className="space-y-2">
             <p className="px-2 text-xs text-muted-foreground uppercase tracking-wider">Navigation</p>
             <nav className="space-y-1">
-              <Button
-                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                onClick={() => handleTabClick('tenants')}
-                className="w-full justify-start"
-              >
-                <TenantsIcon className="h-4 w-4 mr-3" />
-                Tenants
-              </Button>
-              <Button
-                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                onClick={() => handleTabClick('modelschema')}
-                className="w-full justify-start"
-              >
-                <GridIcon className="h-4 w-4 mr-3" />
-                Transaction Onboarding
-              </Button>
-              <Button
-                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                onClick={() => handleTabClick('transactions')}
-                className="w-full justify-start"
-              >
-                <ListIcon className="h-4 w-4 mr-3" />
-                Data Plane
-              </Button>
+              {hasAccessTo('Tenants') && (
+                <Button
+                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                  onClick={() => handleTabClick('tenants')}
+                  className="w-full justify-start"
+                >
+                  <TenantsIcon className="h-4 w-4 mr-3" />
+                  Tenants
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                  onClick={() => handleTabClick('modelschema')}
+                  className="w-full justify-start"
+                >
+                  <GridIcon className="h-4 w-4 mr-3" />
+                  Transaction Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Data Plane') && (
+                <Button
+                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                  onClick={() => handleTabClick('transactions')}
+                  className="w-full justify-start"
+                >
+                  <ListIcon className="h-4 w-4 mr-3" />
+                  Data Plane
+                </Button>
+              )}
             </nav>
           </div>
 

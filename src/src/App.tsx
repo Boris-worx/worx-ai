@@ -24,7 +24,7 @@ import { LoginDialog } from '../components/LoginDialog';
 import { UserMenu } from '../components/UserMenu';
 
 function AppContent() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, hasAccessTo } = useAuth();
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -51,6 +51,30 @@ function AppContent() {
       root.classList.remove('dark');
     }
   }, [theme]);
+
+  // Auto-redirect to first accessible tab
+  useEffect(() => {
+    const getFirstAccessibleTab = () => {
+      if (hasAccessTo('Tenants')) return 'tenants';
+      if (hasAccessTo('Transactions')) return 'modelschema';
+      if (hasAccessTo('Data Plane')) return 'transactions';
+      return 'tenants'; // default fallback
+    };
+
+    const tabMapping: Record<string, 'Tenants' | 'Transactions' | 'Data Plane'> = {
+      'tenants': 'Tenants',
+      'modelschema': 'Transactions',
+      'transactions': 'Data Plane',
+    };
+
+    // Check if user has access to current tab
+    const currentTabSection = tabMapping[activeTab];
+    if (currentTabSection && !hasAccessTo(currentTabSection)) {
+      // Redirect to first accessible tab
+      const firstAccessibleTab = getFirstAccessibleTab();
+      setActiveTab(firstAccessibleTab);
+    }
+  }, [user, hasAccessTo, activeTab]);
 
   // Auto-load tenants from API on mount
   // Don't auto-load transactions - API requires TxnType parameter
@@ -123,27 +147,33 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              <Button
-                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('tenants')}
-              >
-                <TenantsIcon className="h-4 w-4 mr-2" />
-                Tenants
-              </Button>
-              <Button
-                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('modelschema')}
-              >
-                <GridIcon className="h-4 w-4 mr-2" />
-                Transaction Onboarding
-              </Button>
-              <Button
-                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('transactions')}
-              >
-                <ListIcon className="h-4 w-4 mr-2" />
-                Data Plane
-              </Button>
+              {hasAccessTo('Tenants') && (
+                <Button
+                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('tenants')}
+                >
+                  <TenantsIcon className="h-4 w-4 mr-2" />
+                  Tenants
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('modelschema')}
+                >
+                  <GridIcon className="h-4 w-4 mr-2" />
+                  Transaction Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Data Plane') && (
+                <Button
+                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('transactions')}
+                >
+                  <ListIcon className="h-4 w-4 mr-2" />
+                  Data Plane
+                </Button>
+              )}
             </nav>
 
             {/* Right - Actions + Mobile Menu */}
