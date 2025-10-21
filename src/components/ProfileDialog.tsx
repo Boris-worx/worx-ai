@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { Badge } from './ui/badge';
 import { User, Mail, Shield, Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -60,19 +59,6 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
     return claim?.val || null;
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'edit':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'view':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   // Get display name - prefer Azure name if available
   const displayName = user?.isAzureAuth && azureData
     ? (getClaimValue('name') || user.name || user.username)
@@ -108,7 +94,7 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
               <User className="h-5 w-5 text-[#1D6BCD] mt-0.5 shrink-0" />
               <div className="flex items-center justify-between w-full">
                 <span className="text-sm text-muted-foreground">Name</span>
-                <span className="break-words text-right">{displayName}</span>
+                <span className="break-words text-right text-sm">{displayName}</span>
               </div>
             </div>
 
@@ -117,16 +103,9 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
               <Shield className="h-5 w-5 text-[#1D6BCD] mt-0.5 shrink-0" />
               <div className="flex items-center justify-between w-full">
                 <span className="text-sm text-muted-foreground">Role</span>
-                <div className="flex items-center gap-2">
-                  <Badge className={getRoleBadgeColor(displayRole)}>
-                    {displayRole}
-                  </Badge>
-                  {azureRole && (
-                    <span className="text-xs text-muted-foreground">
-                      ({azureRole})
-                    </span>
-                  )}
-                </div>
+                <span className="break-words text-right text-sm">
+                  {azureRole ? `(${azureRole})` : displayRole}
+                </span>
               </div>
             </div>
 
