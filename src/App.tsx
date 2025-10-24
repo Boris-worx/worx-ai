@@ -24,7 +24,7 @@ import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
 
 function AppContent() {
-  const { user, isAuthenticated, hasAccessTo, isLoadingAuth } = useAuth();
+  const { user, isAuthenticated, hasAccessTo } = useAuth();
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -147,27 +147,33 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              <Button
-                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('tenants')}
-              >
-                <TenantsIcon className="h-4 w-4 mr-2" />
-                Tenants
-              </Button>
-              <Button
-                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('modelschema')}
-              >
-                <GridIcon className="h-4 w-4 mr-2" />
-                Transaction Onboarding
-              </Button>
-              <Button
-                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('transactions')}
-              >
-                <ListIcon className="h-4 w-4 mr-2" />
-                Data Plane
-              </Button>
+              {hasAccessTo('Tenants') && (
+                <Button
+                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('tenants')}
+                >
+                  <TenantsIcon className="h-4 w-4 mr-2" />
+                  Tenants
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('modelschema')}
+                >
+                  <GridIcon className="h-4 w-4 mr-2" />
+                  Transaction Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Data Plane') && (
+                <Button
+                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('transactions')}
+                >
+                  <ListIcon className="h-4 w-4 mr-2" />
+                  Data Plane
+                </Button>
+              )}
             </nav>
 
             {/* Right - Actions + Mobile Menu */}
@@ -234,7 +240,7 @@ function AppContent() {
               setTenants={setTenants}
               isLoading={isLoadingTenants}
               refreshData={refreshTenants}
-              userRole={user?.role || 'viewer'}
+              userRole={user?.role || 'view'}
             />
           </TabsContent>
 
@@ -244,12 +250,12 @@ function AppContent() {
               setTransactions={setTransactions}
               isLoading={isLoadingTransactions}
               refreshData={refreshTransactions}
-              userRole={user?.role || 'viewer'}
+              userRole={user?.role || 'view'}
             />
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView userRole={user?.role || 'viewer'} />
+            <ModelSchemaView userRole={user?.role || 'view'} />
           </TabsContent>
         </Tabs>
       </main>

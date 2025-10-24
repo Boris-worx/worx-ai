@@ -371,7 +371,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                 <RefreshIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} md:mr-2`} />
                 <span className="hidden md:inline">Refresh</span>
               </Button>
-              {userRole === 'super' && (
+              {userRole === 'admin' && (
                 <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-[4px] flex-1 sm:flex-none">
                   <Plus className="h-4 w-4 md:mr-2" />
                   <span className="hidden md:inline">Add New Tenant</span>
@@ -388,11 +388,11 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
               <Upload className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg mb-2">No Tenants Yet</h3>
               <p className="text-muted-foreground mb-6 max-w-md">
-                {userRole === 'super' 
+                {userRole === 'admin' 
                   ? 'Get started by importing tenants from a JSON file. Upload your tenant data to begin managing suppliers on the BFS platform.'
-                  : 'No tenants available. Contact a Super User to import tenant data.'}
+                  : 'No tenants available. Contact an administrator to import tenant data.'}
               </p>
-              {userRole === 'super' && (
+              {userRole === 'admin' && (
                 <Button onClick={() => setIsImportOpen(true)} size="lg" className="rounded-full">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Import Tenants from JSON</span>
@@ -420,7 +420,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                       <ViewIcon className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    {userRole === 'super' && (
+                    {userRole !== 'view' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -430,7 +430,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                         Edit
                       </Button>
                     )}
-                    {userRole === 'super' && (
+                    {userRole !== 'view' && (
                       <Button
                         variant="outline"
                         size="sm"

@@ -16,29 +16,16 @@ interface AzureAuthResponse {
 
 /**
  * Parse Azure AD role to application role
- * 
- * New role hierarchy:
- * - Portal.SuperUser → Full admin access, not per tenant
- * - Portal.ViewOnlySuperUser → Read-only access to everything, not per tenant  
- * - Portal.Admin → Read/Write per tenant
- * - Portal.Developer → Read/Write per tenant
- * - Portal.Viewer → Read-only per tenant
  */
 export function parseAzureRole(azureRoles: string[]): UserRole {
-  // Super User - full access
-  if (azureRoles.includes('Portal.SuperUser')) return 'super';
-  
-  // View Only Super User - read-only access to everything
-  if (azureRoles.includes('Portal.ViewOnlySuperUser')) return 'viewsuper';
-  
-  // Admin - read/write per tenant
+  // Admin roles
   if (azureRoles.includes('Portal.Admin')) return 'admin';
   
-  // Developer - read/write per tenant
-  if (azureRoles.includes('Portal.Developer')) return 'developer';
+  // Editor roles
+  if (azureRoles.includes('Portal.Editor')) return 'edit';
   
-  // Viewer - read-only per tenant (default)
-  return 'viewer';
+  // Default to view for all other roles (including Portal.Reader)
+  return 'view';
 }
 
 /**
@@ -46,34 +33,25 @@ export function parseAzureRole(azureRoles: string[]): UserRole {
  * Uses role-based access control (RBAC) pattern
  * 
  * Supported roles:
- * - Portal.SuperUser → Full access to all sections (can manage tenants)
- * - Portal.ViewOnlySuperUser → Read-only access to all sections
- * - Portal.Admin → Full access to Transaction Onboarding and Data Plane per tenant
- * - Portal.Developer → Full access to Transaction Onboarding and Data Plane per tenant
- * - Portal.Viewer → Read-only access to Transaction Onboarding and Data Plane per tenant
+ * - Portal.Admin → Full access to all sections
+ * - Portal.Editor → Full access to all sections
+ * - Portal.Reader → Full access to all sections
+ * - Portal.Tenants → Access only to Tenants section
+ * - Portal.Transactions → Access only to Transactions section
+ * - Portal.DataPlane → Access only to Data Plane section
  * 
  * Multiple roles can be combined, e.g.:
  * - ["Portal.Tenants", "Portal.Transactions"] → Access to Tenants and Transactions
  */
 export function parseAzureAccess(azureRoles: string[]): AccessLevel {
-  // Super User has access to all sections including Tenants management
-  if (azureRoles.includes('Portal.SuperUser')) {
-    return 'All';
-  }
-  
-  // View Only Super User has read-only access to all sections
-  if (azureRoles.includes('Portal.ViewOnlySuperUser')) {
-    return 'All';
-  }
-  
-  // Admin, Developer, Viewer have access to Transaction Onboarding and Data Plane (not Tenants)
+  // Admin, Editor, and Reader have access to all sections
   if (azureRoles.includes('Portal.Admin') || 
-      azureRoles.includes('Portal.Developer') || 
-      azureRoles.includes('Portal.Viewer')) {
-    return ['Transactions', 'Data Plane'];
+      azureRoles.includes('Portal.Editor') || 
+      azureRoles.includes('Portal.Reader')) {
+    return 'All';
   }
   
-  // Build access list based on section-specific roles (legacy support)
+  // Build access list based on section-specific roles
   const accessSections: AccessSection[] = [];
   
   if (azureRoles.includes('Portal.Tenants')) {
@@ -131,20 +109,14 @@ export function extractUserInfo(authData: AzureAuthResponse) {
     azureRoles.push(...roles);
   });
   
-  // If no roles found, default to Portal.Viewer
-  const finalRoles = azureRoles.length > 0 ? azureRoles : ['Portal.Viewer'];
+  // If no roles found, default to Portal.Reader
+  const finalRoles = azureRoles.length > 0 ? azureRoles : ['Portal.Reader'];
   
-  // Get primary role for display (highest privilege first)
-  const primaryRole = finalRoles.includes('Portal.SuperUser') 
-    ? 'Portal.SuperUser' 
-    : finalRoles.includes('Portal.ViewOnlySuperUser')
-    ? 'Portal.ViewOnlySuperUser'
-    : finalRoles.includes('Portal.Admin') 
+  // Get primary role for display (first one or highest privilege)
+  const primaryRole = finalRoles.includes('Portal.Admin') 
     ? 'Portal.Admin' 
-    : finalRoles.includes('Portal.Developer')
-    ? 'Portal.Developer'
-    : finalRoles.includes('Portal.Viewer')
-    ? 'Portal.Viewer'
+    : finalRoles.includes('Portal.Editor') 
+    ? 'Portal.Editor' 
     : finalRoles[0];
   
   return {

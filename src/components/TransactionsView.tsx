@@ -512,7 +512,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         <Eye className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
         <span className="hidden md:inline">View</span>
       </Button>
-      {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
+      {userRole !== 'view' && (
         <Button
           variant="outline"
           size="sm"
@@ -524,7 +524,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
           <span className="hidden md:inline">Edit</span>
         </Button>
       )}
-      {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
+      {userRole !== 'view' && (
         <Button
           variant="outline"
           size="sm"
@@ -604,7 +604,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                   <RefreshIcon className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
-                {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
+                {userRole === 'admin' && (
                   <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
                     <Plus className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Create Transaction</span>

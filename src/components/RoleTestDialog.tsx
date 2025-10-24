@@ -13,11 +13,9 @@ interface RoleTestDialogProps {
 }
 
 const ROLE_OPTIONS = [
-  { value: 'super', label: 'Super User (Portal.SuperUser)', description: 'Full admin access - can manage tenants and all data' },
-  { value: 'viewsuper', label: 'View Only Super User (Portal.ViewOnlySuperUser)', description: 'Read-only access to everything' },
-  { value: 'admin', label: 'Admin (Portal.Admin)', description: 'Read/Write per tenant' },
-  { value: 'developer', label: 'Developer (Portal.Developer)', description: 'Read/Write per tenant' },
-  { value: 'viewer', label: 'Viewer (Portal.Viewer)', description: 'Read-only per tenant' },
+  { value: 'admin', label: 'Admin (Portal.Admin)', description: 'Full access: View, Create, Edit, Delete' },
+  { value: 'edit', label: 'Editor (Portal.Editor)', description: 'View, Edit, Delete (no Create)' },
+  { value: 'view', label: 'Viewer (Portal.Reader)', description: 'View only (read-only access)' },
 ];
 
 const ACCESS_OPTIONS = [
@@ -75,22 +73,13 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
 
     // For Azure users, we'll temporarily override the role and access in localStorage
     if (user?.isAzureAuth) {
-      // Map role to Azure role
-      const azureRoleMap: Record<UserRole, string> = {
-        super: 'Portal.SuperUser',
-        viewsuper: 'Portal.ViewOnlySuperUser',
-        admin: 'Portal.Admin',
-        developer: 'Portal.Developer',
-        viewer: 'Portal.Viewer',
-      };
-      
       const updatedUser = {
         username: user.username,
         email: user.email,
         name: user.name,
         role: roleToApply,
         access: access,
-        azureRole: azureRoleMap[roleToApply as UserRole] || 'Portal.Viewer',
+        azureRole: roleToApply === 'admin' ? 'Portal.Admin' : roleToApply === 'edit' ? 'Portal.Editor' : 'Portal.Reader',
         isAzureAuth: true,
       };
       
@@ -112,14 +101,12 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
     } else {
       // For local users, update with new access
       const credentials: Record<UserRole, { username: string; password: string }> = {
-        super: { username: 'superuser', password: 'super123' },
-        viewsuper: { username: 'viewsuper', password: 'viewsuper123' },
         admin: { username: 'admin', password: 'admin123' },
-        developer: { username: 'developer', password: 'dev123' },
-        viewer: { username: 'viewer', password: 'view123' },
+        edit: { username: 'editor', password: 'edit123' },
+        view: { username: 'viewer', password: 'view123' },
       };
       
-      const cred = credentials[roleToApply as UserRole];
+      const cred = credentials[roleToApply];
       
       // Update the user with custom access directly
       const updatedUser = {
