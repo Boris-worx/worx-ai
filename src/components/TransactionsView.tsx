@@ -512,7 +512,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         <Eye className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
         <span className="hidden md:inline">View</span>
       </Button>
-      {userRole !== 'view' && (
+      {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
         <Button
           variant="outline"
           size="sm"
@@ -524,7 +524,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
           <span className="hidden md:inline">Edit</span>
         </Button>
       )}
-      {userRole !== 'view' && (
+      {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
         <Button
           variant="outline"
           size="sm"
@@ -541,15 +541,14 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
 
   return (
     <div className="w-full max-w-[1440px] mx-auto">
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="font-bold text-[20px]">Data Plane</CardTitle>
+          <CardTitle className="font-bold text-[20px]\">Data Plane</CardTitle>
           <CardDescription>
             View and manage ERP transactions across all suppliers
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {/* Top Bar - Headers */}
+        <CardContent className="overflow-x-hidden">{/* Top Bar - Headers */}
           <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[200px_1fr] gap-6 mb-3">
             {/* Left: Transaction Types Header - Hidden on mobile */}
             <div className="hidden md:flex items-center gap-2">
@@ -605,7 +604,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                   <RefreshIcon className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">Refresh</span>
                 </Button>
-                {userRole === 'admin' && (
+                {(userRole === 'super' || userRole === 'admin' || userRole === 'developer') && (
                   <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
                     <Plus className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Create Transaction</span>
@@ -668,7 +667,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
             </div>
 
             {/* Right Content - Table */}
-            <div>
+            <div className="min-w-0 overflow-hidden">
               {/* Empty State */}
               {transactions.length === 0 && !isLoadingType && (
                 <Card className="border-2 border-dashed">

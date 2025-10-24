@@ -26,11 +26,15 @@ export const UserMenu = () => {
   // Get role label
   const getRoleLabel = (role: string) => {
     switch (role) {
+      case 'super':
+        return 'Super User';
+      case 'viewsuper':
+        return 'View Only Super User';
       case 'admin':
         return 'Admin';
-      case 'edit':
-        return 'Editor';
-      case 'view':
+      case 'developer':
+        return 'Developer';
+      case 'viewer':
         return 'Viewer';
       default:
         return 'Viewer';

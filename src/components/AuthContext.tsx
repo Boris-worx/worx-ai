@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { fetchAzureAuthData, isAzureAuthEnabled } from '../lib/azure-auth';
 
-export type UserRole = 'admin' | 'view' | 'edit';
+export type UserRole = 'super' | 'viewsuper' | 'admin' | 'developer' | 'viewer';
 export type AccessSection = 'Tenants' | 'Transactions' | 'Data Plane';
 export type AccessLevel = 'All' | AccessSection[];
 
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Default: Create guest user with viewer role
       const guestUser: User = {
         username: 'guest',
-        role: 'view',
+        role: 'viewer',
         isAzureAuth: false,
         access: 'All', // Assuming guest users have full access
       };
