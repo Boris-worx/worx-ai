@@ -30,9 +30,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock credentials for testing
 const MOCK_USERS: Record<string, { password: string; role: UserRole; access: AccessLevel }> = {
-  admin: { password: 'admin123', role: 'admin', access: 'All' },
-  viewer: { password: 'view123', role: 'view', access: 'All' },
-  editor: { password: 'edit123', role: 'edit', access: 'All' },
+  superuser: { password: 'super123', role: 'super', access: 'All' },
+  viewsuper: { password: 'viewsuper123', role: 'viewsuper', access: 'All' },
+  admin: { password: 'admin123', role: 'admin', access: ['Transactions', 'Data Plane'] },
+  developer: { password: 'dev123', role: 'developer', access: ['Transactions', 'Data Plane'] },
+  viewer: { password: 'view123', role: 'viewer', access: ['Transactions', 'Data Plane'] },
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -95,6 +97,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (parsedUser.isAzureAuth && !testRole) {
             localStorage.removeItem('bfs_user');
           } else {
+            // Migrate old roles to new roles
+            if (parsedUser.role === 'view') {
+              parsedUser.role = 'viewer';
+              console.log('Migrated role from "view" to "viewer"');
+            } else if (parsedUser.role === 'edit') {
+              parsedUser.role = 'developer';
+              console.log('Migrated role from "edit" to "developer"');
+            }
+            
             // Migrate old users without access field
             if (!parsedUser.access) {
               parsedUser.access = 'All';
@@ -115,6 +126,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAzureAuth: false,
         access: 'All', // Assuming guest users have full access
       };
+      console.log('🔑 No authentication found, creating guest user:', guestUser);
       setUser(guestUser);
       setIsLoadingAuth(false);
     };
