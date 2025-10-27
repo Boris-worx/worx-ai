@@ -52,30 +52,6 @@ function AppContent() {
     }
   }, [theme]);
 
-  // Auto-redirect to first accessible tab
-  useEffect(() => {
-    const getFirstAccessibleTab = () => {
-      if (hasAccessTo('Tenants')) return 'tenants';
-      if (hasAccessTo('Transactions')) return 'modelschema';
-      if (hasAccessTo('Data Plane')) return 'transactions';
-      return 'tenants'; // default fallback
-    };
-
-    const tabMapping: Record<string, 'Tenants' | 'Transactions' | 'Data Plane'> = {
-      'tenants': 'Tenants',
-      'modelschema': 'Transactions',
-      'transactions': 'Data Plane',
-    };
-
-    // Check if user has access to current tab
-    const currentTabSection = tabMapping[activeTab];
-    if (currentTabSection && !hasAccessTo(currentTabSection)) {
-      // Redirect to first accessible tab
-      const firstAccessibleTab = getFirstAccessibleTab();
-      setActiveTab(firstAccessibleTab);
-    }
-  }, [user, hasAccessTo, activeTab]);
-
   // Auto-load tenants from API on mount
   // Don't auto-load transactions - API requires TxnType parameter
   useEffect(() => {
@@ -147,33 +123,27 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              {hasAccessTo('Tenants') && (
-                <Button
-                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('tenants')}
-                >
-                  <TenantsIcon className="h-4 w-4 mr-2" />
-                  Tenants
-                </Button>
-              )}
-              {hasAccessTo('Transactions') && (
-                <Button
-                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('modelschema')}
-                >
-                  <GridIcon className="h-4 w-4 mr-2" />
-                  Transaction Onboarding
-                </Button>
-              )}
-              {hasAccessTo('Data Plane') && (
-                <Button
-                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('transactions')}
-                >
-                  <ListIcon className="h-4 w-4 mr-2" />
-                  Data Plane
-                </Button>
-              )}
+              <Button
+                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                onClick={() => setActiveTab('tenants')}
+              >
+                <TenantsIcon className="h-4 w-4 mr-2" />
+                Tenants
+              </Button>
+              <Button
+                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                onClick={() => setActiveTab('modelschema')}
+              >
+                <GridIcon className="h-4 w-4 mr-2" />
+                Transaction Onboarding
+              </Button>
+              <Button
+                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                onClick={() => setActiveTab('transactions')}
+              >
+                <ListIcon className="h-4 w-4 mr-2" />
+                Data Plane
+              </Button>
             </nav>
 
             {/* Right - Actions + Mobile Menu */}
@@ -226,7 +196,7 @@ function AppContent() {
       <main className={`flex-1 container mx-auto py-4 md:py-8 px-4 max-w-full ${!isAuthenticated ? 'blur-sm' : ''}`}>
         {/* Header Title */}
         <div className="mb-6 md:mb-8 text-center">
-          <h1 className="text-2xl md:text-[38px] font-[Inter] font-bold">BFS Transaction and Data Management</h1>
+          <h1 className="text-2xl md:text-[38px] font-[Inter] font-bold">Paradigm Transaction Gateway Management</h1>
           <p className="text-muted-foreground text-sm md:text-base">
             Manage supplier tenants and ERP transactions
           </p>
@@ -240,7 +210,7 @@ function AppContent() {
               setTenants={setTenants}
               isLoading={isLoadingTenants}
               refreshData={refreshTenants}
-              userRole={user?.role || 'view'}
+              userRole={user?.role || 'viewer'}
             />
           </TabsContent>
 
@@ -250,12 +220,12 @@ function AppContent() {
               setTransactions={setTransactions}
               isLoading={isLoadingTransactions}
               refreshData={refreshTransactions}
-              userRole={user?.role || 'view'}
+              userRole={user?.role || 'viewer'}
             />
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView userRole={user?.role || 'view'} />
+            <ModelSchemaView userRole={user?.role || 'viewer'} />
           </TabsContent>
         </Tabs>
       </main>
