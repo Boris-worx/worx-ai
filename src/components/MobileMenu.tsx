@@ -7,12 +7,11 @@ import { ListIcon } from './icons/ListIcon';
 import { BugIcon } from './icons/BugIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { SunIcon } from './icons/SunIcon';
-import { Menu, Receipt, LogOut, UserCircle, RefreshCw, TestTube } from 'lucide-react';
+import { Menu, Receipt, LogOut, UserCircle, RefreshCw } from 'lucide-react';
 import { Separator } from './ui/separator';
 import { useAuth } from './AuthContext';
 import { RoleTestDialog } from './RoleTestDialog';
 import { ProfileDialog } from './ProfileDialog';
-import { AzureRoleTestDialog } from './AzureRoleTestDialog';
 
 interface MobileMenuProps {
   activeTab: string;
@@ -27,7 +26,6 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
   const [open, setOpen] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [showAzureTestDialog, setShowAzureTestDialog] = useState(false);
 
   const handleTabClick = (tab: string) => {
     onTabChange(tab);
@@ -147,21 +145,6 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                       <RefreshCw className="h-4 w-4 mr-3" />
                       Change Role
                     </Button>
-
-                    {/* Test Azure AD Roles (if Azure user) */}
-                    {user.isAzureAuth && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setShowAzureTestDialog(true);
-                          setOpen(false);
-                        }}
-                        className="w-full justify-start"
-                      >
-                        <TestTube className="h-4 w-4 mr-3" />
-                        Test Azure Roles
-                      </Button>
-                    )}
                   </>
                 )}
 
@@ -228,7 +211,6 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
       {/* Dialogs */}
       <RoleTestDialog open={showRoleDialog} onOpenChange={setShowRoleDialog} />
       <ProfileDialog open={showProfileDialog} onOpenChange={setShowProfileDialog} />
-      <AzureRoleTestDialog open={showAzureTestDialog} onOpenChange={setShowAzureTestDialog} />
     </>
   );
 }
