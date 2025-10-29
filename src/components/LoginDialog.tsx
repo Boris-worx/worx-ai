@@ -136,9 +136,11 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
           <div className="mt-6 p-4 bg-muted rounded-md">
             <p className="text-xs mb-2">Test Credentials (Development Only):</p>
             <div className="text-xs space-y-1">
+              <p><strong>SuperUser:</strong> superuser / super123</p>
+              <p><strong>View-Only SuperUser:</strong> viewonlysuperuser / viewsuper123</p>
               <p><strong>Admin:</strong> admin / admin123</p>
+              <p><strong>Developer:</strong> developer / dev123</p>
               <p><strong>Viewer:</strong> viewer / view123</p>
-              <p><strong>Editor:</strong> editor / edit123</p>
             </div>
           </div>
         </form>

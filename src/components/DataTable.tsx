@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -17,6 +17,7 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   onRowClick?: (item: T) => void;
   actions?: (item: T) => React.ReactNode;
+  actionsCompact?: (item: T) => React.ReactNode;
   emptyMessage?: string;
   searchPlaceholder?: string;
   searchKeys?: string[];
@@ -27,6 +28,7 @@ export function DataTable<T extends Record<string, any>>({
   columns,
   onRowClick,
   actions,
+  actionsCompact,
   emptyMessage = 'No data available.',
   searchPlaceholder = 'Search...',
   searchKeys = [],
@@ -36,6 +38,28 @@ export function DataTable<T extends Record<string, any>>({
     key: string;
     direction: 'asc' | 'desc';
   } | null>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // Check for horizontal overflow
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (tableContainerRef.current) {
+        const hasHorizontalScroll = tableContainerRef.current.scrollWidth > tableContainerRef.current.clientWidth;
+        setHasOverflow(hasHorizontalScroll);
+      }
+    };
+
+    checkOverflow();
+    // Use a slight delay to ensure table is fully rendered
+    const timeout = setTimeout(checkOverflow, 100);
+    
+    window.addEventListener('resize', checkOverflow);
+    return () => {
+      window.removeEventListener('resize', checkOverflow);
+      clearTimeout(timeout);
+    };
+  }, [data, columns]);
 
   // Helper function to recursively search in nested objects
   const searchInValue = (value: any, searchTerm: string): boolean => {
@@ -123,6 +147,9 @@ export function DataTable<T extends Record<string, any>>({
     );
   }
 
+  // Determine whether to use compact actions
+  const shouldUseCompactActions = hasOverflow && actionsCompact;
+
   return (
     <div className="space-y-4">
       {/* Search Bar */}
@@ -148,7 +175,10 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Table */}
-      <div className="border border-border rounded-lg overflow-x-auto">
+      <div 
+        ref={tableContainerRef}
+        className="border border-border rounded-lg overflow-x-auto"
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -169,7 +199,17 @@ export function DataTable<T extends Record<string, any>>({
                   )}
                 </TableHead>
               ))}
-              {actions && <TableHead className="text-right whitespace-nowrap pr-2 md:pr-4 text-xs md:text-sm">Actions</TableHead>}
+              {actions && (
+                <TableHead 
+                  className={`text-right whitespace-nowrap text-xs md:text-sm ${
+                    shouldUseCompactActions 
+                      ? 'sticky right-0 bg-background shadow-[-8px_0_12px_rgba(0,0,0,0.08)] z-10 pr-3 pl-4 border-l border-border' 
+                      : 'pr-2 md:pr-4'
+                  }`}
+                >
+                  Actions
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,8 +225,15 @@ export function DataTable<T extends Record<string, any>>({
                   </TableCell>
                 ))}
                 {actions && (
-                  <TableCell className="text-right pr-2 md:pr-4 py-2 md:py-3" onClick={(e) => e.stopPropagation()}>
-                    {actions(item)}
+                  <TableCell 
+                    className={`text-right py-2 md:py-3 ${
+                      shouldUseCompactActions 
+                        ? 'sticky right-0 bg-background shadow-[-8px_0_12px_rgba(0,0,0,0.08)] z-10 pr-3 pl-4 border-l border-border' 
+                        : 'pr-2 md:pr-4'
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {shouldUseCompactActions ? actionsCompact!(item) : actions(item)}
                   </TableCell>
                 )}
               </TableRow>

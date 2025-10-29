@@ -18,6 +18,7 @@ export interface ColumnConfig {
   label: string;
   enabled: boolean;
   locked?: boolean; // For columns that can't be disabled (like ID)
+  isEmpty?: boolean; // For columns that have no data
 }
 
 interface ColumnSelectorProps {
@@ -25,9 +26,10 @@ interface ColumnSelectorProps {
   onColumnsChange: (columns: ColumnConfig[]) => void;
   availableFields?: string[]; // All available fields from data
   onReset?: () => void; // Callback to reset to default columns
+  emptyColumns?: string[]; // List of column keys that are empty
 }
 
-export function ColumnSelector({ columns, onColumnsChange, availableFields = [], onReset }: ColumnSelectorProps) {
+export function ColumnSelector({ columns, onColumnsChange, availableFields = [], onReset, emptyColumns = [] }: ColumnSelectorProps) {
   const [open, setOpen] = useState(false);
 
   const enabledCount = useMemo(() => {
@@ -36,7 +38,7 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
 
   const handleToggle = (key: string) => {
     const updated = columns.map(col => {
-      if (col.key === key && !col.locked) {
+      if (col.key === key && !col.locked && !col.isEmpty) {
         return { ...col, enabled: !col.enabled };
       }
       return col;
@@ -45,7 +47,11 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
   };
 
   const handleSelectAll = () => {
-    const updated = columns.map(col => ({ ...col, enabled: true }));
+    const updated = columns.map(col => {
+      // Don't enable empty columns
+      if (col.isEmpty) return col;
+      return { ...col, enabled: true };
+    });
     onColumnsChange(updated);
   };
 
@@ -142,17 +148,20 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
                         id={`column-${column.key}`}
                         checked={column.enabled}
                         onCheckedChange={() => handleToggle(column.key)}
-                        disabled={column.locked}
+                        disabled={column.locked || column.isEmpty}
                       />
                       <Label
                         htmlFor={`column-${column.key}`}
                         className={`flex-1 text-sm cursor-pointer ${
-                          column.locked ? 'text-muted-foreground' : ''
+                          column.locked || column.isEmpty ? 'text-muted-foreground' : ''
                         }`}
                       >
                         {column.label}
                         {column.locked && (
                           <span className="ml-2 text-xs text-muted-foreground">(required)</span>
+                        )}
+                        {column.isEmpty && !column.locked && (
+                          <span className="ml-2 text-xs text-muted-foreground">(no data)</span>
                         )}
                       </Label>
                     </div>
@@ -179,13 +188,18 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
                           id={`column-${column.key}`}
                           checked={column.enabled}
                           onCheckedChange={() => handleToggle(column.key)}
-                          disabled={column.locked}
+                          disabled={column.locked || column.isEmpty}
                         />
                         <Label
                           htmlFor={`column-${column.key}`}
-                          className="flex-1 text-sm cursor-pointer"
+                          className={`flex-1 text-sm cursor-pointer ${
+                            column.isEmpty ? 'text-muted-foreground' : ''
+                          }`}
                         >
                           {column.label}
+                          {column.isEmpty && (
+                            <span className="ml-2 text-xs text-muted-foreground">(no data)</span>
+                          )}
                         </Label>
                       </div>
                     ))}

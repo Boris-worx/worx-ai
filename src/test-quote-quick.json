@@ -1,0 +1,22 @@
+{
+  "TxnType": "Quote",
+  "Txn": {
+    "quoteId": "some-unique-id-1",
+    "customerRequestedByDate": "2025-07-25T00:00:00.000Z",
+    "exportNotes": "Some notes",
+    "categories": [
+      {
+        "categoryId": "35",
+        "name": null,
+        "description": null
+      },
+      {
+        "categoryId": "37",
+        "name": null,
+        "description": null
+      }
+    ],
+    "accountNumber": "579237",
+    "erpUserId": "ONLINE"
+  }
+}

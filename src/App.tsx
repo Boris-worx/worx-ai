@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/sonner';
 import { TenantsView } from './components/TenantsView';
 import { TransactionsView } from './components/TransactionsView';
 import { ModelSchemaView } from './components/ModelSchemaView';
+import { DataSourcesView } from './components/DataSourcesView';
 import { BugReportDialog } from './components/BugReportDialog';
 import { MobileMenu } from './components/MobileMenu';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
@@ -17,7 +18,7 @@ import { BugIcon } from './components/icons/BugIcon';
 import { MoonIcon } from './components/icons/MoonIcon';
 import { SunIcon } from './components/icons/SunIcon';
 import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun } from 'lucide-react';
-import { getAllTenants, getAllTransactions, Tenant, Transaction } from './lib/api';
+import { getAllTenants, getAllTransactions, getAllDataSources, Tenant, Transaction, DataSource } from './lib/api';
 import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { LoginDialog } from './components/LoginDialog';
@@ -36,6 +37,13 @@ function AppContent() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
+  // Shared state for data sources
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
+
+  // Active tenant state
+  const [activeTenantId, setActiveTenantId] = useState<string>('global');
+
   // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
@@ -52,10 +60,67 @@ function AppContent() {
     }
   }, [theme]);
 
-  // Auto-load tenants from API on mount
+  // Load active tenant from localStorage on mount or set from user
+  useEffect(() => {
+    // If user is not a SuperUser and has a tenantId, lock to that tenant
+    if (user && user.role !== 'superuser' && user.tenantId) {
+      setActiveTenantId(user.tenantId);
+      localStorage.setItem('bfs_active_tenant', user.tenantId);
+      return;
+    }
+    
+    // For SuperUser, load from localStorage or default to 'global'
+    const savedTenantId = localStorage.getItem('bfs_active_tenant');
+    if (savedTenantId) {
+      setActiveTenantId(savedTenantId);
+    } else {
+      setActiveTenantId('global');
+    }
+  }, [user]);
+
+  // Handle tenant change
+  const handleTenantChange = (tenantId: string) => {
+    setActiveTenantId(tenantId);
+    localStorage.setItem('bfs_active_tenant', tenantId);
+    
+    const tenantName = tenantId === 'global' 
+      ? 'Global Tenant' 
+      : tenants.find(t => t.TenantId === tenantId)?.TenantName || tenantId;
+    
+    toast.success(`Switched to ${tenantName}`);
+  };
+
+  // Auto-redirect to first accessible tab
+  useEffect(() => {
+    const getFirstAccessibleTab = () => {
+      if (hasAccessTo('Tenants')) return 'tenants';
+      if (hasAccessTo('Transactions')) return 'modelschema';
+      if (hasAccessTo('Transactions')) return 'datasources';
+      if (hasAccessTo('Data Plane')) return 'transactions';
+      return 'tenants'; // default fallback
+    };
+
+    const tabMapping: Record<string, 'Tenants' | 'Transactions' | 'Data Plane'> = {
+      'tenants': 'Tenants',
+      'modelschema': 'Transactions',
+      'datasources': 'Transactions',
+      'transactions': 'Data Plane',
+    };
+
+    // Check if user has access to current tab
+    const currentTabSection = tabMapping[activeTab];
+    if (currentTabSection && !hasAccessTo(currentTabSection)) {
+      // Redirect to first accessible tab
+      const firstAccessibleTab = getFirstAccessibleTab();
+      setActiveTab(firstAccessibleTab);
+    }
+  }, [user, hasAccessTo, activeTab]);
+
+  // Auto-load tenants and data sources from API on mount
   // Don't auto-load transactions - API requires TxnType parameter
   useEffect(() => {
     refreshTenants();
+    refreshDataSources();
   }, []);
 
   // Refresh tenants from API
@@ -91,6 +156,33 @@ function AppContent() {
     // This is just a placeholder for the interface
   };
 
+  // Refresh data sources from API
+  const refreshDataSources = async () => {
+    setIsLoadingDataSources(true);
+    try {
+      const dataSourcesData = await getAllDataSources();
+      
+      // Sort by CreateTime descending (newest first)
+      const sortedDataSources = [...dataSourcesData].sort((a, b) => {
+        const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
+        const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      setDataSources(sortedDataSources);
+      
+      if (sortedDataSources.length > 0) {
+        toast.success(`Loaded ${sortedDataSources.length} data source(s)`);
+      }
+    } catch (error: any) {
+      if (error.message !== 'CORS_BLOCKED') {
+        toast.error(`Could not load data sources: ${error.message}`, { duration: 5000 });
+      }
+    } finally {
+      setIsLoadingDataSources(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -99,7 +191,7 @@ function AppContent() {
           <div className="flex items-center justify-between">
             {/* Left - Logo */}
             <div className="flex items-center md:w-[200px]">
-             <svg width="129" height="40" viewBox="0 0 310 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="129" height="40" viewBox="0 0 310 96" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M79.5452 0H16.4548C7.36707 0 0 7.36811 0 16.4571V79.5429C0 88.6319 7.36706 96 16.4548 96H79.5452C88.6329 96 96 88.6319 96 79.5429V16.4571C96 7.36812 88.6329 0 79.5452 0Z" fill="url(#paint0_linear_12402_1400)"/>
 <path d="M162.732 31.9025H171.92V57.179H177.983V31.9025H187.317V67.8336C187.317 74.4015 184.749 76.9756 178.91 76.9756H167.723L168.358 68.8288H177.983V62.9773C175.706 64.543 172.635 65.8301 169.153 65.8301C164.81 65.8301 162.732 63.4019 162.732 58.8376V31.9157V31.9025Z" fill="#00205B" className="dark:fill-white"/>
 <path d="M120 31.6074H128.844L129.133 34.2992C131.472 32.7422 134.508 31.3171 137.622 31.3171C141.012 31.3171 142.721 32.4519 143.496 34.5895C145.901 32.5311 149.015 31.3171 152.34 31.3171C156.65 31.3171 158.634 33.5207 158.634 38.7064V65.2684H149.436V40.2635H143.916V65.2684H134.718V40.2635H129.199V65.2684H120V31.6074Z" fill="#00205B" className="dark:fill-white"/>
@@ -118,32 +210,46 @@ function AppContent() {
 </linearGradient>
 </defs>
 </svg>
-
             </div>
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              <Button
-                variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('tenants')}
-              >
-                <TenantsIcon className="h-4 w-4 mr-2" />
-                Tenants
-              </Button>
-              <Button
-                variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('modelschema')}
-              >
-                <GridIcon className="h-4 w-4 mr-2" />
-                Transaction Onboarding
-              </Button>
-              <Button
-                variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('transactions')}
-              >
-                <ListIcon className="h-4 w-4 mr-2" />
-                Data Plane
-              </Button>
+              {hasAccessTo('Tenants') && (
+                <Button
+                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('tenants')}
+                >
+                  <TenantsIcon className="h-4 w-4 mr-2" />
+                  Tenants
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('modelschema')}
+                >
+                  <GridIcon className="h-4 w-4 mr-2" />
+                  Transaction Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Transactions') && (
+                <Button
+                  variant={activeTab === 'datasources' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('datasources')}
+                >
+                  <Receipt className="h-4 w-4 mr-2" />
+                  Data Source Onboarding
+                </Button>
+              )}
+              {hasAccessTo('Data Plane') && (
+                <Button
+                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab('transactions')}
+                >
+                  <ListIcon className="h-4 w-4 mr-2" />
+                  Data Plane
+                </Button>
+              )}
             </nav>
 
             {/* Right - Actions + Mobile Menu */}
@@ -211,6 +317,8 @@ function AppContent() {
               isLoading={isLoadingTenants}
               refreshData={refreshTenants}
               userRole={user?.role || 'viewer'}
+              activeTenantId={activeTenantId}
+              onTenantChange={handleTenantChange}
             />
           </TabsContent>
 
@@ -221,11 +329,32 @@ function AppContent() {
               isLoading={isLoadingTransactions}
               refreshData={refreshTransactions}
               userRole={user?.role || 'viewer'}
+              tenants={tenants}
+              activeTenantId={activeTenantId}
+              onTenantChange={handleTenantChange}
             />
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView userRole={user?.role || 'viewer'} />
+            <ModelSchemaView 
+              userRole={user?.role || 'viewer'}
+              tenants={tenants}
+              activeTenantId={activeTenantId}
+              onTenantChange={handleTenantChange}
+            />
+          </TabsContent>
+
+          <TabsContent value="datasources">
+            <DataSourcesView
+              dataSources={dataSources}
+              setDataSources={setDataSources}
+              isLoading={isLoadingDataSources}
+              refreshData={refreshDataSources}
+              userRole={user?.role || 'viewer'}
+              tenants={tenants}
+              activeTenantId={activeTenantId}
+              onTenantChange={handleTenantChange}
+            />
           </TabsContent>
         </Tabs>
       </main>

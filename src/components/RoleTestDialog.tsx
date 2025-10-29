@@ -13,9 +13,11 @@ interface RoleTestDialogProps {
 }
 
 const ROLE_OPTIONS = [
-  { value: 'admin', label: 'Admin (Portal.Admin)', description: 'Full access: View, Create, Edit, Delete' },
-  { value: 'edit', label: 'Editor (Portal.Editor)', description: 'View, Edit, Delete (no Create)' },
-  { value: 'view', label: 'Viewer (Portal.Reader)', description: 'View only (read-only access)' },
+  { value: 'superuser', label: 'SuperUser', azureRole: 'Portal.SuperUser', description: 'Full access to everything including tenant management' },
+  { value: 'viewonlysuperuser', label: 'View-Only SuperUser', azureRole: 'Portal.ViewOnlySuperUser', description: 'Read-only access to everything including tenants' },
+  { value: 'admin', label: 'Admin', azureRole: 'Portal.Admin', description: 'Read/write access for transactions + data plane (no tenants)' },
+  { value: 'developer', label: 'Developer', azureRole: 'Portal.Developer', description: 'Read/write access for transactions + data plane (no tenants)' },
+  { value: 'viewer', label: 'Viewer', azureRole: 'Portal.Viewer', description: 'Read-only access for transactions + data plane (no tenants)' },
 ];
 
 const ACCESS_OPTIONS = [
@@ -29,7 +31,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
   const { user, updateUser } = useAuth();
   
   // Initialize selectedRole based on current user's role
-  const [selectedRole, setSelectedRole] = useState<string>(user?.role || 'view');
+  const [selectedRole, setSelectedRole] = useState<string>(user?.role || 'viewer');
   
   // Initialize selectedAccess based on current user's access
   const getCurrentAccessValue = (): string => {
@@ -45,7 +47,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
   // Reset selections when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedRole(user?.role || 'view');
+      setSelectedRole(user?.role || 'viewer');
       setSelectedAccess(getCurrentAccessValue());
     }
   }, [open, user]);
@@ -63,23 +65,34 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
 
   const handleApplyChanges = () => {
     // Determine what to apply
-    const roleToApply = selectedRole || user?.role || 'view';
+    const roleToApply = selectedRole || user?.role || 'viewer';
     
-    // Convert selected access to AccessLevel
-    // NOTE: Section Access is currently disabled - always use 'All'
-    // To enable, uncomment the Section Access UI below and use this line:
-    // const access: AccessLevel = selectedAccess === 'All' ? 'All' : [selectedAccess as AccessSection];
-    const access: AccessLevel = 'All';
+    // Determine access based on role
+    // SuperUser and ViewOnlySuperUser have access to all sections
+    // Admin, Developer, Viewer only have access to Transactions and Data Plane
+    const access: AccessLevel = 
+      (roleToApply === 'superuser' || roleToApply === 'viewonlysuperuser') 
+        ? 'All' 
+        : ['Transactions', 'Data Plane'];
 
     // For Azure users, we'll temporarily override the role and access in localStorage
     if (user?.isAzureAuth) {
+      // Map role to Azure role name
+      const azureRoleMap: Record<string, string> = {
+        'superuser': 'Portal.SuperUser',
+        'viewonlysuperuser': 'Portal.ViewOnlySuperUser',
+        'admin': 'Portal.Admin',
+        'developer': 'Portal.Developer',
+        'viewer': 'Portal.Viewer',
+      };
+      
       const updatedUser = {
         username: user.username,
         email: user.email,
         name: user.name,
-        role: roleToApply,
+        role: roleToApply as UserRole,
         access: access,
-        azureRole: roleToApply === 'admin' ? 'Portal.Admin' : roleToApply === 'edit' ? 'Portal.Editor' : 'Portal.Reader',
+        azureRole: azureRoleMap[roleToApply] || 'Portal.Viewer',
         isAzureAuth: true,
       };
       
@@ -94,24 +107,26 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
       updateUser(updatedUser);
       
       // Show success message
-      toast.success(`Settings updated! Role: ${roleToApply}`);
+      toast.success(`Settings updated! Role: ${ROLE_OPTIONS.find(r => r.value === roleToApply)?.label}`);
       
       // Close dialog
       onOpenChange(false);
     } else {
       // For local users, update with new access
       const credentials: Record<UserRole, { username: string; password: string }> = {
+        superuser: { username: 'superuser', password: 'super123' },
+        viewonlysuperuser: { username: 'viewonlysuperuser', password: 'viewsuper123' },
         admin: { username: 'admin', password: 'admin123' },
-        edit: { username: 'editor', password: 'edit123' },
-        view: { username: 'viewer', password: 'view123' },
+        developer: { username: 'developer', password: 'dev123' },
+        viewer: { username: 'viewer', password: 'view123' },
       };
       
-      const cred = credentials[roleToApply];
+      const cred = credentials[roleToApply as UserRole];
       
       // Update the user with custom access directly
       const updatedUser = {
         username: cred.username,
-        role: roleToApply,
+        role: roleToApply as UserRole,
         access: access,
         isAzureAuth: false,
       };
@@ -122,7 +137,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
       updateUser(updatedUser);
       
       // Show success message
-      toast.success(`Settings updated! Role: ${roleToApply}`);
+      toast.success(`Settings updated! Role: ${ROLE_OPTIONS.find(r => r.value === roleToApply)?.label}`);
       
       // Close dialog
       onOpenChange(false);
@@ -140,9 +155,8 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-[#1D6BCD]" />
+        <DialogHeader className="text-center">
+          <DialogTitle>
             Change Role & Access
           </DialogTitle>
           <DialogDescription>
@@ -179,7 +193,7 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
           {/* Role Selection */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <UserCircle className="h-4 w-4 text-[#1D6BCD]" />
+             
               <Label htmlFor="role-select" className="text-sm">
                 Select Role:
               </Label>
@@ -191,16 +205,12 @@ export const RoleTestDialog = ({ open, onOpenChange }: RoleTestDialogProps) => {
               </SelectTrigger>
               <SelectContent>
                 {ROLE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
+                  <SelectItem key={option.value} value={option.value} className="cursor-pointer">
                     {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
-            <p className="text-xs text-muted-foreground">
-              {ROLE_OPTIONS.find(r => r.value === selectedRole)?.description || ''}
-            </p>
           </div>
 
           {/* ========================================

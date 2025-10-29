@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { fetchAzureAuthData, isAzureAuthEnabled } from '../lib/azure-auth';
 
-export type UserRole = 'admin' | 'view' | 'edit';
+export type UserRole = 'superuser' | 'viewonlysuperuser' | 'admin' | 'developer' | 'viewer';
 export type AccessSection = 'Tenants' | 'Transactions' | 'Data Plane';
 export type AccessLevel = 'All' | AccessSection[];
 
@@ -13,6 +13,7 @@ interface User {
   name?: string;
   azureRole?: string;
   isAzureAuth?: boolean;
+  tenantId?: string; // Associated tenant ID for non-superuser users
 }
 
 interface AuthContextType {
@@ -30,9 +31,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock credentials for testing
 const MOCK_USERS: Record<string, { password: string; role: UserRole; access: AccessLevel }> = {
-  admin: { password: 'admin123', role: 'admin', access: 'All' },
-  viewer: { password: 'view123', role: 'view', access: 'All' },
-  editor: { password: 'edit123', role: 'edit', access: 'All' },
+  superuser: { password: 'super123', role: 'superuser', access: 'All' },
+  viewonlysuperuser: { password: 'viewsuper123', role: 'viewonlysuperuser', access: 'All' },
+  admin: { password: 'admin123', role: 'admin', access: ['Transactions', 'Data Plane'] },
+  developer: { password: 'dev123', role: 'developer', access: ['Transactions', 'Data Plane'] },
+  viewer: { password: 'view123', role: 'viewer', access: ['Transactions', 'Data Plane'] },
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -111,9 +114,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Default: Create guest user with viewer role
       const guestUser: User = {
         username: 'guest',
-        role: 'view',
+        role: 'viewer',
         isAzureAuth: false,
-        access: 'All', // Assuming guest users have full access
+        access: ['Transactions', 'Data Plane'], // Guest has no tenant access
       };
       setUser(guestUser);
       setIsLoadingAuth(false);

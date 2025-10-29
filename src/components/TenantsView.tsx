@@ -10,7 +10,7 @@ import { RefreshIcon } from './icons/RefreshIcon';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
-import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye, MoreVertical, Filter } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
@@ -18,6 +18,8 @@ import { TenantDetail } from './TenantDetail';
 import { TenantEditForm } from './TenantEditForm';
 import { TenantImportDialog } from './TenantImportDialog';
 import { Badge } from './ui/badge';
+import { TenantSelector } from './TenantSelector';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 import { UserRole } from './AuthContext';
 
@@ -27,9 +29,11 @@ interface TenantsViewProps {
   isLoading: boolean;
   refreshData: () => void;
   userRole: UserRole;
+  activeTenantId: string;
+  onTenantChange: (tenantId: string) => void;
 }
 
-export function TenantsView({ tenants, setTenants, isLoading, refreshData, userRole }: TenantsViewProps) {
+export function TenantsView({ tenants, setTenants, isLoading, refreshData, userRole, activeTenantId, onTenantChange }: TenantsViewProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
@@ -46,6 +50,14 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
   
   // Import state
   const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // Permission checks based on role hierarchy
+  // Only Portal.SuperUser has full access to tenants (view/create/edit/delete)
+  // Portal.ViewOnlySuperUser has read-only access to tenants
+  const canCreate = userRole === 'superuser';
+  const canEdit = userRole === 'superuser';
+  const canDelete = userRole === 'superuser';
+  const canView = userRole === 'superuser' || userRole === 'viewonlysuperuser';
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -65,20 +77,29 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
 
   // Column configuration state with localStorage persistence
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
+    const STORAGE_VERSION = '2'; // Increment when changing default columns
     const saved = localStorage.getItem('tenantsViewColumns');
-    if (saved) {
+    const savedVersion = localStorage.getItem('tenantsViewColumnsVersion');
+    
+    if (saved && savedVersion === STORAGE_VERSION) {
       try {
         return JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse saved columns:', e);
       }
     }
+    
+    // Clear old data and use defaults
+    localStorage.removeItem('tenantsViewColumns');
+    localStorage.setItem('tenantsViewColumnsVersion', STORAGE_VERSION);
     return getDefaultColumns();
   });
 
   // Save column configs to localStorage whenever they change
   useEffect(() => {
+    const STORAGE_VERSION = '2';
     localStorage.setItem('tenantsViewColumns', JSON.stringify(columnConfigs));
+    localStorage.setItem('tenantsViewColumnsVersion', STORAGE_VERSION);
   }, [columnConfigs]);
 
   // Extract available fields from tenants to offer as columns
@@ -223,11 +244,55 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
     return obj[path];
   };
 
+  // Helper to check if a value is empty
+  const isEmptyValue = (value: any): boolean => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'string' && (value.trim() === '' || value === '—' || value === 'N/A')) return true;
+    return false;
+  };
+
+  // Helper to check if a column has any non-empty values
+  const hasNonEmptyValues = (columnKey: string): boolean => {
+    if (tenants.length === 0) return false;
+    
+    return tenants.some(tenant => {
+      const value = getNestedValue(tenant, columnKey);
+      return !isEmptyValue(value);
+    });
+  };
+
+  // Update column configs with isEmpty flag
+  const enrichedColumnConfigs = useMemo(() => {
+    if (tenants.length === 0) {
+      // If no data, don't mark anything as empty
+      return columnConfigs.map(col => ({ ...col, isEmpty: false }));
+    }
+    
+    return columnConfigs.map(col => {
+      // Check if column has any non-empty values
+      const hasData = col.locked || tenants.some(tenant => {
+        const value = getNestedValue(tenant, col.key);
+        return !isEmptyValue(value);
+      });
+      
+      return {
+        ...col,
+        isEmpty: !hasData
+      };
+    });
+  }, [columnConfigs, tenants]);
+
   // DataTable columns configuration - dynamically generated based on enabled columns
   const columns = useMemo(() => {
-    const enabledColumns = columnConfigs.filter(col => col.enabled);
+    // Use enrichedColumnConfigs which already has isEmpty flags
+    const enabledColumns = enrichedColumnConfigs.filter(col => col.enabled);
     
-    return enabledColumns.map(colConfig => {
+    // Filter out columns that have no data (all values are empty)
+    const columnsWithData = enabledColumns.filter(col => 
+      col.locked || !col.isEmpty
+    );
+    
+    return columnsWithData.map(colConfig => {
       // Special rendering for TenantId
       if (colConfig.key === 'TenantId') {
         return {
@@ -347,37 +412,104 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
         },
       };
     });
-  }, [columnConfigs]);
+  }, [enrichedColumnConfigs, tenants]);
+
+  // Filter tenants based on active tenant selection
+  const filteredTenants = useMemo(() => {
+    if (activeTenantId === 'global') {
+      return tenants;
+    }
+    return tenants.filter(tenant => tenant.TenantId === activeTenantId);
+  }, [tenants, activeTenantId]);
 
   return (
     <div className="w-full max-w-[1440px] mx-auto space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
-              <CardTitle className="font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px] text-lg md:text-xl">Supplier Tenants</CardTitle>
-              <CardDescription className="text-xs md:text-sm">
+          {/* Mobile Layout: Stack vertically */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+            {/* Title Section */}
+            <div className="flex-1 min-w-0">
+              <CardTitle className="font-bold text-lg md:text-xl pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Supplier Tenants</CardTitle>
+              <CardDescription className="text-sm text-[16px]">
                 View and manage supplier tenants on the BFS platform
               </CardDescription>
             </div>
-            <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+            
+            {/* Desktop View - All buttons visible */}
+            <div className="hidden md:flex gap-2 flex-shrink-0">
+              <TenantSelector
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={onTenantChange}
+                isSuperUser={userRole === 'superuser'}
+              />
               <ColumnSelector
-                columns={columnConfigs}
+                columns={enrichedColumnConfigs}
                 onColumnsChange={setColumnConfigs}
                 availableFields={availableFields}
                 onReset={handleResetColumns}
               />
-              <Button variant="outline" onClick={refreshData} disabled={isLoading} className="rounded-[4px] flex-1 sm:flex-none">
-                <RefreshIcon className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} md:mr-2`} />
-                <span className="hidden md:inline">Refresh</span>
+              <Button variant="outline" onClick={refreshData} disabled={isLoading}>
+                <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
               </Button>
-              {userRole === 'admin' && (
-                <Button onClick={() => setIsCreateDialogOpen(true)} className="rounded-[4px] flex-1 sm:flex-none">
-                  <Plus className="h-4 w-4 md:mr-2" />
-                  <span className="hidden md:inline">Add New Tenant</span>
-                  <span className="md:hidden">Add</span>
+              {canCreate && (
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Tenant
                 </Button>
               )}
+            </div>
+
+            {/* Mobile View - Dropdown Menu */}
+            <div className="flex md:hidden items-center gap-2 justify-end">
+              {/* Tenant Selector */}
+              <TenantSelector
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={onTenantChange}
+                isSuperUser={userRole === 'superuser'}
+              />
+              
+              {/* Dropdown Menu with other actions */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={refreshData} disabled={isLoading}>
+                    <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </DropdownMenuItem>
+                  {canCreate && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Tenant
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault();
+                    }}
+                  >
+                    <Filter className="h-4 w-4 mr-2" />
+                    <span className="flex-1">Columns</span>
+                    <ColumnSelector
+                      columns={enrichedColumnConfigs}
+                      onColumnsChange={setColumnConfigs}
+                      availableFields={availableFields}
+                      onReset={handleResetColumns}
+                    />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
@@ -388,11 +520,11 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
               <Upload className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg mb-2">No Tenants Yet</h3>
               <p className="text-muted-foreground mb-6 max-w-md">
-                {userRole === 'admin' 
+                {canCreate 
                   ? 'Get started by importing tenants from a JSON file. Upload your tenant data to begin managing suppliers on the BFS platform.'
-                  : 'No tenants available. Contact an administrator to import tenant data.'}
+                  : 'No tenants available. Contact a SuperUser to import tenant data.'}
               </p>
-              {userRole === 'admin' && (
+              {canCreate && (
                 <Button onClick={() => setIsImportOpen(true)} size="lg" className="rounded-full">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Import Tenants from JSON</span>
@@ -405,7 +537,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
             <>
               {/* Tenants Table */}
               <DataTable
-                data={tenants}
+                data={filteredTenants}
                 columns={columns}
                 searchPlaceholder="Search tenants..."
                 searchKeys={['TenantId', 'TenantName']}
@@ -420,7 +552,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                       <ViewIcon className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    {userRole !== 'view' && (
+                    {canEdit && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -430,7 +562,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                         Edit
                       </Button>
                     )}
-                    {userRole !== 'view' && (
+                    {canDelete && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -439,6 +571,41 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                       >
                         <DeleteIcon className="h-4 w-4 mr-1" />
                         Delete
+                      </Button>
+                    )}
+                  </div>
+                )}
+                actionsCompact={(tenant) => (
+                  <div className="flex gap-1 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTenantIdClick(tenant)}
+                      className="h-8 w-8 p-0"
+                      title="View tenant"
+                    >
+                      <ViewIcon className="h-4 w-4" />
+                    </Button>
+                    {canEdit && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(tenant)}
+                        className="h-8 w-8 p-0"
+                        title="Edit tenant"
+                      >
+                        <EditIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDeleteDialog(tenant)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        title="Delete tenant"
+                      >
+                        <DeleteIcon className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

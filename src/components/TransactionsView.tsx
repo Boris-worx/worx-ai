@@ -12,15 +12,18 @@ import { SearchIcon } from './icons/SearchIcon';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
-import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle, Trash2, Pencil } from 'lucide-react';
+import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle, Trash2, Pencil, MoreVertical, Filter } from 'lucide-react';
 import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction } from '../lib/api';
 import { DataTable } from './DataTable';
 import { TransactionDetail } from './TransactionDetail';
-import { TransactionFormDialog } from './TransactionFormDialog';
+import { TransactionCreateDialog } from './TransactionCreateDialog';
 import { TransactionEditDialog } from './TransactionEditDialog';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { UserRole } from './AuthContext';
+import { TenantSelector } from './TenantSelector';
+import { Tenant } from '../lib/api';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -28,9 +31,12 @@ interface TransactionsViewProps {
   isLoading: boolean;
   refreshData: () => void;
   userRole: UserRole;
+  tenants: Tenant[];
+  activeTenantId: string;
+  onTenantChange: (tenantId: string) => void;
 }
 
-export function TransactionsView({ transactions, setTransactions, isLoading, refreshData, userRole }: TransactionsViewProps) {
+export function TransactionsView({ transactions, setTransactions, isLoading, refreshData, userRole, tenants, activeTenantId, onTenantChange }: TransactionsViewProps) {
   const [selectedTxnType, setSelectedTxnType] = useState<string>('Customer'); // Default to Customer
   const [isLoadingType, setIsLoadingType] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -54,11 +60,13 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   // Default columns - commonly used fields
   const getDefaultColumns = (): ColumnConfig[] => [
     { key: 'TxnId', label: 'ID', enabled: true, locked: true },
-    { key: 'Name', label: 'Name', enabled: true },
+    { key: 'Txn.Name', label: 'Name', enabled: true },
     { key: 'TxnType', label: 'Type', enabled: false },
-    { key: 'Txn.Status', label: 'Status', enabled: false },
+    { key: 'Txn.Status', label: 'Status', enabled: true },
+    { key: 'Txn.CustomerId', label: 'Customer ID', enabled: false },
+    { key: 'Txn.CustomerType', label: 'Customer Type', enabled: false },
     { key: 'Txn.Email', label: 'Email', enabled: false },
-    { key: 'Txn.Phone', label: 'Phone', enabled: false },
+    { key: 'Txn.Phone1', label: 'Phone', enabled: false },
     { key: 'Txn.Address', label: 'Address', enabled: false },
     { key: 'Txn.Amount', label: 'Amount', enabled: false },
     { key: 'Txn.Currency', label: 'Currency', enabled: false },
@@ -68,27 +76,38 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
 
   // Column configuration state with localStorage persistence
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
+    const STORAGE_VERSION = '4'; // Increment when changing default columns
     const saved = localStorage.getItem('transactionsViewColumns');
-    if (saved) {
+    const savedVersion = localStorage.getItem('transactionsViewColumnsVersion');
+    
+    if (saved && savedVersion === STORAGE_VERSION) {
       try {
         return JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse saved columns:', e);
       }
     }
+    
+    // Clear old data and use defaults
+    localStorage.removeItem('transactionsViewColumns');
+    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
     return getDefaultColumns();
   });
 
   // Reset columns to default
   const handleResetColumns = () => {
+    const STORAGE_VERSION = '4';
     setColumnConfigs(getDefaultColumns());
     localStorage.removeItem('transactionsViewColumns');
+    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
     toast.success('Column settings reset to default');
   };
 
   // Save column configs to localStorage whenever they change
   useEffect(() => {
+    const STORAGE_VERSION = '4';
     localStorage.setItem('transactionsViewColumns', JSON.stringify(columnConfigs));
+    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
   }, [columnConfigs]);
 
   // Extract available fields from transactions to offer as columns
@@ -310,8 +329,11 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       
       // Refresh if we're viewing this type
       if (selectedTxnType === txnType) {
-        loadTransactionsForType(txnType);
+        await loadTransactionsForType(txnType);
       }
+      
+      // Update type counts
+      await loadAllTypeCounts();
       
       return newTxn;
     } catch (error: any) {
@@ -356,11 +378,64 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     return obj[path];
   };
 
+  // Helper to check if a value is empty
+  const isEmptyValue = (value: any): boolean => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'string' && (value.trim() === '' || value === '—' || value === '-' || value === 'N/A')) return true;
+    return false;
+  };
+
+  // Helper to check if a column has any non-empty values
+  const hasNonEmptyValues = (columnKey: string): boolean => {
+    if (transactions.length === 0) return false;
+    
+    return transactions.some(txn => {
+      const value = getNestedValue(txn, columnKey);
+      return !isEmptyValue(value);
+    });
+  };
+
+  // Update column configs with isEmpty flag
+  const enrichedColumnConfigs = useMemo(() => {
+    if (transactions.length === 0) {
+      // If no data, don't mark anything as empty
+      return columnConfigs.map(col => ({ ...col, isEmpty: false }));
+    }
+    
+    const enriched = columnConfigs.map(col => {
+      // Check if column has any non-empty values
+      const hasData = col.locked || transactions.some(txn => {
+        const value = getNestedValue(txn, col.key);
+        const isEmpty = isEmptyValue(value);
+        return !isEmpty;
+      });
+      
+      return {
+        ...col,
+        isEmpty: !hasData
+      };
+    });
+    
+    // Debug: Log columns marked as empty
+    const emptyColumns = enriched.filter(c => c.isEmpty);
+    if (emptyColumns.length > 0) {
+      console.log('Columns with no data:', emptyColumns.map(c => c.key));
+    }
+    
+    return enriched;
+  }, [columnConfigs, transactions]);
+
   // DataTable columns configuration - dynamically generated based on enabled columns
   const columns = useMemo(() => {
-    const enabledColumns = columnConfigs.filter(col => col.enabled);
+    // Use enrichedColumnConfigs which already has isEmpty flags
+    const enabledColumns = enrichedColumnConfigs.filter(col => col.enabled);
     
-    return enabledColumns.map(colConfig => {
+    // Filter out columns that have no data (all values are empty)
+    const columnsWithData = enabledColumns.filter(col => 
+      col.locked || !col.isEmpty
+    );
+    
+    return columnsWithData.map(colConfig => {
       // Special rendering for known columns
       if (colConfig.key === 'TxnId') {
         return {
@@ -497,7 +572,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         },
       };
     });
-  }, [columnConfigs]);
+  }, [enrichedColumnConfigs, transactions]);
 
   // Actions render function (displayed as last column on the right)
   const renderActions = (row: Transaction) => (
@@ -512,7 +587,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         <Eye className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
         <span className="hidden md:inline">View</span>
       </Button>
-      {userRole !== 'view' && (
+      {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
         <Button
           variant="outline"
           size="sm"
@@ -524,7 +599,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
           <span className="hidden md:inline">Edit</span>
         </Button>
       )}
-      {userRole !== 'view' && (
+      {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
         <Button
           variant="outline"
           size="sm"
@@ -539,11 +614,48 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     </div>
   );
 
+  // Compact actions (icons only) for when table has horizontal scroll
+  const renderActionsCompact = (row: Transaction) => (
+    <div className="flex gap-1 whitespace-nowrap justify-end">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleViewDetail(row)}
+        className="h-8 w-8 p-0"
+        title="View transaction details"
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+      {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleEditTransaction(row)}
+          className="h-8 w-8 p-0"
+          title="Edit transaction"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      )}
+      {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleDeleteTransaction(row)}
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+          title="Delete transaction"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="w-full max-w-[1440px] mx-auto">
       <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="font-bold text-[20px]\">Data Plane</CardTitle>
+          <CardTitle className="font-bold text-[20px]\ text-[20px]">Data Plane</CardTitle>
           <CardDescription>
             View and manage ERP transactions across all suppliers
           </CardDescription>
@@ -559,26 +671,26 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
             </div>
 
             {/* Right: Current Type and Actions */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {/* Mobile type selector */}
-                <div className="md:hidden flex-1">
-                  <Select value={selectedTxnType} onValueChange={handleTypeChange}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredTypes
-                        .filter((type) => (typeCounts[type] || 0) > 0)
-                        .map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type} ({typeCounts[type] || 0})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
+            <div className="flex flex-col gap-3">
+              {/* Mobile type selector - First row on mobile */}
+              <div className="md:hidden">
+                <Select value={selectedTxnType} onValueChange={handleTypeChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredTypes
+                      .filter((type) => (typeCounts[type] || 0) > 0)
+                      .map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type} ({typeCounts[type] || 0})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
                 {/* Desktop type display */}
                 <div className="hidden md:flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-muted-foreground" />
@@ -587,30 +699,86 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                     {transactions.length}
                   </Badge>
                 </div>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <ColumnSelector
-                  columns={columnConfigs}
-                  onColumnsChange={setColumnConfigs}
-                  availableFields={availableFields}
-                  onReset={handleResetColumns}
-                />
-                <Button
-                  variant="outline"
-                  onClick={handleRefresh}
-                  disabled={isLoadingType}
-                  className="flex-1 sm:flex-none"
-                >
-                  <RefreshIcon className={`h-4 w-4 sm:mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Refresh</span>
-                </Button>
-                {userRole === 'admin' && (
-                  <Button onClick={() => setIsCreateDialogOpen(true)} className="flex-1 sm:flex-none">
-                    <Plus className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Create Transaction</span>
-                    <span className="sm:hidden">Create</span>
+                
+                {/* Desktop View - All buttons visible */}
+                <div className="hidden md:flex gap-2">
+                  <TenantSelector
+                    tenants={tenants}
+                    activeTenantId={activeTenantId}
+                    onTenantChange={onTenantChange}
+                    isSuperUser={userRole === 'superuser'}
+                  />
+                  <ColumnSelector
+                    columns={enrichedColumnConfigs}
+                    onColumnsChange={setColumnConfigs}
+                    availableFields={availableFields}
+                    onReset={handleResetColumns}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleRefresh}
+                    disabled={isLoadingType}
+                  >
+                    <RefreshIcon className={`h-4 w-4 mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
+                    Refresh
                   </Button>
-                )}
+                  {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Transaction
+                    </Button>
+                  )}
+                </div>
+
+                {/* Mobile View - Dropdown Menu - Second row on mobile */}
+                <div className="flex md:hidden items-center gap-2 justify-end ml-auto">
+                  {/* Tenant Selector */}
+                  <TenantSelector
+                    tenants={tenants}
+                    activeTenantId={activeTenantId}
+                    onTenantChange={onTenantChange}
+                    isSuperUser={userRole === 'superuser'}
+                  />
+                  
+                  {/* Dropdown Menu with other actions */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={handleRefresh} disabled={isLoadingType}>
+                        <RefreshIcon className={`h-4 w-4 mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </DropdownMenuItem>
+                      {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Transaction
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onSelect={(e) => {
+                          e.preventDefault();
+                        }}
+                      >
+                        <Filter className="h-4 w-4 mr-2" />
+                        <span className="flex-1">Columns</span>
+                        <ColumnSelector
+                          columns={enrichedColumnConfigs}
+                          onColumnsChange={setColumnConfigs}
+                          availableFields={availableFields}
+                          onReset={handleResetColumns}
+                        />
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </div>
@@ -691,6 +859,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                   data={transactions}
                   columns={columns}
                   actions={renderActions}
+                  actionsCompact={renderActionsCompact}
                   searchPlaceholder="Search transactions..."
                   emptyMessage={`No ${selectedTxnType} transactions found`}
                 />
@@ -710,7 +879,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       )}
 
       {/* Create Dialog */}
-      <TransactionFormDialog
+      <TransactionCreateDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
         onSubmit={handleCreateTransaction}

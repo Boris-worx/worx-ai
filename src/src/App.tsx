@@ -240,7 +240,7 @@ function AppContent() {
               setTenants={setTenants}
               isLoading={isLoadingTenants}
               refreshData={refreshTenants}
-              userRole={user?.role || 'view'}
+              userRole={user?.role || 'viewer'}
             />
           </TabsContent>
 
@@ -250,12 +250,12 @@ function AppContent() {
               setTransactions={setTransactions}
               isLoading={isLoadingTransactions}
               refreshData={refreshTransactions}
-              userRole={user?.role || 'view'}
+              userRole={user?.role || 'viewer'}
             />
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView userRole={user?.role || 'view'} />
+            <ModelSchemaView userRole={user?.role || 'viewer'} />
           </TabsContent>
         </Tabs>
       </main>

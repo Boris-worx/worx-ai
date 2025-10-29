@@ -56,6 +56,25 @@ export interface ModelSchema {
   _attachments?: string;
 }
 
+// DataSource Interface
+export interface DataSource {
+  DataSourceId?: string;
+  DatasourceId?: string;
+  DataSourceName?: string;
+  DatasourceName?: string;
+  Type?: string;
+  ConnectionString?: string;
+  Description?: string;
+  Status?: string;
+  CreateTime?: string;
+  UpdateTime?: string;
+  _rid?: string;
+  _self?: string;
+  _etag?: string;
+  _attachments?: string;
+  _ts?: number;
+}
+
 // API Response Interface
 export interface ApiResponse<T> {
   status: {
@@ -391,11 +410,54 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
     let schemas: ModelSchema[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
-      schemas = responseData.data.Txns;
+      const rawSchemas = responseData.data.Txns;
+      
+      // Transform schemas: extract data from Transaction wrapper if needed
+      schemas = rawSchemas.map((rawSchema: any) => {
+        try {
+          // If wrapped in Transaction format (has TxnId, TxnType, Txn)
+          if (rawSchema.TxnId && rawSchema.Txn) {
+            return {
+              ...rawSchema.Txn,
+              id: rawSchema.TxnId, // Use full TxnId (e.g., "ModelSchema:Location:1")
+              CreateTime: rawSchema.CreateTime || rawSchema.Txn.CreateTime,
+              UpdateTime: rawSchema.UpdateTime || rawSchema.Txn.UpdateTime,
+              _etag: rawSchema._etag,
+              _rid: rawSchema._rid,
+              _ts: rawSchema._ts,
+              _self: rawSchema._self,
+              _attachments: rawSchema._attachments,
+            };
+          }
+          // If already in ModelSchema format, ensure id exists
+          return {
+            ...rawSchema,
+            id: rawSchema.id || `${rawSchema.model}:${rawSchema.version}`,
+          };
+        } catch (transformError) {
+          console.error('⚠️ Error transforming schema:', transformError, rawSchema);
+          // Return a fallback schema object
+          return {
+            id: 'error',
+            model: 'Error',
+            version: 0,
+            state: 'error',
+            semver: '0.0.0',
+            jsonSchema: {},
+            CreateTime: new Date().toISOString(),
+            UpdateTime: new Date().toISOString(),
+          };
+        }
+      }).filter(s => s.id !== 'error'); // Filter out error schemas
+      
       if (schemas.length > 0) {
         console.log(`✅ ModelSchema API enabled! Loaded ${schemas.length} global schema(s):`);
         schemas.forEach(s => {
-          console.log(`   📋 ${s.model} v${s.version} (${s.semver}) - ${s.state}`);
+          try {
+            console.log(`   📋 ${s.model || 'N/A'} v${s.version || 'N/A'} (${s.semver || 'N/A'}) - ${s.state || 'N/A'} [ID: ${s.id || 'N/A'}]`);
+          } catch (logError) {
+            console.log(`   ⚠️ Error logging schema:`, s);
+          }
         });
       } else {
         console.log('ℹ️ ModelSchema API is enabled but returned 0 schemas');
@@ -487,11 +549,35 @@ export async function getModelSchemasForTenant(tenantId: string): Promise<ModelS
     let schemas: ModelSchema[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
-      schemas = responseData.data.Txns;
+      const rawSchemas = responseData.data.Txns;
+      
+      // Transform schemas: extract data from Transaction wrapper if needed
+      schemas = rawSchemas.map((rawSchema: any) => {
+        // If wrapped in Transaction format (has TxnId, TxnType, Txn)
+        if (rawSchema.TxnId && rawSchema.Txn) {
+          return {
+            ...rawSchema.Txn,
+            id: rawSchema.TxnId, // Use full TxnId (e.g., "ModelSchema:Location:1")
+            CreateTime: rawSchema.CreateTime || rawSchema.Txn.CreateTime,
+            UpdateTime: rawSchema.UpdateTime || rawSchema.Txn.UpdateTime,
+            _etag: rawSchema._etag,
+            _rid: rawSchema._rid,
+            _ts: rawSchema._ts,
+            _self: rawSchema._self,
+            _attachments: rawSchema._attachments,
+          };
+        }
+        // If already in ModelSchema format, ensure id exists
+        return {
+          ...rawSchema,
+          id: rawSchema.id || `${rawSchema.model}:${rawSchema.version}`,
+        };
+      });
+      
       if (schemas.length > 0) {
         console.log(`✅ Loaded ${schemas.length} schema(s) for tenant ${tenantId}:`);
         schemas.forEach(s => {
-          console.log(`   📋 ${s.model} v${s.version} (${s.semver}) - ${s.state}`);
+          console.log(`   📋 ${s.model} v${s.version} (${s.semver}) - ${s.state} [ID: ${s.id}]`);
         });
       }
     }
@@ -546,7 +632,31 @@ async function getModelSchemasByTenantGlobal(tenantId: string): Promise<ModelSch
     let schemas: ModelSchema[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
-      schemas = responseData.data.Txns;
+      const rawSchemas = responseData.data.Txns;
+      
+      // Transform schemas: extract data from Transaction wrapper if needed
+      schemas = rawSchemas.map((rawSchema: any) => {
+        // If wrapped in Transaction format (has TxnId, TxnType, Txn)
+        if (rawSchema.TxnId && rawSchema.Txn) {
+          return {
+            ...rawSchema.Txn,
+            id: rawSchema.TxnId, // Use full TxnId
+            CreateTime: rawSchema.CreateTime || rawSchema.Txn.CreateTime,
+            UpdateTime: rawSchema.UpdateTime || rawSchema.Txn.UpdateTime,
+            _etag: rawSchema._etag,
+            _rid: rawSchema._rid,
+            _ts: rawSchema._ts,
+            _self: rawSchema._self,
+            _attachments: rawSchema._attachments,
+          };
+        }
+        // If already in ModelSchema format, ensure id exists
+        return {
+          ...rawSchema,
+          id: rawSchema.id || `${rawSchema.model}:${rawSchema.version}`,
+        };
+      });
+      
       if (schemas.length > 0) {
         console.log(`✅ Loaded ${schemas.length} schema(s) from global endpoint for tenant ${tenantId}`);
       }
@@ -565,6 +675,11 @@ export const TRANSACTION_TYPES = [
   'Customer',
   'Customer Aging',
   'Location',
+  'Quote',
+  'QuoteDetails',
+  'QuotePack',
+  'QuotePackOrder',
+  'ReasonCode',
   'Job',
   'Items',
   'Invoice',
@@ -652,8 +767,19 @@ export async function getTransactionsByType(txnType: string): Promise<Transactio
         
         // Transform each raw transaction to our Transaction format
         txns = rawTxns.map((rawTxn: any) => {
-          // Get the entity ID from the transaction
-          const entityId = rawTxn.id || rawTxn.CustomerId || rawTxn.InvoiceId || `txn-${Date.now()}`;
+          // Get the entity ID from the transaction based on type
+          let entityId = rawTxn.id;
+          
+          // Check for type-specific ID fields
+          if (!entityId) {
+            if (rawTxn.CustomerId) entityId = rawTxn.CustomerId;
+            else if (rawTxn.LocationId) entityId = rawTxn.LocationId;
+            else if (rawTxn.quoteId) entityId = rawTxn.quoteId;
+            else if (rawTxn.reasonCodeId) entityId = rawTxn.reasonCodeId;
+            else if (rawTxn.InvoiceId) entityId = rawTxn.InvoiceId;
+            else entityId = `txn-${Date.now()}`;
+          }
+          
           // Store the full TxnId in format "TxnType:EntityId" for API compatibility
           const fullTxnId = `${returnedTxnType}:${entityId}`;
           
@@ -661,8 +787,8 @@ export async function getTransactionsByType(txnType: string): Promise<Transactio
             TxnId: fullTxnId,
             TxnType: returnedTxnType,
             Txn: rawTxn,
-            CreateTime: rawTxn.CreateTime,
-            UpdateTime: rawTxn.UpdateTime,
+            CreateTime: rawTxn.createTime || rawTxn.CreateTime,
+            UpdateTime: rawTxn.updateTime || rawTxn.UpdateTime,
             _etag: rawTxn._etag,
             _rid: rawTxn._rid,
             _ts: rawTxn._ts,
@@ -923,6 +1049,640 @@ export async function deleteTransaction(
   } catch (error) {
     console.error("deleteTransaction error:", error);
     throw error;
+  }
+}
+
+// ==================== DATA SOURCE API FUNCTIONS ====================
+
+// Get all data sources
+export async function getAllDataSources(): Promise<DataSource[]> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return [];
+  }
+
+  try {
+    console.log('Attempting to fetch data sources from BFS API...');
+    
+    const response = await fetch(`${API_BASE_URL}/datasources`, {
+      method: "GET",
+      headers: getHeaders(),
+      mode: 'cors',
+      credentials: 'omit',
+    }).catch((fetchError) => {
+      throw new Error('CORS_ERROR');
+    });
+
+    console.log('Connected! Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `API returned ${response.status}: ${response.statusText}`,
+      );
+    }
+
+    const responseText = await response.text();
+    console.log('📦 Raw response (first 1000 chars):', responseText.substring(0, 1000));
+    const data = JSON.parse(responseText);
+    console.log('📋 Response structure:', {
+      isArray: Array.isArray(data),
+      keys: Object.keys(data),
+      hasData: !!data.data,
+      dataKeys: data.data ? Object.keys(data.data) : null,
+    });
+
+    // Handle different response formats
+    let dataSources: DataSource[] = [];
+    
+    if (Array.isArray(data)) {
+      console.log('✅ Format: Direct array');
+      dataSources = data;
+    } else if (data.data && Array.isArray(data.data.datasources)) {
+      console.log('✅ Format: data.datasources array');
+      dataSources = data.data.datasources;
+    } else if (data.data && Array.isArray(data.data)) {
+      console.log('✅ Format: data array');
+      dataSources = data.data;
+    } else if (Array.isArray(data.datasources)) {
+      console.log('✅ Format: datasources array');
+      dataSources = data.datasources;
+    } else if (data.value && Array.isArray(data.value)) {
+      console.log('✅ Format: value array');
+      dataSources = data.value;
+    } else if (data.status && data.data && Array.isArray(data.data.DataSources)) {
+      console.log('✅ Format: status.data.DataSources (BFS API format)');
+      dataSources = data.data.DataSources;
+    } else {
+      console.log('⚠️ Unknown response format, returning empty array');
+    }
+
+    console.log('Loaded', dataSources.length, 'data source(s) from API');
+    if (dataSources.length > 0) {
+      console.log('First data source:', dataSources[0]);
+    }
+    return dataSources;
+  } catch (error: any) {
+    if (error.message === 'CORS_ERROR') {
+      throw new Error('CORS_BLOCKED');
+    }
+    throw error;
+  }
+}
+
+// Create new data source
+export async function createDataSource(
+  dataSourceName: string,
+  type?: string,
+  connectionString?: string,
+  description?: string,
+): Promise<DataSource> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const newDataSource: DataSource = {
+      DatasourceId: `datasource_${Date.now()}`,
+      DatasourceName: dataSourceName,
+      Type: type,
+      ConnectionString: connectionString,
+      Description: description,
+      Status: 'Active',
+      CreateTime: new Date().toISOString(),
+      UpdateTime: new Date().toISOString(),
+      _etag: `\"demo-etag-${Date.now()}\"`,
+    };
+    return { ...newDataSource };
+  }
+
+  try {
+    // API generates DatasourceId automatically, so we only send DatasourceName and optional fields
+    const requestBody: any = {
+      DatasourceName: dataSourceName,
+    };
+    
+    // Only include optional fields if they are provided
+    if (type) requestBody.Type = type;
+    if (connectionString) requestBody.ConnectionString = connectionString;
+    if (description) requestBody.Description = description;
+
+    console.log('📤 POST Data Source Request:');
+    console.log('  URL:', `${API_BASE_URL}/datasources`);
+    console.log('  Body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(`${API_BASE_URL}/datasources`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      
+      throw new Error(
+        errorData.status?.message || "Failed to create data source",
+      );
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: ApiResponse<DataSource> = JSON.parse(responseText);
+    console.log("Created data source:", data.data);
+    return data.data;
+  } catch (error) {
+    console.error("Error creating data source:", error);
+    throw error;
+  }
+}
+
+// Delete data source
+export async function deleteDataSource(
+  dataSourceId: string,
+  etag: string,
+): Promise<void> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return;
+  }
+
+  try {
+    console.log('🗑️ DELETE Data Source Request:');
+    console.log('  DataSourceId:', dataSourceId);
+    console.log('  URL:', `${API_BASE_URL}/datasources/${dataSourceId}`);
+    console.log('  ETag:', etag);
+
+    const response = await fetch(
+      `${API_BASE_URL}/datasources/${dataSourceId}`,
+      {
+        method: "DELETE",
+        headers: getHeaders(etag),
+      },
+    );
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      
+      throw new Error(
+        errorData.status?.message || "Failed to delete data source",
+      );
+    }
+    
+    console.log('✅ Data source deleted successfully');
+  } catch (error) {
+    console.error("Error deleting data source:", error);
+    throw error;
+  }
+}
+
+// Update data source
+export async function updateDataSource(
+  dataSourceId: string,
+  dataSourceName: string,
+  etag: string,
+  type?: string,
+  connectionString?: string,
+  description?: string,
+): Promise<DataSource> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const dataSource: DataSource = {
+      DatasourceId: dataSourceId,
+      DatasourceName: dataSourceName,
+      Type: type,
+      ConnectionString: connectionString,
+      Description: description,
+      UpdateTime: new Date().toISOString(),
+      _etag: `\"demo-etag-${Date.now()}\"`,
+    };
+    return { ...dataSource };
+  }
+
+  try {
+    const requestBody = {
+      DatasourceId: dataSourceId,
+      DatasourceName: dataSourceName,
+      Type: type,
+      ConnectionString: connectionString,
+      Description: description,
+    };
+
+    console.log('📝 PUT Data Source Request:');
+    console.log('  DataSourceId:', dataSourceId);
+    console.log('  URL:', `${API_BASE_URL}/datasources/${dataSourceId}`);
+    console.log('  ETag:', etag);
+    console.log('  Body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(
+      `${API_BASE_URL}/datasources/${dataSourceId}`,
+      {
+        method: "PUT",
+        headers: getHeaders(etag),
+        body: JSON.stringify(requestBody),
+      },
+    );
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      
+      throw new Error(
+        errorData.status?.message || "Failed to update data source",
+      );
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: ApiResponse<DataSource> = JSON.parse(responseText);
+    console.log("Updated data source:", data.data);
+    return data.data;
+  } catch (error) {
+    console.error("Error updating data source:", error);
+    throw error;
+  }
+}
+
+// Get data source by ID
+export async function getDataSourceById(
+  dataSourceId: string,
+): Promise<DataSource> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    throw new Error(`Data source with ID ${dataSourceId} not found`);
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/datasources/${dataSourceId}`,
+      {
+        method: "GET",
+        headers: getHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData: ApiResponse<any> = await response.json();
+      throw new Error(
+        errorData.status?.message || "Failed to fetch data source",
+      );
+    }
+
+    const data: ApiResponse<DataSource> = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error fetching data source:", error);
+    throw error;
+  }
+}
+
+// ==================== MODEL SCHEMA API FUNCTIONS ====================
+
+// Get Model Schema by ID
+export async function getModelSchemaById(schemaId: string): Promise<ModelSchema> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    throw new Error(`Model Schema with ID ${schemaId} not found`);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(schemaId)}`, {
+      method: "GET",
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData: ApiResponse<any> = await response.json();
+      throw new Error(errorData.status?.message || "Failed to fetch model schema");
+    }
+
+    const data: ApiResponse<ModelSchema> = await response.json();
+    return data.data;
+  } catch (error) {
+    console.error("Error fetching model schema:", error);
+    throw error;
+  }
+}
+
+// Create Model Schema
+export async function createModelSchema(schemaData: {
+  model: string;
+  version: number;
+  state: string;
+  semver: string;
+  jsonSchema: any;
+}): Promise<ModelSchema> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const newSchema: ModelSchema = {
+      id: `${schemaData.model}:${schemaData.version}`,
+      model: schemaData.model,
+      version: schemaData.version,
+      state: schemaData.state,
+      semver: schemaData.semver,
+      jsonSchema: schemaData.jsonSchema,
+      CreateTime: new Date().toISOString(),
+      UpdateTime: new Date().toISOString(),
+      _etag: `"demo-etag-${Date.now()}"`,
+    };
+    return { ...newSchema };
+  }
+
+  try {
+    const url = `${API_BASE_URL}/txns`;
+    const headers = getHeaders();
+    const requestBody = {
+      TxnType: "ModelSchema",
+      Txn: schemaData,
+    };
+    
+    console.log('📤 POST Model Schema Request:');
+    console.log('  URL:', url);
+    console.log('  Body:', JSON.stringify(requestBody, null, 2));
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      throw new Error(errorData.status?.message || "Failed to create model schema");
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: ApiResponse<ModelSchema> = JSON.parse(responseText);
+    console.log('Created model schema:', data.data);
+    
+    return data.data;
+  } catch (error) {
+    console.error("createModelSchema error:", error);
+    throw error;
+  }
+}
+
+// Update Model Schema
+export async function updateModelSchema(
+  schemaId: string,
+  schemaData: {
+    model: string;
+    version: number;
+    state: string;
+    semver: string;
+    jsonSchema: any;
+  },
+  etag: string,
+): Promise<ModelSchema> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const updatedSchema: ModelSchema = {
+      id: schemaId,
+      model: schemaData.model,
+      version: schemaData.version,
+      state: schemaData.state,
+      semver: schemaData.semver,
+      jsonSchema: schemaData.jsonSchema,
+      CreateTime: new Date().toISOString(),
+      UpdateTime: new Date().toISOString(),
+      _etag: `"demo-etag-${Date.now()}"`,
+    };
+    return { ...updatedSchema };
+  }
+
+  try {
+    // Extract the id without ModelSchema prefix for Txn object
+    // schemaId could be "ModelSchema:Location:1" or just "Location:1"
+    let idWithoutPrefix = schemaId;
+    if (schemaId.startsWith('ModelSchema:')) {
+      idWithoutPrefix = schemaId.substring('ModelSchema:'.length); // "Location:1"
+    }
+    
+    // Construct the full TxnId with ModelSchema prefix for the URL
+    const txnId = schemaId.startsWith('ModelSchema:') ? schemaId : `ModelSchema:${schemaId}`;
+    
+    // API expects id inside Txn object WITHOUT the ModelSchema prefix
+    // Since model and version are now read-only during edit, the id should remain the same
+    const txnDataWithId = {
+      ...schemaData,
+      id: idWithoutPrefix, // Use the id without ModelSchema prefix (e.g., "Location:1")
+    };
+    
+    console.log('📝 PUT Model Schema Request:');
+    console.log('  Original SchemaId:', schemaId);
+    console.log('  TxnId for URL:', txnId);
+    console.log('  ID for Txn object:', idWithoutPrefix);
+    console.log('  URL:', `${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`);
+    console.log('  ETag:', etag);
+    console.log('  Body:', JSON.stringify({ TxnType: "ModelSchema", Txn: txnDataWithId }, null, 2));
+    
+    const response = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`, {
+      method: "PUT",
+      headers: getHeaders(etag),
+      body: JSON.stringify({
+        TxnType: "ModelSchema",
+        Txn: txnDataWithId,
+      }),
+    }).catch((fetchError) => {
+      console.error('Fetch error:', fetchError);
+      throw new Error('Network error or CORS issue');
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      throw new Error(errorData.status?.message || "Failed to update model schema");
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Model schema updated successfully');
+    console.log('📦 Response body:', responseText.substring(0, 500));
+    
+    const data: ApiResponse<ModelSchema> = JSON.parse(responseText);
+    return data.data;
+  } catch (error) {
+    console.error("updateModelSchema error:", error);
+    throw error;
+  }
+}
+
+// Delete Model Schema
+export async function deleteModelSchema(schemaId: string, etag: string): Promise<void> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return;
+  }
+
+  try {
+    // Construct the full TxnId with ModelSchema prefix if not already present
+    const txnId = schemaId.startsWith('ModelSchema:') ? schemaId : `ModelSchema:${schemaId}`;
+    
+    // Use same pattern as deleteTransaction - no query params
+    const url = `${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`;
+    
+    console.log('🗑️ DELETE Model Schema Request:');
+    console.log('  SchemaId:', schemaId);
+    console.log('  TxnId:', txnId);
+    console.log('  URL:', url);
+    console.log('  ETag:', etag);
+    
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: getHeaders(etag),
+    }).catch((fetchError) => {
+      console.error('Fetch error:', fetchError);
+      throw new Error('Network error or CORS issue');
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        console.error('❌ Error response:', errorText);
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      
+      // If "Unsupported TxnType", API doesn't support DELETE for ModelSchema
+      // Try soft delete by updating state to "deleted"
+      if (errorData.status?.message === 'Unsupported TxnType' || 
+          errorData.status?.message === 'Unsupported txn_type') {
+        console.log('ℹ️ Hard delete not supported (expected), trying soft delete (state: "deleted")');
+        
+        // First, fetch the current schema to get its data
+        try {
+          console.log('📥 Fetching current schema data for soft delete...');
+          const getCurrentResponse = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`, {
+            method: "GET",
+            headers: getHeaders(),
+          });
+          
+          if (!getCurrentResponse.ok) {
+            const getErrorText = await getCurrentResponse.text();
+            console.error('❌ Failed to fetch current schema:', getErrorText);
+            throw new Error('Failed to fetch current schema for soft delete');
+          }
+          
+          const currentData = await getCurrentResponse.json();
+          console.log('📦 Current schema data:', currentData);
+          
+          // Check if data exists
+          if (!currentData.data || !currentData.data.Txn) {
+            console.error('❌ Invalid response format:', currentData);
+            throw new Error('Invalid response format when fetching current schema');
+          }
+          
+          const currentSchema = currentData.data.Txn;
+          
+          // IMPORTANT: API validates that id MUST match "{model}:{version}"
+          // Construct id from current schema's model and version
+          const constructedId = `${currentSchema.model}:${currentSchema.version}`;
+          
+          // Update with state: "deleted"
+          const updatedSchema = {
+            ...currentSchema,
+            id: constructedId, // Construct id from model:version
+            state: "deleted",
+          };
+          
+          console.log('📝 Soft delete: updating state to "deleted"');
+          console.log('  Constructed ID:', constructedId, `(from model="${currentSchema.model}" and version=${currentSchema.version})`);
+          
+          const updateResponse = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(txnId)}`, {
+            method: "PUT",
+            headers: getHeaders(etag),
+            body: JSON.stringify({
+              TxnType: "ModelSchema",
+              Txn: updatedSchema,
+            }),
+          });
+          
+          if (!updateResponse.ok) {
+            const updateErrorText = await updateResponse.text();
+            console.error('❌ Soft delete failed:', updateErrorText);
+            
+            // Try to parse error for better message
+            try {
+              const updateErrorData = JSON.parse(updateErrorText);
+              throw new Error(updateErrorData.status?.message || 'Failed to soft delete model schema');
+            } catch (parseError) {
+              throw new Error(`Failed to soft delete model schema: ${updateErrorText}`);
+            }
+          }
+          
+          const updateResult = await updateResponse.json();
+          console.log('✅ Model schema soft deleted (state: "deleted"):', updateResult);
+          return;
+        } catch (softDeleteError: any) {
+          console.error('❌ Soft delete error:', softDeleteError);
+          // Re-throw with more context
+          throw new Error(`Soft delete failed: ${softDeleteError.message || softDeleteError}`);
+        }
+      }
+      
+      // For other errors, log and throw
+      console.error('❌ Error response:', errorText);
+      throw new Error(errorData.status?.message || "Failed to delete model schema");
+    }
+
+    console.log('✅ Model schema deleted successfully (hard delete)');
+  } catch (error: any) {
+    console.error("deleteModelSchema error:", error);
+    // Ensure error message is clear
+    const errorMessage = error.message || String(error);
+    throw new Error(errorMessage);
   }
 }
 

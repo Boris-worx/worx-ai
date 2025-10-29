@@ -70,8 +70,26 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
     : user?.email;
 
   // Get role display
-  const displayRole = user?.role || 'view';
+  const displayRole = user?.role || 'viewer';
   const azureRole = user?.isAzureAuth ? user.azureRole : null;
+  
+  // Role label mapping
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'superuser':
+        return 'SuperUser';
+      case 'viewonlysuperuser':
+        return 'View-Only SuperUser';
+      case 'admin':
+        return 'Admin';
+      case 'developer':
+        return 'Developer';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return 'Viewer';
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,11 +119,14 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
             {/* Role */}
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
               <Shield className="h-5 w-5 text-[#1D6BCD] mt-0.5 shrink-0" />
-              <div className="flex items-center justify-between w-full">
+              <div className="flex items-center justify-between w-full gap-2">
                 <span className="text-sm text-muted-foreground">Role</span>
-                <span className="break-words text-right text-sm">
-                  {azureRole ? `(${azureRole})` : displayRole}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{getRoleLabel(displayRole)}</span>
+                  {azureRole && (
+                    <span className="text-xs text-muted-foreground">({azureRole})</span>
+                  )}
+                </div>
               </div>
             </div>
 
