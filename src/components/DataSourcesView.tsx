@@ -69,16 +69,17 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const getDefaultColumns = (): ColumnConfig[] => [
     { key: 'DatasourceId', label: 'Data Source ID', enabled: true, locked: true },
     { key: 'DatasourceName', label: 'Name', enabled: true },
-    { key: 'Type', label: 'Type', enabled: false },
-    { key: 'Status', label: 'Status', enabled: false },
+    { key: 'Type', label: 'Type', enabled: true },
+    { key: 'Status', label: 'Status', enabled: true },
+    { key: 'Description', label: 'Description', enabled: true },
     { key: 'CreateTime', label: 'Created', enabled: true },
     { key: 'UpdateTime', label: 'Updated', enabled: false },
-    { key: 'Description', label: 'Description', enabled: false },
+    { key: 'ConnectionString', label: 'Connection', enabled: false },
   ];
 
   // Column configuration state with localStorage persistence
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
-    const STORAGE_VERSION = '3'; // Increment when changing default columns
+    const STORAGE_VERSION = '4'; // Increment when changing default columns
     const saved = localStorage.getItem('dataSourcesViewColumns');
     const savedVersion = localStorage.getItem('dataSourcesViewColumnsVersion');
     
@@ -98,7 +99,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
   // Save column configs to localStorage whenever they change
   useEffect(() => {
-    const STORAGE_VERSION = '3';
+    const STORAGE_VERSION = '4';
     localStorage.setItem('dataSourcesViewColumns', JSON.stringify(columnConfigs));
     localStorage.setItem('dataSourcesViewColumnsVersion', STORAGE_VERSION);
   }, [columnConfigs]);
@@ -207,7 +208,14 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
           // Use helper functions for ID and Name fields
           if (colConfig.key === 'DatasourceId' || colConfig.key === 'DataSourceId') {
             const id = getDataSourceId(row);
-            return id || '—';
+            const displayId = id || 'N/A';
+            return (
+              <div className="max-w-[120px] md:max-w-[180px]">
+                <code className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block" title={displayId}>
+                  {displayId}
+                </code>
+              </div>
+            );
           }
           if (colConfig.key === 'DatasourceName' || colConfig.key === 'DataSourceName') {
             const name = getDataSourceName(row);
@@ -352,7 +360,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     // Format dates
     if (key === 'CreateTime' || key === 'UpdateTime') {
       try {
-        return new Date(value).toLocaleString();
+        return <span className="whitespace-nowrap text-xs md:text-sm">{new Date(value).toLocaleDateString()}</span>;
       } catch {
         return value;
       }
@@ -362,19 +370,43 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     if (key === 'Status') {
       const status = String(value).toLowerCase();
       if (status === 'active') {
-        return <Badge variant="default" className="bg-green-600 hover:bg-green-700">Active</Badge>;
+        return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-xs">Active</Badge>;
       } else if (status === 'inactive') {
-        return <Badge variant="secondary">Inactive</Badge>;
+        return <Badge variant="secondary" className="text-xs">Inactive</Badge>;
       }
-      return <Badge variant="outline">{value}</Badge>;
+      return <Badge variant="outline" className="text-xs">{value}</Badge>;
+    }
+    
+    // Format Type
+    if (key === 'Type') {
+      return <Badge variant="outline" className="text-xs">{value}</Badge>;
+    }
+    
+    // Format Description with truncation
+    if (key === 'Description') {
+      const desc = String(value);
+      if (desc.length === 0 || desc === '—') return '—';
+      return (
+        <div className="max-w-[200px] md:max-w-[300px]">
+          <span className="text-xs md:text-sm truncate block" title={desc}>
+            {desc}
+          </span>
+        </div>
+      );
     }
     
     // Handle objects/arrays
     if (typeof value === 'object') {
-      return JSON.stringify(value);
+      return (
+        <div className="max-w-[150px]">
+          <code className="text-[10px] md:text-[11px] bg-muted px-1 py-0.5 rounded truncate block" title={JSON.stringify(value)}>
+            {JSON.stringify(value)}
+          </code>
+        </div>
+      );
     }
     
-    return String(value);
+    return <span className="text-xs md:text-sm">{String(value)}</span>;
   };
 
   // Check permissions

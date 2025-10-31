@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { SearchIcon } from './icons/SearchIcon';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column<T> {
   key: string;
@@ -21,6 +22,8 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   searchPlaceholder?: string;
   searchKeys?: string[];
+  defaultPageSize?: number;
+  showPagination?: boolean;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -32,6 +35,8 @@ export function DataTable<T extends Record<string, any>>({
   emptyMessage = 'No data available.',
   searchPlaceholder = 'Search...',
   searchKeys = [],
+  defaultPageSize = 100,
+  showPagination = true,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{
@@ -40,6 +45,10 @@ export function DataTable<T extends Record<string, any>>({
   } | null>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
 
   // Check for horizontal overflow
   useEffect(() => {
@@ -115,6 +124,30 @@ export function DataTable<T extends Record<string, any>>({
 
     return sorted;
   }, [filteredData, sortConfig]);
+
+  // Calculate pagination
+  const totalItems = sortedData.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  
+  // Get paginated data
+  const paginatedData = useMemo(() => {
+    if (!showPagination) return sortedData;
+    return sortedData.slice(startIndex, endIndex);
+  }, [sortedData, startIndex, endIndex, showPagination]);
+
+  // Reset to page 1 when search term or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, pageSize]);
+
+  // Ensure current page is valid when data changes
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   const handleSort = (key: string) => {
     setSortConfig((current) => {
@@ -213,9 +246,9 @@ export function DataTable<T extends Record<string, any>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedData.map((item, index) => (
+            {paginatedData.map((item, index) => (
               <TableRow
-                key={item.id || index}
+                key={item.id || startIndex + index}
                 onClick={() => onRowClick?.(item)}
                 className={onRowClick ? 'cursor-pointer' : ''}
               >
@@ -242,11 +275,67 @@ export function DataTable<T extends Record<string, any>>({
         </Table>
       </div>
 
-      {/* Results count */}
-      <div className="text-sm text-muted-foreground">
-        Showing {sortedData.length} of {data.length} {data.length === 1 ? 'item' : 'items'}
-        {searchTerm && ` (filtered)`}
-      </div>
+      {/* Pagination Controls */}
+      {showPagination && totalItems > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+          {/* Left: Results info and page size selector */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
+            <div className="text-[14px]">
+              Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium text-[12px]">{endIndex}</span> of{' '}
+              <span className="font-medium">{totalItems}</span> {totalItems === 1 ? 'item' : 'items'}
+              {searchTerm && <span className="ml-1">(filtered from {data.length})</span>}
+            </div>
+            
+            <div className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs text-[14px]">Rows per page:</span>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => setPageSize(parseInt(value))}
+              >
+                <SelectTrigger className="h-8 w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="200">200</SelectItem>
+                  <SelectItem value="500">500</SelectItem>
+                  <SelectItem value="1000">1000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Right: Page navigation */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            
+            <div className="text-sm text-muted-foreground px-2 whitespace-nowrap">
+              Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
