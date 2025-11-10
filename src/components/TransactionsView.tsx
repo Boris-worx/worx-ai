@@ -7,13 +7,13 @@ import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { RefreshIcon } from './icons/RefreshIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
-import { Plus, RefreshCw, Receipt, Eye, Search, AlertCircle, Trash2, Pencil, MoreVertical, Filter } from 'lucide-react';
-import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction } from '../lib/api';
+import { Skeleton } from './ui/skeleton';
+import { Plus, Receipt, Eye, Search, AlertCircle, Trash2, Pencil, MoreVertical, Filter, RefreshCw } from 'lucide-react';
+import { Transaction, TRANSACTION_TYPES, getTransactionsByType, createTransaction, updateTransaction, deleteTransaction, PaginatedTransactionsResponse } from '../lib/api';
 import { DataTable } from './DataTable';
 import { TransactionDetail } from './TransactionDetail';
 import { TransactionCreateDialog } from './TransactionCreateDialog';
@@ -47,6 +47,9 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   const [searchTerm, setSearchTerm] = useState('');
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
   const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const [continuationToken, setContinuationToken] = useState<string | null>(null);
+  const [hasMoreData, setHasMoreData] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -57,28 +60,49 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
     return field.replace(/([A-Z])/g, ' $1').trim();
   };
 
-  // Default columns - commonly used fields
-  const getDefaultColumns = (): ColumnConfig[] => [
-    { key: 'TxnId', label: 'ID', enabled: true, locked: true },
-    { key: 'Txn.Name', label: 'Name', enabled: true },
-    { key: 'TxnType', label: 'Type', enabled: false },
-    { key: 'Txn.Status', label: 'Status', enabled: true },
-    { key: 'Txn.CustomerId', label: 'Customer ID', enabled: false },
-    { key: 'Txn.CustomerType', label: 'Customer Type', enabled: false },
-    { key: 'Txn.Email', label: 'Email', enabled: false },
-    { key: 'Txn.Phone1', label: 'Phone', enabled: false },
-    { key: 'Txn.Address', label: 'Address', enabled: false },
-    { key: 'Txn.Amount', label: 'Amount', enabled: false },
-    { key: 'Txn.Currency', label: 'Currency', enabled: false },
-    { key: 'CreateTime', label: 'Created', enabled: true },
-    { key: 'UpdateTime', label: 'Updated', enabled: false },
-  ];
+  // Default columns - commonly used fields (type-specific)
+  const getDefaultColumns = (txnType?: string): ColumnConfig[] => {
+    // Quote-specific columns
+    if (txnType === 'Quote') {
+      return [
+        { key: 'TxnId', label: 'ID', enabled: false, locked: true },
+        { key: 'CreateTime', label: 'Created', enabled: false },
+        { key: 'Txn.location.Address', label: 'location Address', enabled: true },
+        { key: 'Txn.location.Code', label: 'location Code', enabled: true },
+        { key: 'Txn.location.Name', label: 'location Name', enabled: true },
+        { key: 'Txn.quoteId', label: 'Quote ID', enabled: false },
+        { key: 'Txn.accountNumber', label: 'Account Number', enabled: false },
+        { key: 'Txn.customerRequestedByDate', label: 'Requested By Date', enabled: false },
+        { key: 'Txn.exportNotes', label: 'Export Notes', enabled: false },
+        { key: 'Txn.erpUserId', label: 'ERP User ID', enabled: false },
+        { key: 'UpdateTime', label: 'Updated', enabled: false },
+      ];
+    }
+    
+    // Default columns for other transaction types
+    return [
+      { key: 'TxnId', label: 'ID', enabled: true, locked: true },
+      { key: 'Txn.Name', label: 'Name', enabled: true },
+      { key: 'TxnType', label: 'Type', enabled: false },
+      { key: 'Txn.Status', label: 'Status', enabled: true },
+      { key: 'Txn.CustomerId', label: 'Customer ID', enabled: false },
+      { key: 'Txn.CustomerType', label: 'Customer Type', enabled: false },
+      { key: 'Txn.Email', label: 'Email', enabled: false },
+      { key: 'Txn.Phone1', label: 'Phone', enabled: false },
+      { key: 'Txn.Address', label: 'Address', enabled: false },
+      { key: 'Txn.Amount', label: 'Amount', enabled: false },
+      { key: 'Txn.Currency', label: 'Currency', enabled: false },
+      { key: 'CreateTime', label: 'Created', enabled: true },
+      { key: 'UpdateTime', label: 'Updated', enabled: false },
+    ];
+  };
 
-  // Column configuration state with localStorage persistence
+  // Column configuration state with localStorage persistence (per transaction type)
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
-    const STORAGE_VERSION = '4'; // Increment when changing default columns
-    const saved = localStorage.getItem('transactionsViewColumns');
-    const savedVersion = localStorage.getItem('transactionsViewColumnsVersion');
+    const STORAGE_VERSION = '6'; // Increment when changing default columns
+    const storageKey = `transactionsViewColumns_${selectedTxnType}`;
+    const saved = localStorage.getItem(storageKey);
+    const savedVersion = localStorage.getItem(`${storageKey}_version`);
     
     if (saved && savedVersion === STORAGE_VERSION) {
       try {
@@ -88,33 +112,57 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       }
     }
     
-    // Clear old data and use defaults
-    localStorage.removeItem('transactionsViewColumns');
-    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
-    return getDefaultColumns();
+    // Clear old data and use defaults for this type
+    localStorage.removeItem(storageKey);
+    localStorage.setItem(`${storageKey}_version`, STORAGE_VERSION);
+    return getDefaultColumns(selectedTxnType);
   });
 
   // Reset columns to default
   const handleResetColumns = () => {
-    const STORAGE_VERSION = '4';
-    setColumnConfigs(getDefaultColumns());
-    localStorage.removeItem('transactionsViewColumns');
-    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
+    const STORAGE_VERSION = '6';
+    const storageKey = `transactionsViewColumns_${selectedTxnType}`;
+    setColumnConfigs(getDefaultColumns(selectedTxnType));
+    localStorage.removeItem(storageKey);
+    localStorage.setItem(`${storageKey}_version`, STORAGE_VERSION);
     toast.success('Column settings reset to default');
   };
 
-  // Save column configs to localStorage whenever they change
+  // Save column configs to localStorage whenever they change (per transaction type)
   useEffect(() => {
-    const STORAGE_VERSION = '4';
-    localStorage.setItem('transactionsViewColumns', JSON.stringify(columnConfigs));
-    localStorage.setItem('transactionsViewColumnsVersion', STORAGE_VERSION);
-  }, [columnConfigs]);
+    const STORAGE_VERSION = '6';
+    const storageKey = `transactionsViewColumns_${selectedTxnType}`;
+    localStorage.setItem(storageKey, JSON.stringify(columnConfigs));
+    localStorage.setItem(`${storageKey}_version`, STORAGE_VERSION);
+  }, [columnConfigs, selectedTxnType]);
 
-  // Extract available fields from transactions to offer as columns
+  // Extract available fields from transactions to offer as columns (including nested)
   const availableFields = useMemo(() => {
     if (transactions.length === 0) return [];
     
     const fieldsSet = new Set<string>();
+    
+    // Helper to recursively extract fields
+    const extractFields = (obj: any, prefix: string = '') => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      Object.keys(obj).forEach(key => {
+        if (key.startsWith('_')) return; // Skip metadata fields
+        
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        const value = obj[key];
+        
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          // For nested objects, add the nested field path
+          fieldsSet.add(fullKey);
+          // Also extract nested fields (e.g., Txn.location.Address)
+          extractFields(value, fullKey);
+        } else {
+          fieldsSet.add(fullKey);
+        }
+      });
+    };
+    
     transactions.forEach(txn => {
       // Add top-level fields
       Object.keys(txn).forEach(key => {
@@ -122,11 +170,10 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
           fieldsSet.add(key);
         }
       });
-      // Add Txn object fields
+      
+      // Add Txn object fields (including nested)
       if (txn.Txn && typeof txn.Txn === 'object') {
-        Object.keys(txn.Txn).forEach(key => {
-          fieldsSet.add(`Txn.${key}`);
-        });
+        extractFields(txn.Txn, 'Txn');
       }
     });
     
@@ -177,8 +224,8 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
       const results = await Promise.allSettled(
         TRANSACTION_TYPES.map(async (type) => {
           try {
-            const txns = await getTransactionsByType(type);
-            return { type, count: txns.length, supported: true };
+            const response = await getTransactionsByType(type);
+            return { type, count: response.transactions.length, supported: true };
           } catch (error: any) {
             // Silently handle expected errors (CORS, unsupported types)
             if (error.message === 'Unsupported TxnType' || error.message === 'Unsupported txn_type' || error.message === 'CORS_ERROR' || error.message === 'CORS_BLOCKED') {
@@ -222,31 +269,42 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
   };
 
   // Load transactions for selected type
-  const loadTransactionsForType = async (txnType: string) => {
+  const loadTransactionsForType = async (txnType: string, reset: boolean = true) => {
     if (!txnType) return;
     
     setIsLoadingType(true);
+    if (reset) {
+      setContinuationToken(null);
+      setHasMoreData(false);
+    }
+    
     try {
       console.log(`========== Loading transactions for type: ${txnType} ==========`);
-      const txns = await getTransactionsByType(txnType);
-      console.log(`========== Received ${txns.length} transactions ==========`);
+      const response = await getTransactionsByType(txnType);
+      console.log(`========== Received ${response.transactions.length} transactions ==========`);
       
       // Sort by CreateTime descending (newest first)
-      const sortedTxns = [...txns].sort((a, b) => {
+      const sortedTxns = [...response.transactions].sort((a, b) => {
         const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
         const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
         return dateB - dateA; // Descending order (newest first)
       });
       
       setTransactions(sortedTxns);
+      setContinuationToken(response.continuationToken);
+      setHasMoreData(response.hasMore);
       
       if (sortedTxns.length === 0) {
         toast.info(`No ${txnType} transactions found. Check browser Console (F12) for API response details.`, {
           duration: 6000,
         });
       } else {
-        toast.success(`Loaded ${sortedTxns.length} ${txnType} transaction(s)`);
+        const moreInfo = response.hasMore ? ' (more available)' : '';
+        toast.success(`Loaded ${sortedTxns.length} ${txnType} transaction(s)${moreInfo}`);
         console.log('Transactions set to state. First transaction:', sortedTxns[0]);
+        if (response.hasMore) {
+          console.log('📄 Pagination available - click "Load More" to fetch next batch');
+        }
       }
     } catch (error: any) {
       console.error('Error loading transactions:', error);
@@ -256,23 +314,82 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
         });
       }
       setTransactions([]);
+      setContinuationToken(null);
+      setHasMoreData(false);
     } finally {
       setIsLoadingType(false);
     }
   };
+
+  // Load more transactions (next page)
+  const loadMoreTransactions = async () => {
+    if (!selectedTxnType || !continuationToken || !hasMoreData) return;
+    
+    setIsLoadingMore(true);
+    try {
+      console.log(`========== Loading more transactions for type: ${selectedTxnType} ==========`);
+      console.log(`   Continuation token: ${continuationToken.substring(0, 50)}...`);
+      
+      const response = await getTransactionsByType(selectedTxnType, continuationToken);
+      console.log(`========== Received ${response.transactions.length} more transactions ==========`);
+      
+      // Sort new transactions by CreateTime descending
+      const sortedNewTxns = [...response.transactions].sort((a, b) => {
+        const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
+        const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      // Append to existing transactions
+      setTransactions(prev => [...prev, ...sortedNewTxns]);
+      setContinuationToken(response.continuationToken);
+      setHasMoreData(response.hasMore);
+      
+      const moreInfo = response.hasMore ? ' (more available)' : ' (all loaded)';
+      toast.success(`Loaded ${response.transactions.length} more transaction(s)${moreInfo}`);
+      
+      if (response.hasMore) {
+        console.log('📄 More data available - click "Load More" again to fetch next batch');
+      } else {
+        console.log('✅ All transactions loaded');
+      }
+    } catch (error: any) {
+      console.error('Error loading more transactions:', error);
+      if (error.message !== 'CORS_BLOCKED') {
+        toast.error(`Failed to load more: ${error.message}`, {
+          duration: 6000,
+        });
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Load columns for selected transaction type
+  useEffect(() => {
+    const STORAGE_VERSION = '6';
+    const storageKey = `transactionsViewColumns_${selectedTxnType}`;
+    const saved = localStorage.getItem(storageKey);
+    const savedVersion = localStorage.getItem(`${storageKey}_version`);
+    
+    if (saved && savedVersion === STORAGE_VERSION) {
+      try {
+        setColumnConfigs(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse saved columns:', e);
+        setColumnConfigs(getDefaultColumns(selectedTxnType));
+      }
+    } else {
+      // Load default columns for this type
+      setColumnConfigs(getDefaultColumns(selectedTxnType));
+    }
+  }, [selectedTxnType]);
 
   // Handle type selection
   const handleTypeChange = (value: string) => {
     setSelectedTxnType(value);
     loadTransactionsForType(value);
     setSearchTerm(''); // Reset search when changing type
-  };
-
-  // Handle refresh
-  const handleRefresh = () => {
-    if (selectedTxnType) {
-      loadTransactionsForType(selectedTxnType);
-    }
   };
 
   // View transaction detail
@@ -714,14 +831,6 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                     availableFields={availableFields}
                     onReset={handleResetColumns}
                   />
-                  <Button
-                    variant="outline"
-                    onClick={handleRefresh}
-                    disabled={isLoadingType}
-                  >
-                    <RefreshIcon className={`h-4 w-4 mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
                   {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
                     <Button onClick={() => setIsCreateDialogOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -748,13 +857,8 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={handleRefresh} disabled={isLoadingType}>
-                        <RefreshIcon className={`h-4 w-4 mr-2 ${isLoadingType ? 'animate-spin' : ''}`} />
-                        Refresh
-                      </DropdownMenuItem>
                       {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
                         <>
-                          <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
                             <Plus className="h-4 w-4 mr-2" />
                             Create Transaction
@@ -799,12 +903,15 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
               </div>
 
               {/* Types List */}
-              <Card className="border-2">
+              <Card className="border rounded-[10px]">
                 <ScrollArea className="h-[600px]">
                   {isLoadingCounts ? (
-                    <div className="p-8 text-center">
-                      <div className="inline-block h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-sm text-muted-foreground mt-2">Loading types...</p>
+                    <div className="space-y-2 p-2">
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
+                      <Skeleton className="h-9 w-full" />
                     </div>
                   ) : (
                       <div className="space-y-1 p-2">
@@ -836,6 +943,17 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
 
             {/* Right Content - Table */}
             <div className="min-w-0 overflow-hidden">
+              {/* Loading State */}
+              {isLoadingType && (
+                <div className="space-y-3">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              )}
+              
               {/* Empty State */}
               {transactions.length === 0 && !isLoadingType && (
                 <Card className="border-2 border-dashed">
@@ -854,15 +972,47 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
               )}
 
               {/* Data Table */}
-              {transactions.length > 0 && (
-                <DataTable
-                  data={transactions}
-                  columns={columns}
-                  actions={renderActions}
-                  actionsCompact={renderActionsCompact}
-                  searchPlaceholder="Search transactions..."
-                  emptyMessage={`No ${selectedTxnType} transactions found`}
-                />
+              {transactions.length > 0 && !isLoadingType && (
+                <>
+                  <DataTable
+                    data={transactions}
+                    columns={columns}
+                    actions={renderActions}
+                    actionsCompact={renderActionsCompact}
+                    searchPlaceholder="Search transactions..."
+                    emptyMessage={`No ${selectedTxnType} transactions found`}
+                  />
+                  
+                  {/* Load More Button */}
+                  {hasMoreData && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={loadMoreTransactions}
+                        disabled={isLoadingMore}
+                        className="min-w-[200px]"
+                      >
+                        {isLoadingMore ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Load More (next 100)
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Info badge showing total loaded */}
+                  <div className="mt-2 text-center text-sm text-muted-foreground">
+                    Showing {transactions.length} transaction(s)
+                    {hasMoreData && ' • More available'}
+                  </div>
+                </>
               )}
             </div>
           </div>

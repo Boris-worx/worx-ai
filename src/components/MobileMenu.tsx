@@ -7,7 +7,7 @@ import { ListIcon } from './icons/ListIcon';
 import { BugIcon } from './icons/BugIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { SunIcon } from './icons/SunIcon';
-import { Menu, Receipt, LogOut, UserCircle, RefreshCw } from 'lucide-react';
+import { Menu, Receipt, LogOut, UserCircle, RefreshCw, AppWindow } from 'lucide-react';
 import { Separator } from './ui/separator';
 import { useAuth } from './AuthContext';
 import { RoleTestDialog } from './RoleTestDialog';
@@ -84,6 +84,16 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   >
                     <Receipt className="h-4 w-4 mr-3" />
                     Data Source Onboarding
+                  </Button>
+                )}
+                {hasAccessTo('Transactions') && (
+                  <Button
+                    variant={activeTab === 'applications' ? 'default' : 'ghost'}
+                    onClick={() => handleTabClick('applications')}
+                    className="w-full justify-start"
+                  >
+                    <AppWindow className="h-4 w-4 mr-3" />
+                    Applications
                   </Button>
                 )}
                 {hasAccessTo('Data Plane') && (

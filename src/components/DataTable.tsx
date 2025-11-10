@@ -1,10 +1,10 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { SearchIcon } from './icons/SearchIcon';
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown, ChevronRight as ChevronRightIcon } from 'lucide-react';
 
 interface Column<T> {
   key: string;
@@ -24,6 +24,10 @@ interface DataTableProps<T> {
   searchKeys?: string[];
   defaultPageSize?: number;
   showPagination?: boolean;
+  // Expandable rows support
+  expandable?: boolean;
+  renderExpandedContent?: (item: T) => React.ReactNode;
+  getRowId?: (item: T) => string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -35,8 +39,11 @@ export function DataTable<T extends Record<string, any>>({
   emptyMessage = 'No data available.',
   searchPlaceholder = 'Search...',
   searchKeys = [],
-  defaultPageSize = 100,
+  defaultPageSize = 10,
   showPagination = true,
+  expandable = false,
+  renderExpandedContent,
+  getRowId,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{
@@ -49,6 +56,19 @@ export function DataTable<T extends Record<string, any>>({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
+  
+  // Expandable rows state
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  const toggleRow = (rowId: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(rowId)) {
+      newExpanded.delete(rowId);
+    } else {
+      newExpanded.add(rowId);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   // Check for horizontal overflow
   useEffect(() => {
@@ -88,8 +108,22 @@ export function DataTable<T extends Record<string, any>>({
     return String(value).toLowerCase().includes(searchTerm);
   };
 
+  // Helper to get nested value
+  const getNestedValue = (obj: any, key: string): any => {
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let value = obj;
+      for (const part of parts) {
+        value = value?.[part];
+        if (value === undefined) return undefined;
+      }
+      return value;
+    }
+    return obj[key];
+  };
+
   // Filter data based on search term
-  const filteredData = useMemo(() => {
+  const searchFilteredData = useMemo(() => {
     if (!searchTerm) return data;
 
     const lowerSearch = searchTerm.toLowerCase();
@@ -107,6 +141,9 @@ export function DataTable<T extends Record<string, any>>({
       );
     });
   }, [data, searchTerm, searchKeys]);
+
+  // Use search filtered data as final filtered data
+  const filteredData = searchFilteredData;
 
   // Sort data
   const sortedData = useMemo(() => {
@@ -215,6 +252,9 @@ export function DataTable<T extends Record<string, any>>({
         <Table>
           <TableHeader>
             <TableRow>
+              {expandable && (
+                <TableHead className="w-[50px]"></TableHead>
+              )}
               {columns.map((column) => (
                 <TableHead key={column.key} className="whitespace-nowrap text-left text-xs md:text-sm">
                   {column.sortable !== false ? (
@@ -228,7 +268,7 @@ export function DataTable<T extends Record<string, any>>({
                       {getSortIcon(column.key)}
                     </Button>
                   ) : (
-                    column.header
+                    <span>{column.header}</span>
                   )}
                 </TableHead>
               ))}
@@ -246,31 +286,70 @@ export function DataTable<T extends Record<string, any>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedData.map((item, index) => (
-              <TableRow
-                key={item.id || startIndex + index}
-                onClick={() => onRowClick?.(item)}
-                className={onRowClick ? 'cursor-pointer' : ''}
-              >
-                {columns.map((column) => (
-                  <TableCell key={column.key} className="py-2 md:py-3">
-                    {column.render ? column.render(item) : item[column.key]}
-                  </TableCell>
-                ))}
-                {actions && (
-                  <TableCell 
-                    className={`text-right py-2 md:py-3 ${
-                      shouldUseCompactActions 
-                        ? 'sticky right-0 bg-background shadow-[-8px_0_12px_rgba(0,0,0,0.08)] z-10 pr-3 pl-4 border-l border-border' 
-                        : 'pr-2 md:pr-4'
-                    }`}
-                    onClick={(e) => e.stopPropagation()}
+            {paginatedData.map((item, index) => {
+              const rowId = getRowId ? getRowId(item) : (item.id || `${startIndex + index}`);
+              const isExpanded = expandedRows.has(rowId);
+              const colSpan = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0);
+              
+              return (
+                <Fragment key={rowId}>
+                  <TableRow
+                    onClick={() => {
+                      if (!expandable && onRowClick) {
+                        onRowClick(item);
+                      }
+                    }}
+                    className={!expandable && onRowClick ? 'cursor-pointer' : ''}
                   >
-                    {shouldUseCompactActions ? actionsCompact!(item) : actions(item)}
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
+                    {expandable && (
+                      <TableCell className="py-2 md:py-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRow(rowId);
+                          }}
+                          className="h-6 w-6 p-0"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRightIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    )}
+                    {columns.map((column) => (
+                      <TableCell key={column.key} className="py-2 md:py-3">
+                        {column.render ? column.render(item) : item[column.key]}
+                      </TableCell>
+                    ))}
+                    {actions && (
+                      <TableCell 
+                        className={`text-right py-2 md:py-3 ${
+                          shouldUseCompactActions 
+                            ? 'sticky right-0 bg-background shadow-[-8px_0_12px_rgba(0,0,0,0.08)] z-10 pr-3 pl-4 border-l border-border' 
+                            : 'pr-2 md:pr-4'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {shouldUseCompactActions ? actionsCompact!(item) : actions(item)}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                  {expandable && isExpanded && renderExpandedContent && (
+                    <TableRow>
+                      <TableCell colSpan={colSpan} className="p-0 bg-muted/30">
+                        <div className="px-[16px] py-[0px]">
+                          {renderExpandedContent(item)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
@@ -280,14 +359,16 @@ export function DataTable<T extends Record<string, any>>({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
           {/* Left: Results info and page size selector */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
-            <div className="text-[14px]">
+            <div className="text-[12px]">
               Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium text-[12px]">{endIndex}</span> of{' '}
               <span className="font-medium">{totalItems}</span> {totalItems === 1 ? 'item' : 'items'}
-              {searchTerm && <span className="ml-1">(filtered from {data.length})</span>}
+              {searchTerm && (
+                <span className="ml-1">(filtered from {data.length})</span>
+              )}
             </div>
             
             <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs text-[14px]">Rows per page:</span>
+              <span className="text-xs text-[12px]">Rows per page:</span>
               <Select
                 value={pageSize.toString()}
                 onValueChange={(value) => setPageSize(parseInt(value))}
@@ -320,7 +401,7 @@ export function DataTable<T extends Record<string, any>>({
               Previous
             </Button>
             
-            <div className="text-sm text-muted-foreground px-2 whitespace-nowrap">
+            <div className="text-sm text-muted-foreground px-2 whitespace-nowrap text-[12px]">
               Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
             </div>
             

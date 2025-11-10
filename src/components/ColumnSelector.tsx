@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
@@ -7,11 +7,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from './ui/popover';
-import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
 import { FilterIcon } from './icons/FilterIcon';
 import { Badge } from './ui/badge';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Check, Eraser } from 'lucide-react';
+import { toast } from 'sonner@2.0.3';
 
 export interface ColumnConfig {
   key: string;
@@ -31,45 +31,81 @@ interface ColumnSelectorProps {
 
 export function ColumnSelector({ columns, onColumnsChange, availableFields = [], onReset, emptyColumns = [] }: ColumnSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [tempColumns, setTempColumns] = useState<ColumnConfig[]>(columns);
+  const [hasChanges, setHasChanges] = useState(false);
 
-  const enabledCount = useMemo(() => {
-    return columns.filter(col => col.enabled).length;
+  // Update temp columns when columns prop changes (e.g., when switching transaction types)
+  useEffect(() => {
+    setTempColumns(columns);
+    setHasChanges(false);
   }, [columns]);
 
+  const enabledCount = useMemo(() => {
+    // Count only enabled columns that are not empty (will actually be displayed)
+    return columns.filter(col => col.enabled && (col.locked || !col.isEmpty)).length;
+  }, [columns]);
+
+  const tempEnabledCount = useMemo(() => {
+    // Count only enabled columns that are not empty (will actually be displayed)
+    return tempColumns.filter(col => col.enabled && (col.locked || !col.isEmpty)).length;
+  }, [tempColumns]);
+
+  // Count only visible columns (not empty)
+  const visibleColumnsCount = useMemo(() => {
+    return tempColumns.filter(col => !col.isEmpty).length;
+  }, [tempColumns]);
+
   const handleToggle = (key: string) => {
-    const updated = columns.map(col => {
+    const updated = tempColumns.map(col => {
       if (col.key === key && !col.locked && !col.isEmpty) {
         return { ...col, enabled: !col.enabled };
       }
       return col;
     });
-    onColumnsChange(updated);
+    setTempColumns(updated);
+    setHasChanges(true);
   };
 
   const handleSelectAll = () => {
-    const updated = columns.map(col => {
+    const updated = tempColumns.map(col => {
       // Don't enable empty columns
       if (col.isEmpty) return col;
       return { ...col, enabled: true };
     });
-    onColumnsChange(updated);
+    setTempColumns(updated);
+    setHasChanges(true);
   };
 
   const handleDeselectAll = () => {
-    const updated = columns.map(col => {
+    const updated = tempColumns.map(col => {
       if (col.locked) return col;
       return { ...col, enabled: false };
     });
-    onColumnsChange(updated);
+    setTempColumns(updated);
+    setHasChanges(true);
   };
 
-  // Group columns by category
-  const coreColumns = columns.filter(col => 
-    ['TxnId', 'Name', 'CreateTime'].includes(col.key)
+  const handleApply = () => {
+    onColumnsChange(tempColumns);
+    setHasChanges(false);
+    setOpen(false);
+    toast.success(`Column settings saved (${tempEnabledCount} columns selected)`);
+  };
+
+  const handleCancel = () => {
+    setTempColumns(columns);
+    setHasChanges(false);
+    setOpen(false);
+  };
+
+  // Group columns by category (use tempColumns for UI)
+  // Filter out columns with no data
+  const coreColumns = tempColumns.filter(col => 
+    ['TxnId', 'Name', 'CreateTime'].includes(col.key) && !col.isEmpty
   );
   
-  const otherColumns = columns.filter(col => 
-    !['TxnId', 'Name', 'CreateTime'].includes(col.key)
+  const otherColumns = tempColumns.filter(col => 
+    !['TxnId', 'Name', 'CreateTime'].includes(col.key) && !col.isEmpty
   );
 
   return (
@@ -87,15 +123,88 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
           </Badge>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="end">
-        <div className="p-4 border-b">
-          <h4 className="font-medium mb-1">Customize Columns</h4>
+      <PopoverContent className="w-[280px] p-0 max-h-[min(600px,80vh)] flex flex-col" align="end">
+        <div className="p-3 border-b flex-shrink-0">
+          <h4 className="font-medium mb-0.5">Customize Columns</h4>
           <p className="text-xs text-muted-foreground">
-            {enabledCount} of {columns.length} columns selected
+            {tempEnabledCount} of {visibleColumnsCount} columns selected
           </p>
         </div>
 
-        <div className="p-3 border-b bg-muted/50 space-y-2">
+        <div className="overflow-y-auto flex-1 min-h-0">
+          <div className="p-2">
+            {/* Core Columns */}
+            {coreColumns.length > 0 && (
+              <div className="mb-3">
+                <div className="text-xs font-medium text-muted-foreground mb-1.5 px-1">
+                  Core Fields
+                </div>
+                <div className="space-y-1.5">
+                  {coreColumns.map((column) => (
+                    <div
+                      key={column.key}
+                      className="flex items-center space-x-2.5 p-1.5 rounded hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        id={`column-${column.key}`}
+                        checked={column.enabled}
+                        onCheckedChange={() => handleToggle(column.key)}
+                        disabled={column.locked || column.isEmpty}
+                      />
+                      <Label
+                        htmlFor={`column-${column.key}`}
+                        className={`flex-1 text-sm cursor-pointer ${
+                          column.locked ? 'text-muted-foreground' : ''
+                        }`}
+                      >
+                        {column.label}
+                        {column.locked && (
+                          <span className="ml-2 text-xs text-muted-foreground">(required)</span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Other Columns */}
+            {otherColumns.length > 0 && (
+              <>
+                <Separator className="my-2.5" />
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5 px-1">
+                    Additional Fields
+                  </div>
+                  <div className="space-y-1.5">
+                    {otherColumns.map((column) => (
+                      <div
+                        key={column.key}
+                        className="flex items-center space-x-2.5 p-1.5 rounded hover:bg-muted/50 transition-colors"
+                      >
+                        <Checkbox
+                          id={`column-${column.key}`}
+                          checked={column.enabled}
+                          onCheckedChange={() => handleToggle(column.key)}
+                          disabled={column.locked || column.isEmpty}
+                        />
+                        <Label
+                          htmlFor={`column-${column.key}`}
+                          className="flex-1 text-sm cursor-pointer"
+                        >
+                          {column.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Control buttons */}
+        <div className="p-2 border-t bg-muted/50 flex-shrink-0">
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -109,114 +218,49 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
               variant="outline"
               size="sm"
               onClick={handleDeselectAll}
-              className="flex-1 h-8"
+              className="h-8 px-3"
+              title="Clear selection"
             >
-              Clear
+              <Eraser className="h-3.5 w-3.5" />
             </Button>
+            {onReset && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onReset();
+                  setHasChanges(false);
+                  setOpen(false);
+                }}
+                className="h-8 px-3"
+                title="Reset to Default"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
-          {onReset && (
+        </div>
+
+        {/* Apply/Cancel buttons */}
+        <div className="p-2 border-t bg-background space-y-1.5 flex-shrink-0">
+          <Button
+            onClick={handleApply}
+            className="w-full gap-2"
+            disabled={!hasChanges}
+          >
+            <Check className="h-4 w-4" />
+            Apply ({tempEnabledCount} columns)
+          </Button>
+          {hasChanges && (
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onReset();
-                setOpen(false);
-              }}
-              className="w-full h-8 gap-2"
+              variant="outline"
+              onClick={handleCancel}
+              className="w-full"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset to Default
+              Cancel
             </Button>
           )}
         </div>
-
-        <ScrollArea className="h-[320px]">
-          <div className="p-3">
-            {/* Core Columns */}
-            {coreColumns.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs font-medium text-muted-foreground mb-2 px-1">
-                  Core Fields
-                </div>
-                <div className="space-y-2">
-                  {coreColumns.map((column) => (
-                    <div
-                      key={column.key}
-                      className="flex items-center space-x-3 p-2 rounded hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        id={`column-${column.key}`}
-                        checked={column.enabled}
-                        onCheckedChange={() => handleToggle(column.key)}
-                        disabled={column.locked || column.isEmpty}
-                      />
-                      <Label
-                        htmlFor={`column-${column.key}`}
-                        className={`flex-1 text-sm cursor-pointer ${
-                          column.locked || column.isEmpty ? 'text-muted-foreground' : ''
-                        }`}
-                      >
-                        {column.label}
-                        {column.locked && (
-                          <span className="ml-2 text-xs text-muted-foreground">(required)</span>
-                        )}
-                        {column.isEmpty && !column.locked && (
-                          <span className="ml-2 text-xs text-muted-foreground">(no data)</span>
-                        )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Other Columns */}
-            {otherColumns.length > 0 && (
-              <>
-                <Separator className="my-3" />
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-2 px-1">
-                    Additional Fields
-                  </div>
-                  <div className="space-y-2">
-                    {otherColumns.map((column) => (
-                      <div
-                        key={column.key}
-                        className="flex items-center space-x-3 p-2 rounded hover:bg-muted/50 transition-colors"
-                      >
-                        <Checkbox
-                          id={`column-${column.key}`}
-                          checked={column.enabled}
-                          onCheckedChange={() => handleToggle(column.key)}
-                          disabled={column.locked || column.isEmpty}
-                        />
-                        <Label
-                          htmlFor={`column-${column.key}`}
-                          className={`flex-1 text-sm cursor-pointer ${
-                            column.isEmpty ? 'text-muted-foreground' : ''
-                          }`}
-                        >
-                          {column.label}
-                          {column.isEmpty && (
-                            <span className="ml-2 text-xs text-muted-foreground">(no data)</span>
-                          )}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </ScrollArea>
-
-        {availableFields.length > 0 && (
-          <div className="p-3 border-t bg-muted/30">
-            <div className="text-xs text-muted-foreground">
-              {availableFields.length} field(s) available in data
-            </div>
-          </div>
-        )}
       </PopoverContent>
     </Popover>
   );

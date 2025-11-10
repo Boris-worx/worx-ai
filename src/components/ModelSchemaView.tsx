@@ -9,11 +9,11 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { RefreshIcon } from './icons/RefreshIcon';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
-import { Eye, CheckCircle2, AlertCircle, Plus, Trash2, Pencil, RefreshCw, FileCode, MoreVertical, Filter, Lock } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
+import { Eye, CheckCircle2, AlertCircle, Plus, Trash2, Pencil, FileCode, MoreVertical, Filter, Lock } from 'lucide-react';
 import { ModelSchema, getAllModelSchemas, createModelSchema, updateModelSchema, deleteModelSchema } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
 import { UserRole } from './AuthContext';
@@ -478,7 +478,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
           {/* Title Section */}
           <div className="flex-1 min-w-0">
             <CardTitle className="flex items-center gap-2 text-[20px] font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">
-              Global Transaction Spec
+              Transactions
             </CardTitle>
             <CardDescription>
               Manage transaction specifications from the BFS platform
@@ -497,14 +497,6 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
             />
-            <Button
-              variant="outline"
-              onClick={loadGlobalSchemas}
-              disabled={isLoadingSchemas}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingSchemas ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
             {canCreate && (
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
@@ -533,13 +525,8 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={loadGlobalSchemas} disabled={isLoadingSchemas}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingSchemas ? 'animate-spin' : ''}`} />
-                  Refresh
-                </DropdownMenuItem>
                 {canCreate && (
                   <>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add Schema
@@ -566,9 +553,12 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
       </CardHeader>
       <CardContent>
         {isLoadingSchemas ? (
-          <div className="text-center py-12">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Loading schemas...</p>
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
         ) : schemaError ? (
           <div className="text-center py-12 border-2 border-dashed rounded-lg">

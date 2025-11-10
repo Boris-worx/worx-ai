@@ -6,11 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { DataTable } from './DataTable';
-import { RefreshIcon } from './icons/RefreshIcon';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
-import { Plus, RefreshCw, Trash2, Pencil, Upload, Eye, MoreVertical, Filter } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
+import { Plus, Trash2, Pencil, Upload, Eye, MoreVertical, Filter } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
@@ -37,6 +37,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
+  const [newTenantId, setNewTenantId] = useState('');
   const [newTenantName, setNewTenantName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -153,16 +154,22 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
 
   // User Story 2: Create tenant
   const handleCreate = async () => {
+    if (!newTenantId.trim()) {
+      toast.error('Please enter a Tenant ID');
+      return;
+    }
+    
     if (!newTenantName.trim()) {
-      toast.error('Please enter a tenant name');
+      toast.error('Please enter a Tenant Name');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const newTenant = await createTenant(newTenantName);
+      const newTenant = await createTenant(newTenantId.trim(), newTenantName.trim());
       toast.success(`Tenant "${newTenant.TenantName}" created with ID: ${newTenant.TenantId}`);
       setIsCreateDialogOpen(false);
+      setNewTenantId('');
       setNewTenantName('');
       
       // Auto-refresh to get complete data from server
@@ -430,9 +437,9 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
             {/* Title Section */}
             <div className="flex-1 min-w-0">
-              <CardTitle className="font-bold text-lg md:text-xl pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Supplier Tenants</CardTitle>
+              <CardTitle className="font-bold text-lg md:text-xl pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Tenants</CardTitle>
               <CardDescription className="text-sm text-[16px]">
-                View and manage supplier tenants on the BFS platform
+                View and manage tenants on the BFS platform
               </CardDescription>
             </div>
             
@@ -450,10 +457,6 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                 availableFields={availableFields}
                 onReset={handleResetColumns}
               />
-              <Button variant="outline" onClick={refreshData} disabled={isLoading}>
-                <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
               {canCreate && (
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -480,13 +483,8 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={refreshData} disabled={isLoading}>
-                    <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </DropdownMenuItem>
                   {canCreate && (
                     <>
-                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
                         <Plus className="h-4 w-4 mr-2" />
                         Add Tenant
@@ -622,24 +620,45 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
           <DialogHeader>
             <DialogTitle>Add New Tenant</DialogTitle>
             <DialogDescription>
-              Enter the tenant name. A unique Tenant ID will be automatically generated.
+              Enter both the Tenant ID and Tenant Name to create a new tenant.
             </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="tenantName">Tenant Name</Label>
+              <Label htmlFor="tenantId">Tenant ID *</Label>
               <Input
-                id="tenantName"
-                value={newTenantName}
-                onChange={(e) => setNewTenantName(e.target.value)}
-                placeholder="Enter tenant name"
+                id="tenantId"
+                value={newTenantId}
+                onChange={(e) => setNewTenantId(e.target.value)}
+                placeholder="e.g., BFS, tenant-100"
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isSubmitting) {
+                  if (e.key === 'Enter' && !isSubmitting && newTenantId && newTenantName) {
                     handleCreate();
                   }
                 }}
               />
+              <p className="text-sm text-muted-foreground">
+                Unique identifier for the tenant
+              </p>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="tenantName">Tenant Name *</Label>
+              <Input
+                id="tenantName"
+                value={newTenantName}
+                onChange={(e) => setNewTenantName(e.target.value)}
+                placeholder="e.g., BFS Corporation"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isSubmitting && newTenantId && newTenantName) {
+                    handleCreate();
+                  }
+                }}
+              />
+              <p className="text-sm text-muted-foreground">
+                Display name for the tenant
+              </p>
             </div>
           </div>
           
@@ -648,13 +667,17 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
               variant="outline"
               onClick={() => {
                 setIsCreateDialogOpen(false);
+                setNewTenantId('');
                 setNewTenantName('');
               }}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={isSubmitting}>
+            <Button 
+              onClick={handleCreate} 
+              disabled={isSubmitting || !newTenantId.trim() || !newTenantName.trim()}
+            >
               {isSubmitting ? 'Creating...' : 'Create Tenant'}
             </Button>
           </DialogFooter>

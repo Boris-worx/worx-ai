@@ -8,7 +8,8 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Upload, Link2, Save, Search, X, RefreshCw } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
+import { Upload, Link2, Save, Search, X } from 'lucide-react';
 import { Tenant, Transaction } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
 
@@ -176,14 +177,6 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Action Buttons */}
-        <div className="flex gap-3 mb-6">
-          <Button variant="outline" onClick={refreshData} disabled={isLoading}>
-            <RefreshIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? 'Loading...' : 'Refresh'}
-          </Button>
-        </div>
-
         {/* Three Column Layout */}
         <div className="grid grid-cols-1 xl:grid-cols-[240px_280px_1fr] gap-4">
           {/* Column 1: Tenants */}
@@ -224,42 +217,52 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="h-[600px]">
-                  <div className="space-y-0.5 px-2 pb-2">
-                    {/* ALL Option */}
-                    <Button
-                      variant={selectedTenantId === 'ALL' ? "default" : "ghost"}
-                      className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
-                      onClick={() => handleTenantSelect('ALL')}
-                    >
-                      <span className="font-medium">ALL Tenants</span>
-                      <Badge variant="outline" className="ml-2 text-xs">*</Badge>
-                    </Button>
+                  {isLoading ? (
+                    <div className="space-y-1 px-2 pb-2 pt-2">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : (
+                    <div className="space-y-0.5 px-2 pb-2">
+                      {/* ALL Option */}
+                      <Button
+                        variant={selectedTenantId === 'ALL' ? "default" : "ghost"}
+                        className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
+                        onClick={() => handleTenantSelect('ALL')}
+                      >
+                        <span className="font-medium">ALL Tenants</span>
+                        <Badge variant="outline" className="ml-2 text-xs">*</Badge>
+                      </Button>
 
-                    {/* Tenant Buttons */}
-                    {filteredTenants.length > 0 ? (
-                      filteredTenants.map((tenant) => (
-                        <Button
-                          key={tenant.TenantId}
-                          variant={selectedTenantId === tenant.TenantId ? "default" : "ghost"}
-                          className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
-                          onClick={() => handleTenantSelect(tenant.TenantId)}
-                        >
-                          <span className="font-medium truncate">{tenant.TenantName}</span>
-                          <span className="text-xs text-muted-foreground font-mono ml-2 flex-shrink-0">
-                            {tenant.TenantId.replace('tenant-', '')}
-                          </span>
-                        </Button>
-                      ))
-                    ) : tenants.length === 0 ? (
-                      <div className="text-center py-8 text-xs text-muted-foreground">
-                        No tenants. Import from Tenants tab.
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-xs text-muted-foreground">
-                        No match "{tenantSearch}"
-                      </div>
-                    )}
-                  </div>
+                      {/* Tenant Buttons */}
+                      {filteredTenants.length > 0 ? (
+                        filteredTenants.map((tenant) => (
+                          <Button
+                            key={tenant.TenantId}
+                            variant={selectedTenantId === tenant.TenantId ? "default" : "ghost"}
+                            className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
+                            onClick={() => handleTenantSelect(tenant.TenantId)}
+                          >
+                            <span className="font-medium truncate">{tenant.TenantName}</span>
+                            <span className="text-xs text-muted-foreground font-mono ml-2 flex-shrink-0">
+                              {tenant.TenantId.replace('tenant-', '')}
+                            </span>
+                          </Button>
+                        ))
+                      ) : tenants.length === 0 ? (
+                        <div className="text-center py-8 text-xs text-muted-foreground">
+                          No tenants. Import from Tenants tab.
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-xs text-muted-foreground">
+                          No match "{tenantSearch}"
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>
@@ -303,27 +306,37 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
               </CardHeader>
               <CardContent className="p-0">
                 <ScrollArea className="h-[600px]">
-                  <div className="space-y-0.5 px-2 pb-2">
-                    {filteredTransactions.length > 0 ? (
-                      filteredTransactions.map((transaction) => (
-                        <Button
-                          key={transaction.TransactionId}
-                          variant={selectedTransactionId === transaction.TransactionId ? "default" : "ghost"}
-                          className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
-                          onClick={() => handleTransactionSelect(transaction)}
-                        >
-                          <span className="font-medium truncate">{transaction.TransactionName}</span>
-                          <span className="text-xs text-muted-foreground font-mono ml-2 flex-shrink-0">
-                            {transaction.TransactionId.replace('txn-', '')}
-                          </span>
-                        </Button>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-xs text-muted-foreground">
-                        {transactionSearch ? `No match "${transactionSearch}"` : 'No transactions'}
-                      </div>
-                    )}
-                  </div>
+                  {isLoading ? (
+                    <div className="space-y-1 px-2 pb-2 pt-2">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : (
+                    <div className="space-y-0.5 px-2 pb-2">
+                      {filteredTransactions.length > 0 ? (
+                        filteredTransactions.map((transaction) => (
+                          <Button
+                            key={transaction.TransactionId}
+                            variant={selectedTransactionId === transaction.TransactionId ? "default" : "ghost"}
+                            className="w-full justify-between text-left h-8 py-1.5 px-2 text-sm"
+                            onClick={() => handleTransactionSelect(transaction)}
+                          >
+                            <span className="font-medium truncate">{transaction.TransactionName}</span>
+                            <span className="text-xs text-muted-foreground font-mono ml-2 flex-shrink-0">
+                              {transaction.TransactionId.replace('txn-', '')}
+                            </span>
+                          </Button>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-xs text-muted-foreground">
+                          {transactionSearch ? `No match "${transactionSearch}"` : 'No transactions'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>

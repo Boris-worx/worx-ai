@@ -1,6 +1,18 @@
 // API Configuration
-const API_BASE_URL =
-  "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.0";
+// In development, use Vite proxy to avoid CORS issues
+// In production, use direct API URL
+
+// Detect development mode by checking if running on localhost
+const isDevelopment = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || 
+   window.location.hostname === '127.0.0.1' ||
+   window.location.hostname === '' ||
+   window.location.port === '5173');
+
+const API_BASE_URL = isDevelopment
+  ? "/api"  // Use Vite proxy in development
+  : "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.0";
+
 const AUTH_HEADER_KEY = "X-BFS-Auth";
 const AUTH_HEADER_VALUE =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -8,6 +20,14 @@ const AUTH_HEADER_VALUE =
 // Set to true to use demo mode (no real API calls)
 // Set to false to use real BFS API
 const DEMO_MODE = false; // Always use real BFS API
+
+console.log('🔧 API Configuration:');
+console.log('  Environment:', isDevelopment ? 'Development' : 'Production');
+console.log('  Hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
+console.log('  Port:', typeof window !== 'undefined' ? window.location.port : 'N/A');
+console.log('  API Base URL:', API_BASE_URL);
+console.log('  Demo Mode:', DEMO_MODE);
+console.log('  Should use proxy:', API_BASE_URL.startsWith('/api'));
 
 // Export demo mode status for UI
 export const isDemoMode = () => DEMO_MODE;
@@ -100,6 +120,52 @@ const getHeaders = (includeEtag?: string) => {
   return headers;
 };
 
+// Helper function to safely fetch and parse JSON responses
+async function safeFetch(url: string, options: RequestInit = {}): Promise<any> {
+  console.log(`🌐 Fetching: ${url}`);
+  
+  const response = await fetch(url, {
+    ...options,
+    mode: 'cors',
+    credentials: 'omit',
+  }).catch((fetchError) => {
+    console.error('❌ Network error:', fetchError);
+    console.error('   URL:', url);
+    console.error('   Using proxy:', url.startsWith('/api'));
+    throw new Error('CORS_ERROR');
+  });
+
+  console.log(`📡 Response: ${response.status} ${response.statusText}`);
+  console.log(`   Content-Type: ${response.headers.get('Content-Type')}`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`❌ API Error ${response.status}:`, errorText.substring(0, 200));
+    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+  }
+
+  const responseText = await response.text();
+  
+  // Check if response is HTML (error page) instead of JSON
+  if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+    console.error('❌ Received HTML instead of JSON!');
+    console.error('   Response preview:', responseText.substring(0, 200));
+    console.error('   This means:');
+    console.error('   1. Request may have bypassed Vite proxy');
+    console.error('   2. Server returned an error page');
+    console.error('   3. CORS is blocking the request');
+    throw new Error('Server returned HTML instead of JSON. Ensure Vite dev server is running and proxy is configured.');
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('❌ JSON parse error:', parseError);
+    console.error('   Response preview:', responseText.substring(0, 200));
+    throw new Error(`Failed to parse JSON response: ${parseError}`);
+  }
+}
+
 // ==================== DEMO DATA ====================
 // Import tenants from multiple sources (API import, JSON import, create tenant)
 // These persist across component remounts when in demo mode
@@ -118,29 +184,13 @@ export async function getAllTenants(): Promise<Tenant[]> {
   }
 
   try {
-    console.log('Attempting to connect to BFS API...');
+    const url = `${API_BASE_URL}/tenants`;
+    console.log('🚀 Fetching tenants from:', url);
     
-    const response = await fetch(`${API_BASE_URL}/tenants`, {
+    const data = await safeFetch(url, {
       method: "GET",
       headers: getHeaders(),
-      mode: 'cors',
-      credentials: 'omit',
-    }).catch((fetchError) => {
-      // Intercept fetch errors (CORS, network) and throw custom error
-      throw new Error('CORS_ERROR');
     });
-
-    console.log('Connected! Response status:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API returned ${response.status}: ${response.statusText}`,
-      );
-    }
-
-    const responseText = await response.text();
-    const data = JSON.parse(responseText);
 
     // Handle different response formats
     let tenants: Tenant[] = [];
@@ -1114,10 +1164,14 @@ export async function getAllDataSources(tenantId?: string): Promise<DataSource[]
       // Add filter for TenantId as per API format: ?Filters={"TenantId":"BFS"}
       const filters = JSON.stringify({ TenantId: tenantId });
       url += `?Filters=${encodeURIComponent(filters)}`;
-      console.log(`Attempting to fetch data sources for tenant ${tenantId} from BFS API...`);
+      console.log(`🚀 Attempting to fetch data sources for tenant ${tenantId}...`);
     } else {
-      console.log('Attempting to fetch all data sources from BFS API...');
+      console.log('🚀 Attempting to fetch all data sources...');
     }
+    
+    console.log('   Full URL:', url);
+    console.log('   Is localhost?', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
+    console.log('   Using proxy?', url.startsWith('/api'));
     
     const response = await fetch(url, {
       method: "GET",
@@ -1125,6 +1179,9 @@ export async function getAllDataSources(tenantId?: string): Promise<DataSource[]
       mode: 'cors',
       credentials: 'omit',
     }).catch((fetchError) => {
+      console.error('❌ Fetch failed:', fetchError);
+      console.error('   URL was:', url);
+      console.error('   This is a', url.startsWith('/api') ? 'PROXY request (should work!)' : 'DIRECT request (CORS will block)');
       throw new Error('CORS_ERROR');
     });
 
