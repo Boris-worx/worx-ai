@@ -398,7 +398,7 @@ export function DataTable<T extends Record<string, any>>({
               disabled={currentPage === 1}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              
             </Button>
             
             <div className="text-sm text-muted-foreground px-2 whitespace-nowrap text-[12px]">
@@ -411,7 +411,7 @@ export function DataTable<T extends Record<string, any>>({
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
             >
-              Next
+              
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>

@@ -30,6 +30,49 @@ function AppContent() {
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
+  // Build navigation tabs based on user permissions
+  const getNavigationTabs = () => {
+    const tabs = [];
+    
+    if (hasAccessTo('Tenants')) {
+      tabs.push({
+        id: 'tenants',
+        label: 'Tenants',
+        icon: <TenantsIcon className="h-4 w-4 mr-2" />,
+      });
+    }
+    
+    if (hasAccessTo('Transactions')) {
+      tabs.push({
+        id: 'modelschema',
+        label: 'Transactions',
+        icon: <GridIcon className="h-4 w-4 mr-2" />,
+      });
+      
+      tabs.push({
+        id: 'applications',
+        label: 'Application',
+        icon: <AppWindow className="h-4 w-4 mr-2" />,
+      });
+      
+      tabs.push({
+        id: 'datasources',
+        label: 'Data Sources',
+        icon: <Receipt className="h-4 w-4 mr-2" />,
+      });
+    }
+    
+    if (hasAccessTo('Data Plane')) {
+      tabs.push({
+        id: 'transactions',
+        label: 'Data Plane',
+        icon: <ListIcon className="h-4 w-4 mr-2" />,
+      });
+    }
+    
+    return tabs;
+  };
+  
   // Shared state for tenants
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoadingTenants, setIsLoadingTenants] = useState(false);
@@ -60,6 +103,11 @@ function AppContent() {
       root.classList.remove('dark');
     }
   }, [theme]);
+
+  // Clean up old navigation order from localStorage
+  useEffect(() => {
+    localStorage.removeItem('bfs_nav_order');
+  }, []);
 
   // Load active tenant from localStorage on mount or set from user
   useEffect(() => {
@@ -226,51 +274,16 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              {hasAccessTo('Tenants') && (
+              {getNavigationTabs().map((tab) => (
                 <Button
-                  variant={activeTab === 'tenants' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('tenants')}
+                  key={tab.id}
+                  variant={activeTab === tab.id ? 'default' : 'ghost'}
+                  onClick={() => setActiveTab(tab.id)}
                 >
-                  <TenantsIcon className="h-4 w-4 mr-2" />
-                  Tenants
+                  {tab.icon}
+                  {tab.label}
                 </Button>
-              )}
-              {hasAccessTo('Transactions') && (
-                <Button
-                  variant={activeTab === 'modelschema' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('modelschema')}
-                >
-                  <GridIcon className="h-4 w-4 mr-2" />
-                  Transactions
-                </Button>
-              )}
-              {hasAccessTo('Transactions') && (
-                <Button
-                  variant={activeTab === 'datasources' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('datasources')}
-                >
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Data Sources
-                </Button>
-              )}
-              {hasAccessTo('Transactions') && (
-                <Button
-                  variant={activeTab === 'applications' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('applications')}
-                >
-                  <AppWindow className="h-4 w-4 mr-2" />
-                  Applications
-                </Button>
-              )}
-              {hasAccessTo('Data Plane') && (
-                <Button
-                  variant={activeTab === 'transactions' ? 'default' : 'ghost'}
-                  onClick={() => setActiveTab('transactions')}
-                >
-                  <ListIcon className="h-4 w-4 mr-2" />
-                  Data Plane
-                </Button>
-              )}
+              ))}
             </nav>
 
             {/* Right - Actions + Mobile Menu */}

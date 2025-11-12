@@ -929,16 +929,17 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
       {selectedSchemaForDetail && (
         <Dialog open={isSchemaDetailOpen} onOpenChange={setIsSchemaDetailOpen}>
           <DialogContent className="max-w-[90vw] max-h-[90vh] w-[1200px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl mb-1">
+                {selectedSchemaForDetail.model} - v{selectedSchemaForDetail.version} ({selectedSchemaForDetail.semver})
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                JSON Schema (Draft 2020-12)
+              </DialogDescription>
+            </DialogHeader>
             {/* Header with metadata in horizontal layout */}
             <div className="space-y-4 pb-4 border-b">
-              <div>
-                <DialogTitle className="text-2xl mb-1">
-                  {selectedSchemaForDetail.model} - v{selectedSchemaForDetail.version} ({selectedSchemaForDetail.semver})
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  JSON Schema (Draft 2020-12)
-                </DialogDescription>
-              </div>
+              <div className="sr-only"></div>
 
               {/* Metadata Row */}
               <div className="grid grid-cols-4 gap-4 text-sm">

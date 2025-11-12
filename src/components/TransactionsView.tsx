@@ -810,7 +810,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
               <div className="flex items-center justify-between gap-3">
                 {/* Desktop type display */}
                 <div className="hidden md:flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-muted-foreground" />
+        
                   <h3 className="text-base md:text-lg">{selectedTxnType}</h3>
                   <Badge variant="secondary">
                     {transactions.length}
@@ -831,12 +831,7 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
                     availableFields={availableFields}
                     onReset={handleResetColumns}
                   />
-                  {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
-                    <Button onClick={() => setIsCreateDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Transaction
-                    </Button>
-                  )}
+                  
                 </div>
 
                 {/* Mobile View - Dropdown Menu - Second row on mobile */}

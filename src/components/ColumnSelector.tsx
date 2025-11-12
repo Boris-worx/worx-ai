@@ -117,7 +117,7 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
           className="gap-2"
         >
           <FilterIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Columns</span>
+          <span className="hidden sm:inline"></span>
           <Badge variant="secondary" className="ml-1">
             {enabledCount}
           </Badge>

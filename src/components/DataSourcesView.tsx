@@ -14,7 +14,7 @@ import { DeleteIcon } from './icons/DeleteIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { Skeleton } from './ui/skeleton';
 import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { DataSource, createDataSource, deleteDataSource, updateDataSource } from '../lib/api';
+import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -48,8 +48,8 @@ interface DataCaptureSpecification {
   table: string;
   version: string;
   date: string;
-  schema: any;
-  // Additional fields from schema
+  schema: any; // Kept for backward compatibility, but should use containerSchema
+  // Additional fields from spec
   modelSchemaId: string;
   model: string;
   state: string;
@@ -60,6 +60,18 @@ interface DataCaptureSpecification {
   title: string;
   tenantName: string;
   dataSourceName: string;
+  // Real Data Capture Spec fields
+  dataCaptureSpecId?: string;
+  dataCaptureSpecName?: string;
+  isActive?: boolean;
+  sourcePrimaryKeyField?: string;
+  partitionKeyField?: string;
+  partitionKeyValue?: string;
+  allowedFilters?: string[];
+  requiredFields?: string[];
+  containerSchema?: any; // Container schema - equivalent to jsonSchema for Cosmos DB
+  createTime?: string | null;
+  updateTime?: string | null;
 }
 
 // Mock Data Capture Schemas - only Quote with ModelSchema structure
@@ -421,18 +433,18 @@ const getMockSpecifications = (dataSourceName: string): DataCaptureSpecification
     
     // Mock tenant names
     const tenantData = [
-      { id: 'tenant-1', name: 'BFS' },
-      { id: 'tenant-2', name: 'Meritage' },
-      { id: 'tenant-3', name: 'Smith Douglas' },
-      { id: 'tenant-4', name: 'PIM' },
-      { id: 'tenant-1', name: 'BFS' },
-      { id: 'tenant-2', name: 'Meritage' },
-      { id: 'tenant-3', name: 'Smith Douglas' },
-      { id: 'tenant-4', name: 'PIM' },
-      { id: 'tenant-1', name: 'BFS' },
-      { id: 'tenant-2', name: 'Meritage' },
-      { id: 'tenant-3', name: 'Smith Douglas' },
-      { id: 'tenant-4', name: 'PIM' }
+      { id: 'BFS', name: 'BFS' },
+      { id: 'Meritage', name: 'Meritage' },
+      { id: 'Smith Douglas', name: 'Smith Douglas' },
+      { id: 'PIM', name: 'PIM' },
+      { id: 'BFS', name: 'BFS' },
+      { id: 'Meritage', name: 'Meritage' },
+      { id: 'Smith Douglas', name: 'Smith Douglas' },
+      { id: 'PIM', name: 'PIM' },
+      { id: 'BFS', name: 'BFS' },
+      { id: 'Meritage', name: 'Meritage' },
+      { id: 'Smith Douglas', name: 'Smith Douglas' },
+      { id: 'PIM', name: 'PIM' }
     ];
     
     // Create Quote specifications for each tenant
@@ -441,17 +453,80 @@ const getMockSpecifications = (dataSourceName: string): DataCaptureSpecification
       table: quoteSchema.model,
       version: String(quoteSchema.version),
       date: '11/05/2025',
-      schema: quoteSchema,
+      schema: quoteSchema.jsonSchema, // Keep for backward compatibility
       modelSchemaId: `Quote:${index + 1}`,
       model: quoteSchema.model,
       state: quoteSchema.state,
       semver: version,
       profile: quoteSchema.profile,
       tenantId: tenant.id,
-      dataSourceId: quoteSchema.dataSourceId,
+      dataSourceId: 'bidtools',
       title: quoteSchema.jsonSchema.title,
       tenantName: tenant.name,
-      dataSourceName: quoteSchema.dataSources[0].dataSourceName
+      dataSourceName: 'Bidtools',
+      // Real Data Capture Spec fields
+      dataCaptureSpecId: `Quote:${index + 1}`,
+      dataCaptureSpecName: 'Quote',
+      isActive: true,
+      sourcePrimaryKeyField: 'quoteId',
+      partitionKeyField: 'partitionKey',
+      partitionKeyValue: `${tenant.id}-bidtools`,
+      allowedFilters: [
+        'quoteId',
+        'customerId',
+        'quoteStatus',
+        'isPublished',
+        'isAutoMergeFailed',
+        'isLinkedQuote',
+        'isNewVersionNeeded',
+        'isSentToErp',
+        'useErpTaxes',
+        'isEditRestrictionEnabled',
+        'isPartialPackOrderingEnabled',
+        'isImportedByJson'
+      ],
+      requiredFields: ['quoteId', 'customerId'],
+      containerSchema: {
+        schemaVersion: 1,
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Cosmos DB document id, mapped from quoteId for point lookups'
+          },
+          quoteId: {
+            type: 'string',
+            description: 'Source primary key, also mapped to id'
+          },
+          partitionKey: {
+            type: 'string',
+            description: 'Partition key value, set to partitionKeyValue from spec'
+          },
+          ...quoteSchema.jsonSchema.properties,
+          metaData: {
+            type: 'object',
+            properties: {
+              sources: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    sourceDatabase: { type: 'string' },
+                    sourceTable: { type: 'string' },
+                    sourceCreateTime: { type: ['string', 'null'], format: 'date-time' },
+                    sourceUpdateTime: { type: ['string', 'null'], format: 'date-time' },
+                    sourceEtag: { type: ['string', 'null'] }
+                  }
+                }
+              }
+            }
+          }
+        },
+        required: ['id', 'quoteId', 'partitionKey'],
+        unevaluatedProperties: true
+      },
+      createTime: '2025-11-05T10:00:00Z',
+      updateTime: '2025-11-05T10:00:00Z'
     }));
   }
   return [];
@@ -487,10 +562,13 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const [editDataSourceName, setEditDataSourceName] = useState('');
   
   // Data Capture Specifications state
+  const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
+  const [isLoadingSpecs, setIsLoadingSpecs] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<DataCaptureSpecification | null>(null);
   const [isSpecViewOpen, setIsSpecViewOpen] = useState(false);
   const [isSpecEditOpen, setIsSpecEditOpen] = useState(false);
   const [isSpecDeleteOpen, setIsSpecDeleteOpen] = useState(false);
+  const [isSpecCreateOpen, setIsSpecCreateOpen] = useState(false);
   const [specToDelete, setSpecToDelete] = useState<DataCaptureSpecification | null>(null);
   const [selectedModelPerDataSource, setSelectedModelPerDataSource] = useState<Record<string, string>>({});
   const [modelSearch, setModelSearch] = useState('');
@@ -498,6 +576,36 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const [sortColumn, setSortColumn] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPagePerDataSource, setCurrentPagePerDataSource] = useState<Record<string, number>>({});
+  
+  // Create Data Capture Spec form state
+  const [createSpecForm, setCreateSpecForm] = useState({
+    dataCaptureSpecName: '',
+    version: 1,
+    isActive: true,
+    profile: 'data-capture',
+    sourcePrimaryKeyField: '',
+    partitionKeyField: 'partitionKey',
+    partitionKeyValue: '',
+    allowedFiltersText: '',
+    requiredFieldsText: '',
+    containerSchemaText: ''
+  });
+  const [isCreatingSpec, setIsCreatingSpec] = useState(false);
+
+  // Edit Data Capture Spec form state
+  const [editSpecForm, setEditSpecForm] = useState({
+    dataCaptureSpecName: '',
+    version: 1,
+    isActive: true,
+    profile: 'data-capture',
+    sourcePrimaryKeyField: '',
+    partitionKeyField: 'partitionKey',
+    partitionKeyValue: '',
+    allowedFiltersText: '',
+    requiredFieldsText: '',
+    containerSchemaText: ''
+  });
+  const [isUpdatingSpec, setIsUpdatingSpec] = useState(false);
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -579,6 +687,79 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     }
   }, [availableFields]);
 
+  // Convert DataCaptureSpec to DataCaptureSpecification for display
+  const convertSpecForDisplay = (spec: DataCaptureSpec): DataCaptureSpecification => {
+    const tenant = tenants.find(t => t.TenantId === spec.tenantId);
+    const dataSource = dataSources.find(ds => (ds.DataSourceId || ds.DatasourceId) === spec.dataSourceId);
+    
+    return {
+      id: spec.dataCaptureSpecId || `${spec.dataCaptureSpecName}:${spec.version}`,
+      table: spec.dataCaptureSpecName,
+      version: String(spec.version),
+      date: spec.createTime ? new Date(spec.createTime).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US'),
+      schema: spec.containerSchema,
+      modelSchemaId: spec.dataCaptureSpecId || `${spec.dataCaptureSpecName}:${spec.version}`,
+      model: spec.dataCaptureSpecName,
+      state: spec.isActive ? 'active' : 'inactive',
+      semver: String(spec.version),
+      profile: spec.profile,
+      tenantId: spec.tenantId,
+      dataSourceId: spec.dataSourceId,
+      title: spec.dataCaptureSpecName,
+      tenantName: tenant?.TenantName || spec.tenantId,
+      dataSourceName: getDataSourceName(dataSource || {} as DataSource) || spec.dataSourceId,
+      // Real Data Capture Spec fields
+      dataCaptureSpecId: spec.dataCaptureSpecId,
+      dataCaptureSpecName: spec.dataCaptureSpecName,
+      isActive: spec.isActive,
+      sourcePrimaryKeyField: spec.sourcePrimaryKeyField,
+      partitionKeyField: spec.partitionKeyField,
+      partitionKeyValue: spec.partitionKeyValue,
+      allowedFilters: spec.allowedFilters,
+      requiredFields: spec.requiredFields,
+      containerSchema: spec.containerSchema,
+      createTime: spec.createTime,
+      updateTime: spec.updateTime
+    };
+  };
+
+  // Get specifications for a specific data source
+  const getSpecificationsForDataSource = (dataSourceId: string, dataSourceTenantId?: string): DataCaptureSpecification[] => {
+    // Filter by dataSourceId and optionally by tenantId
+    let filtered = dataCaptureSpecs.filter(spec => spec.dataSourceId === dataSourceId);
+    
+    // If not global tenant, also filter by tenant
+    if (activeTenantId !== 'global' && dataSourceTenantId) {
+      filtered = filtered.filter(spec => spec.tenantId === dataSourceTenantId);
+    }
+    
+    return filtered.map(convertSpecForDisplay);
+  };
+
+  // Load Data Capture Specifications
+  const loadDataCaptureSpecs = async (tenantId?: string, dataSourceId?: string) => {
+    try {
+      setIsLoadingSpecs(true);
+      const specs = await getDataCaptureSpecs(tenantId, dataSourceId);
+      setDataCaptureSpecs(specs);
+    } catch (error) {
+      console.error('Failed to load data capture specs:', error);
+      toast.error('Failed to load data capture specifications');
+    } finally {
+      setIsLoadingSpecs(false);
+    }
+  };
+
+  // Load Data Capture Specs when active tenant changes
+  useEffect(() => {
+    if (activeTenantId && activeTenantId !== 'global') {
+      loadDataCaptureSpecs(activeTenantId);
+    } else if (activeTenantId === 'global') {
+      // Load all specs for global tenant
+      loadDataCaptureSpecs();
+    }
+  }, [activeTenantId]);
+
   // Auto-select current tenant when opening create dialog
   useEffect(() => {
     if (isCreateDialogOpen && !newDataSourceTenantId) {
@@ -588,6 +769,40 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       }
     }
   }, [isCreateDialogOpen, activeTenantId]);
+
+  // Auto-fill partitionKeyValue when opening create spec dialog
+  useEffect(() => {
+    if (isSpecCreateOpen && selectedDataSource) {
+      const dataSourceId = getDataSourceId(selectedDataSource);
+      const tenantId = selectedDataSource.TenantId || activeTenantId;
+      
+      if (tenantId && tenantId !== 'global' && dataSourceId) {
+        // Auto-fill partition key value in format: {tenantId}-{dataSourceId}
+        setCreateSpecForm(prev => ({
+          ...prev,
+          partitionKeyValue: `${tenantId}-${dataSourceId}`
+        }));
+      }
+    }
+  }, [isSpecCreateOpen, selectedDataSource, activeTenantId]);
+
+  // Pre-fill edit form when opening edit spec dialog
+  useEffect(() => {
+    if (isSpecEditOpen && selectedSpec) {
+      setEditSpecForm({
+        dataCaptureSpecName: selectedSpec.dataCaptureSpecName || '',
+        version: selectedSpec.version ? parseInt(String(selectedSpec.version)) : 1,
+        isActive: selectedSpec.isActive !== undefined ? selectedSpec.isActive : true,
+        profile: selectedSpec.profile || 'data-capture',
+        sourcePrimaryKeyField: selectedSpec.sourcePrimaryKeyField || '',
+        partitionKeyField: selectedSpec.partitionKeyField || 'partitionKey',
+        partitionKeyValue: selectedSpec.partitionKeyValue || '',
+        allowedFiltersText: selectedSpec.allowedFilters ? selectedSpec.allowedFilters.join('\n') : '',
+        requiredFieldsText: selectedSpec.requiredFields ? selectedSpec.requiredFields.join('\n') : '',
+        containerSchemaText: selectedSpec.containerSchema ? JSON.stringify(selectedSpec.containerSchema, null, 2) : ''
+      });
+    }
+  }, [isSpecEditOpen, selectedSpec]);
 
   // Helper to check if a value is empty
   const isEmptyValue = (value: any): boolean => {
@@ -995,7 +1210,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             getRowId={(row) => getDataSourceId(row)}
             renderExpandedContent={(row) => {
               const dataSourceId = getDataSourceId(row);
-              const specifications = getMockSpecifications(getDataSourceName(row));
+              const dataSourceTenantId = row.TenantId;
+              const specifications = getSpecificationsForDataSource(dataSourceId, dataSourceTenantId);
               const models = getModelsFromSpecs(specifications);
               
               // Get or set default selected model for this data source
@@ -1125,7 +1341,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         size="sm" 
                         className="bg-[#1D6BCD] hover:bg-[#1557A8]"
                         onClick={() => {
-                          toast.info('Add Data Capture Specification - Coming soon!');
+                          setSelectedDataSource(row);
+                          setIsSpecCreateOpen(true);
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
@@ -1134,7 +1351,12 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     )}
                   </div>
                   
-                  {specifications.length === 0 ? (
+                  {isLoadingSpecs ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                    </div>
+                  ) : specifications.length === 0 ? (
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <p className="text-sm text-muted-foreground">
                         No Data Capture Specifications defined
@@ -1602,34 +1824,98 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Data Capture Specification View Dialog */}
       <Dialog open={isSpecViewOpen} onOpenChange={setIsSpecViewOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Data Capture Specification</DialogTitle>
             <DialogDescription>
-              Schema definition for {selectedSpec?.table}
+              Container schema definition for {selectedSpec?.table}
             </DialogDescription>
           </DialogHeader>
           {selectedSpec && (
             <div className="space-y-4">
+              {/* Basic Info */}
               <div className="grid grid-cols-3 gap-4 pb-4 border-b">
                 <div>
-                  <div className="text-sm text-muted-foreground">Table</div>
-                  <div className="text-sm">{selectedSpec.table}</div>
+                  <div className="text-sm text-muted-foreground">Model</div>
+                  <div className="text-sm">{selectedSpec.dataCaptureSpecName || selectedSpec.table}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Version</div>
                   <div className="text-sm">{selectedSpec.version}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-muted-foreground">Date</div>
-                  <div className="text-sm">{selectedSpec.date}</div>
+                  <div className="text-sm text-muted-foreground">Profile</div>
+                  <div className="text-sm">{selectedSpec.profile}</div>
                 </div>
               </div>
+
+              {/* Partition & Primary Key */}
+              {(selectedSpec.sourcePrimaryKeyField || selectedSpec.partitionKeyField || selectedSpec.partitionKeyValue) && (
+                <div className="space-y-2 pb-4 border-b">
+                  <div className="text-sm font-medium">Partition & Keys</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedSpec.sourcePrimaryKeyField && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">Source Primary Key</div>
+                        <div className="text-sm font-mono bg-muted px-2 py-1 rounded">{selectedSpec.sourcePrimaryKeyField}</div>
+                      </div>
+                    )}
+                    {selectedSpec.partitionKeyField && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">Partition Key Field</div>
+                        <div className="text-sm font-mono bg-muted px-2 py-1 rounded">{selectedSpec.partitionKeyField}</div>
+                      </div>
+                    )}
+                    {selectedSpec.partitionKeyValue && (
+                      <div className="col-span-2">
+                        <div className="text-sm text-muted-foreground">Partition Key Value</div>
+                        <div className="text-sm font-mono bg-muted px-2 py-1 rounded">{selectedSpec.partitionKeyValue}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Allowed Filters & Required Fields */}
+              {(selectedSpec.allowedFilters || selectedSpec.requiredFields) && (
+                <div className="grid grid-cols-2 gap-4 pb-4 border-b">
+                  {selectedSpec.allowedFilters && selectedSpec.allowedFilters.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium mb-2">Allowed Filters ({selectedSpec.allowedFilters.length})</div>
+                      <ScrollArea className="h-[120px] rounded-md border p-2">
+                        <div className="space-y-1">
+                          {selectedSpec.allowedFilters.map((filter: string, idx: number) => (
+                            <div key={idx} className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                              {filter}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                  {selectedSpec.requiredFields && selectedSpec.requiredFields.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium mb-2">Required Fields ({selectedSpec.requiredFields.length})</div>
+                      <ScrollArea className="h-[120px] rounded-md border p-2">
+                        <div className="space-y-1">
+                          {selectedSpec.requiredFields.map((field: string, idx: number) => (
+                            <div key={idx} className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                              {field}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Container Schema */}
               <div>
-                <div className="text-sm text-muted-foreground mb-2">JSON Schema</div>
+                <div className="text-sm font-medium mb-2">Container Schema (Cosmos DB)</div>
                 <div className="rounded-md border bg-muted/30 p-3">
                   <pre className="text-xs overflow-x-auto max-h-[400px] overflow-y-auto">
-                    {JSON.stringify(selectedSpec.schema, null, 2)}
+                    {JSON.stringify(selectedSpec.containerSchema || selectedSpec.schema, null, 2)}
                   </pre>
                 </div>
               </div>
@@ -1643,50 +1929,563 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         </DialogContent>
       </Dialog>
 
-      {/* Data Capture Specification Edit Dialog */}
-      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      {/* Create Data Capture Specification Dialog */}
+      <Dialog open={isSpecCreateOpen} onOpenChange={(open) => {
+        setIsSpecCreateOpen(open);
+        if (!open) {
+          // Reset form when closing
+          setCreateSpecForm({
+            dataCaptureSpecName: '',
+            version: 1,
+            isActive: true,
+            profile: 'data-capture',
+            sourcePrimaryKeyField: '',
+            partitionKeyField: 'partitionKey',
+            partitionKeyValue: '',
+            allowedFiltersText: '',
+            requiredFieldsText: '',
+            containerSchemaText: ''
+          });
+        }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Data Capture Specification</DialogTitle>
+            <DialogTitle>Create Data Capture Specification</DialogTitle>
             <DialogDescription>
-              Update specification for {selectedSpec?.table}
+              Define how data from {selectedDataSource ? getDataSourceName(selectedDataSource) : 'data source'} should be captured into Cosmos DB
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Table</Label>
-              <Input value={selectedSpec?.table || ''} disabled />
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="specName">Specification Name *</Label>
+                <Input
+                  id="specName"
+                  placeholder="e.g., Quote"
+                  value={createSpecForm.dataCaptureSpecName}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, dataCaptureSpecName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="version">Version *</Label>
+                <Input
+                  id="version"
+                  type="number"
+                  min="1"
+                  value={createSpecForm.version}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, version: parseInt(e.target.value) || 1 })}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="specVersion">Version *</Label>
-              <Input
-                id="specVersion"
-                placeholder="e.g., 2.0"
-                defaultValue={selectedSpec?.version || ''}
-              />
+
+            {/* Partition & Keys */}
+            <div className="space-y-4 pb-4 border-b">
+              <div className="text-sm font-medium">Partition & Keys</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="primaryKey">Source Primary Key Field *</Label>
+                  <Input
+                    id="primaryKey"
+                    placeholder="e.g., quoteId"
+                    value={createSpecForm.sourcePrimaryKeyField}
+                    onChange={(e) => setCreateSpecForm({ ...createSpecForm, sourcePrimaryKeyField: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="partitionKey">Partition Key Field *</Label>
+                  <Input
+                    id="partitionKey"
+                    placeholder="e.g., partitionKey"
+                    value={createSpecForm.partitionKeyField}
+                    onChange={(e) => setCreateSpecForm({ ...createSpecForm, partitionKeyField: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="partitionValue">Partition Key Value *</Label>
+                <Input
+                  id="partitionValue"
+                  placeholder="e.g., BFS-bidtools"
+                  value={createSpecForm.partitionKeyValue}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, partitionKeyValue: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Typically: {`{tenantId}-{dataSourceId}`}
+                </p>
+              </div>
             </div>
+
+            {/* Allowed Filters & Required Fields */}
+            <div className="grid grid-cols-2 gap-4 pb-4 border-b">
+              <div className="space-y-2">
+                <Label htmlFor="allowedFilters">Allowed Filters</Label>
+                <Textarea
+                  id="allowedFilters"
+                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId&#10;quoteStatus"
+                  value={createSpecForm.allowedFiltersText}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, allowedFiltersText: e.target.value })}
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fields that can be used for filtering data
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="requiredFields">Required Fields *</Label>
+                <Textarea
+                  id="requiredFields"
+                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId"
+                  value={createSpecForm.requiredFieldsText}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, requiredFieldsText: e.target.value })}
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fields that must be present in captured data
+                </p>
+              </div>
+            </div>
+
+            {/* Container Schema */}
             <div className="space-y-2">
-              <Label htmlFor="specSchema">JSON Schema *</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="containerSchema">Container Schema (JSON) *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const template = {
+                      schemaVersion: 1,
+                      type: "object",
+                      properties: {
+                        [createSpecForm.sourcePrimaryKeyField || "id"]: { type: "string" },
+                        [createSpecForm.partitionKeyField || "partitionKey"]: { type: "string" },
+                        metaData: {
+                          type: "object",
+                          properties: {
+                            sources: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: {
+                                  sourceDatabase: { type: "string" },
+                                  sourceTable: { type: "string" },
+                                  sourceCreateTime: { type: ["string", "null"], format: "date-time" },
+                                  sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
+                                  sourceEtag: { type: ["string", "null"] }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        createTime: { type: ["string", "null"], format: "date-time" },
+                        updateTime: { type: ["string", "null"], format: "date-time" }
+                      },
+                      required: [createSpecForm.sourcePrimaryKeyField || "id", createSpecForm.partitionKeyField || "partitionKey"],
+                      unevaluatedProperties: true
+                    };
+                    setCreateSpecForm({ ...createSpecForm, containerSchemaText: JSON.stringify(template, null, 2) });
+                  }}
+                >
+                  Use Template
+                </Button>
+              </div>
               <Textarea
-                id="specSchema"
-                placeholder="Paste JSON schema here"
-                defaultValue={JSON.stringify(selectedSpec?.schema, null, 2)}
+                id="containerSchema"
+                placeholder='{"type": "object", "properties": {...}, "required": [...]}'
+                value={createSpecForm.containerSchemaText}
+                onChange={(e) => setCreateSpecForm({ ...createSpecForm, containerSchemaText: e.target.value })}
                 rows={10}
                 className="font-mono text-xs"
               />
+              <p className="text-xs text-muted-foreground">
+                JSON Schema defining the structure of documents in Cosmos DB container
+              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSpecEditOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsSpecCreateOpen(false)}
+              disabled={isCreatingSpec}
+            >
               Cancel
             </Button>
-            <Button 
-              onClick={() => {
-                toast.success('Specification updated successfully!');
-                setIsSpecEditOpen(false);
+            <Button
+              onClick={async () => {
+                if (!selectedDataSource) {
+                  toast.error('No data source selected');
+                  return;
+                }
+
+                // Validate required fields
+                if (!createSpecForm.dataCaptureSpecName || !createSpecForm.sourcePrimaryKeyField || 
+                    !createSpecForm.partitionKeyField || !createSpecForm.partitionKeyValue || 
+                    !createSpecForm.requiredFieldsText || !createSpecForm.containerSchemaText) {
+                  toast.error('Please fill in all required fields');
+                  return;
+                }
+
+                // Parse container schema
+                let containerSchema;
+                try {
+                  containerSchema = JSON.parse(createSpecForm.containerSchemaText);
+                } catch (error) {
+                  toast.error('Invalid JSON in Container Schema');
+                  return;
+                }
+
+                // Parse filters and required fields
+                const allowedFilters = createSpecForm.allowedFiltersText
+                  .split('\n')
+                  .map(f => f.trim())
+                  .filter(f => f.length > 0);
+                
+                const requiredFields = createSpecForm.requiredFieldsText
+                  .split('\n')
+                  .map(f => f.trim())
+                  .filter(f => f.length > 0);
+
+                if (requiredFields.length === 0) {
+                  toast.error('At least one required field must be specified');
+                  return;
+                }
+
+                setIsCreatingSpec(true);
+                try {
+                  const dataSourceId = getDataSourceId(selectedDataSource);
+                  const tenantId = selectedDataSource.TenantId || activeTenantId;
+
+                  if (!tenantId || tenantId === 'global') {
+                    toast.error('Cannot create spec: Invalid tenant');
+                    setIsCreatingSpec(false);
+                    return;
+                  }
+
+                  const newSpec = await createDataCaptureSpec({
+                    dataCaptureSpecName: createSpecForm.dataCaptureSpecName,
+                    tenantId: tenantId,
+                    dataSourceId: dataSourceId,
+                    isActive: createSpecForm.isActive,
+                    version: createSpecForm.version,
+                    profile: createSpecForm.profile,
+                    sourcePrimaryKeyField: createSpecForm.sourcePrimaryKeyField,
+                    partitionKeyField: createSpecForm.partitionKeyField,
+                    partitionKeyValue: createSpecForm.partitionKeyValue,
+                    allowedFilters: allowedFilters,
+                    requiredFields: requiredFields,
+                    containerSchema: containerSchema
+                  });
+
+                  toast.success(`Data Capture Specification "${createSpecForm.dataCaptureSpecName}" created successfully!`);
+                  setIsSpecCreateOpen(false);
+                  
+                  // Reload specs
+                  await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+                } catch (error: any) {
+                  console.error('Failed to create spec:', error);
+                  toast.error(error.message || 'Failed to create data capture specification');
+                } finally {
+                  setIsCreatingSpec(false);
+                }
               }}
+              disabled={isCreatingSpec}
             >
-              Save Changes
+              {isCreatingSpec ? 'Creating...' : 'Create Specification'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Capture Specification Edit Dialog */}
+      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Data Capture Specification</DialogTitle>
+            <DialogDescription>
+              Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSpecName">Specification Name *</Label>
+                <Input
+                  id="editSpecName"
+                  placeholder="e.g., Quote"
+                  value={editSpecForm.dataCaptureSpecName}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editVersion">Version *</Label>
+                <Input
+                  id="editVersion"
+                  type="number"
+                  min="1"
+                  value={editSpecForm.version}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editProfile">Profile</Label>
+                <Input
+                  id="editProfile"
+                  value={editSpecForm.profile}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-8">
+                <input
+                  type="checkbox"
+                  id="editIsActive"
+                  checked={editSpecForm.isActive}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, isActive: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="editIsActive" className="cursor-pointer">
+                  Active
+                </Label>
+              </div>
+            </div>
+
+            {/* Partition & Keys */}
+            <div className="space-y-4 pb-4 border-b">
+              <div className="text-sm font-medium">Partition & Keys</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editPrimaryKey">Source Primary Key Field *</Label>
+                  <Input
+                    id="editPrimaryKey"
+                    placeholder="e.g., quoteId"
+                    value={editSpecForm.sourcePrimaryKeyField}
+                    onChange={(e) => setEditSpecForm({ ...editSpecForm, sourcePrimaryKeyField: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editPartitionKey">Partition Key Field *</Label>
+                  <Input
+                    id="editPartitionKey"
+                    placeholder="e.g., partitionKey"
+                    value={editSpecForm.partitionKeyField}
+                    onChange={(e) => setEditSpecForm({ ...editSpecForm, partitionKeyField: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editPartitionValue">Partition Key Value *</Label>
+                <Input
+                  id="editPartitionValue"
+                  placeholder="e.g., BFS-bidtools"
+                  value={editSpecForm.partitionKeyValue}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, partitionKeyValue: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Typically: {`{tenantId}-{dataSourceId}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Allowed Filters & Required Fields */}
+            <div className="grid grid-cols-2 gap-4 pb-4 border-b">
+              <div className="space-y-2">
+                <Label htmlFor="editAllowedFilters">Allowed Filters</Label>
+                <Textarea
+                  id="editAllowedFilters"
+                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId&#10;quoteStatus"
+                  value={editSpecForm.allowedFiltersText}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, allowedFiltersText: e.target.value })}
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fields that can be used for filtering data
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editRequiredFields">Required Fields *</Label>
+                <Textarea
+                  id="editRequiredFields"
+                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId"
+                  value={editSpecForm.requiredFieldsText}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, requiredFieldsText: e.target.value })}
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fields that must be present in every document
+                </p>
+              </div>
+            </div>
+
+            {/* Container Schema */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="editContainerSchema">Container Schema (JSON) *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const template = {
+                      schemaVersion: 1,
+                      type: "object",
+                      properties: {
+                        [editSpecForm.sourcePrimaryKeyField || "id"]: {
+                          type: "string"
+                        },
+                        [editSpecForm.partitionKeyField || "partitionKey"]: {
+                          type: "string"
+                        },
+                        metaData: {
+                          type: "object",
+                          properties: {
+                            sources: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: {
+                                  sourceDatabase: { type: "string" },
+                                  sourceTable: { type: "string" },
+                                  sourceCreateTime: { type: ["string", "null"], format: "date-time" },
+                                  sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
+                                  sourceEtag: { type: ["string", "null"] }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        createTime: {
+                          type: ["string", "null"],
+                          format: "date-time"
+                        },
+                        updateTime: {
+                          type: ["string", "null"],
+                          format: "date-time"
+                        }
+                      },
+                      required: [
+                        editSpecForm.sourcePrimaryKeyField || "id",
+                        editSpecForm.partitionKeyField || "partitionKey"
+                      ],
+                      unevaluatedProperties: true
+                    };
+                    setEditSpecForm({
+                      ...editSpecForm,
+                      containerSchemaText: JSON.stringify(template, null, 2)
+                    });
+                    toast.success('Template applied to Container Schema');
+                  }}
+                >
+                  Use Template
+                </Button>
+              </div>
+              <Textarea
+                id="editContainerSchema"
+                placeholder="JSON Schema definition..."
+                value={editSpecForm.containerSchemaText}
+                onChange={(e) => setEditSpecForm({ ...editSpecForm, containerSchemaText: e.target.value })}
+                rows={12}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                JSON Schema defining the structure of documents in Cosmos DB container
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsSpecEditOpen(false)}
+              disabled={isUpdatingSpec}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedSpec || !selectedSpec.dataCaptureSpecId) {
+                  toast.error('No specification selected');
+                  return;
+                }
+
+                // Validate required fields
+                if (!editSpecForm.dataCaptureSpecName || !editSpecForm.sourcePrimaryKeyField || 
+                    !editSpecForm.partitionKeyField || !editSpecForm.partitionKeyValue || 
+                    !editSpecForm.requiredFieldsText || !editSpecForm.containerSchemaText) {
+                  toast.error('Please fill in all required fields');
+                  return;
+                }
+
+                // Parse container schema
+                let containerSchema;
+                try {
+                  containerSchema = JSON.parse(editSpecForm.containerSchemaText);
+                } catch (error) {
+                  toast.error('Invalid JSON in Container Schema');
+                  return;
+                }
+
+                // Parse filters and required fields
+                const allowedFilters = editSpecForm.allowedFiltersText
+                  .split('\n')
+                  .map(f => f.trim())
+                  .filter(f => f.length > 0);
+                
+                const requiredFields = editSpecForm.requiredFieldsText
+                  .split('\n')
+                  .map(f => f.trim())
+                  .filter(f => f.length > 0);
+
+                if (requiredFields.length === 0) {
+                  toast.error('At least one required field must be specified');
+                  return;
+                }
+
+                setIsUpdatingSpec(true);
+                try {
+                  // Find the real spec to get _etag
+                  const realSpec = dataCaptureSpecs.find(s => s.dataCaptureSpecId === selectedSpec.dataCaptureSpecId);
+                  if (!realSpec || !realSpec._etag) {
+                    toast.error('Specification not found or missing ETag');
+                    setIsUpdatingSpec(false);
+                    return;
+                  }
+
+                  const updatedSpec = await updateDataCaptureSpec(
+                    selectedSpec.dataCaptureSpecId,
+                    {
+                      dataCaptureSpecName: editSpecForm.dataCaptureSpecName,
+                      isActive: editSpecForm.isActive,
+                      version: editSpecForm.version,
+                      profile: editSpecForm.profile,
+                      sourcePrimaryKeyField: editSpecForm.sourcePrimaryKeyField,
+                      partitionKeyField: editSpecForm.partitionKeyField,
+                      partitionKeyValue: editSpecForm.partitionKeyValue,
+                      allowedFilters: allowedFilters,
+                      requiredFields: requiredFields,
+                      containerSchema: containerSchema
+                    },
+                    realSpec._etag
+                  );
+
+                  toast.success(`Data Capture Specification "${editSpecForm.dataCaptureSpecName}" updated successfully!`);
+                  setIsSpecEditOpen(false);
+                  
+                  // Reload specs
+                  await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+                } catch (error: any) {
+                  console.error('Failed to update spec:', error);
+                  toast.error(error.message || 'Failed to update data capture specification');
+                } finally {
+                  setIsUpdatingSpec(false);
+                }
+              }}
+              disabled={isUpdatingSpec}
+            >
+              {isUpdatingSpec ? 'Updating...' : 'Update Specification'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1703,12 +2502,43 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => {
+              setIsSpecDeleteOpen(false);
+              setSpecToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                toast.success(`Specification for ${specToDelete?.table} deleted successfully!`);
-                setIsSpecDeleteOpen(false);
-                setSpecToDelete(null);
+              onClick={async () => {
+                if (!specToDelete || !specToDelete.dataCaptureSpecId) {
+                  toast.error('Invalid specification');
+                  setIsSpecDeleteOpen(false);
+                  setSpecToDelete(null);
+                  return;
+                }
+
+                try {
+                  // Find the real spec to get _etag
+                  const realSpec = dataCaptureSpecs.find(s => s.dataCaptureSpecId === specToDelete.dataCaptureSpecId);
+                  if (!realSpec || !realSpec._etag) {
+                    toast.error('Specification not found or missing ETag');
+                    setIsSpecDeleteOpen(false);
+                    setSpecToDelete(null);
+                    return;
+                  }
+
+                  await deleteDataCaptureSpec(specToDelete.dataCaptureSpecId, realSpec._etag);
+                  toast.success(`Specification for ${specToDelete.table} deleted successfully!`);
+                  
+                  // Reload specs
+                  await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+                } catch (error: any) {
+                  console.error('Failed to delete spec:', error);
+                  toast.error(error.message || 'Failed to delete specification');
+                } finally {
+                  setIsSpecDeleteOpen(false);
+                  setSpecToDelete(null);
+                }
               }}
               className="bg-red-600 hover:bg-red-700"
             >

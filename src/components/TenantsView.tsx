@@ -518,17 +518,9 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
               <Upload className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg mb-2">No Tenants Yet</h3>
               <p className="text-muted-foreground mb-6 max-w-md">
-                {canCreate 
-                  ? 'Get started by importing tenants from a JSON file. Upload your tenant data to begin managing suppliers on the BFS platform.'
-                  : 'No tenants available. Contact a SuperUser to import tenant data.'}
+               No tenants available. Contact a SuperUser to import tenant data.
               </p>
-              {canCreate && (
-                <Button onClick={() => setIsImportOpen(true)} size="lg" className="rounded-full">
-                  <Upload className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Import Tenants from JSON</span>
-                  <span className="sm:hidden">Import JSON</span>
-                </Button>
-              )}
+          
             </div>
           ) : (
             /* Full Functionality - Show after tenants are imported */

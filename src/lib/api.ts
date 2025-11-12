@@ -77,6 +77,34 @@ export interface DataSource {
   _ts?: number;
 }
 
+// Data Capture Specification Interface
+export interface DataCaptureSpec {
+  dataCaptureSpecId?: string;
+  dataCaptureSpecName: string;
+  tenantId: string;
+  dataSourceId: string;
+  isActive: boolean;
+  version: number;
+  profile: string;
+  sourcePrimaryKeyField: string;
+  partitionKeyField: string;
+  partitionKeyValue: string;
+  allowedFilters: string[];
+  requiredFields: string[];
+  containerSchema: any; // JSON Schema for Cosmos DB container
+  CreateTime?: string | null;
+  UpdateTime?: string | null;
+  createdBy?: string | null;
+  notes?: string | null;
+  updateTime?: string;
+  createTime?: string;
+  _rid?: string;
+  _self?: string;
+  _etag?: string;
+  _attachments?: string;
+  _ts?: number;
+}
+
 // API Response Interface
 export interface ApiResponse<T> {
   status: {
@@ -750,13 +778,19 @@ export async function getTransactionsByType(
       try {
         errorData = JSON.parse(errorText);
       } catch {
-        throw new Error(`API returned ${response.status}: ${errorText}`);
+        // Silently return empty for parse errors (likely unsupported types)
+        return {
+          transactions: [],
+          continuationToken: null,
+          hasMore: false
+        };
       }
       
       // Check if it's "Unsupported TxnType" or "No Cosmos container configured" - treat as empty result, not error
       if (errorData.status?.message === 'Unsupported TxnType' || 
           errorData.status?.message === 'Unsupported txn_type' ||
-          errorData.status?.message?.includes('No Cosmos container configured')) {
+          errorData.status?.message?.includes('No Cosmos container configured') ||
+          response.status === 400) {
         // Silently return empty array for unsupported types - no console logs
         return {
           transactions: [],
@@ -765,17 +799,15 @@ export async function getTransactionsByType(
         };
       }
       
-      console.error('Error response body:', errorText);
+      // Only log errors for non-400 status codes (real errors)
+      if (response.status !== 400) {
+        console.error('Error response body:', errorText);
+      }
       throw new Error(errorData.status?.message || `API returned ${response.status}`);
     }
 
     const responseText = await response.text();
-    console.log('Response body (raw, first 2000 chars):', responseText.substring(0, 2000));
-    
     const responseData = JSON.parse(responseText);
-    console.log('Parsed response type:', typeof responseData);
-    console.log('Is array?', Array.isArray(responseData));
-    console.log('Response keys:', Object.keys(responseData));
     
     // Extract continuation token from response (check various possible locations)
     let nextToken: string | null = null;
@@ -787,21 +819,12 @@ export async function getTransactionsByType(
       nextToken = responseData.data.ContinuationToken;
     }
     
-    if (nextToken) {
-      console.log('📄 Found continuation token, more data available');
-    }
-    
     // Handle BFS API response format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
     let txns: Transaction[] = [];
     
     if (responseData.status && responseData.data) {
-      console.log('Format: { status, data }');
-      console.log('  status:', responseData.status);
-      console.log('  data keys:', Object.keys(responseData.data));
-      
       // BFS API returns: data.Txns array
       if (responseData.data.Txns && Array.isArray(responseData.data.Txns)) {
-        console.log('Found data.Txns array with', responseData.data.Txns.length, 'items');
         const rawTxns = responseData.data.Txns;
         const returnedTxnType = responseData.data.TxnType || txnType;
         
@@ -836,27 +859,15 @@ export async function getTransactionsByType(
             _attachments: rawTxn._attachments,
           };
         });
-        
-        console.log(`Transformed ${txns.length} transactions to internal format`);
       }
       // Fallback: data is array directly
       else if (Array.isArray(responseData.data)) {
-        console.log('data is array directly');
         txns = responseData.data;
-      }
-      else {
-        console.log('  data structure:', responseData.data);
       }
     }
     // Direct array format
     else if (Array.isArray(responseData)) {
-      console.log('Format: Direct array');
       txns = responseData;
-    }
-
-    console.log(`Final result: ${txns.length} transaction(s) for type: ${txnType}`);
-    if (txns.length > 0) {
-      console.log('First transaction:', txns[0]);
     }
     
     return {
@@ -1432,6 +1443,167 @@ export async function getDataSourceById(
     return data.data;
   } catch (error) {
     console.error("Error fetching data source:", error);
+    throw error;
+  }
+}
+
+// ==================== DATA CAPTURE SPECIFICATION API FUNCTIONS ====================
+
+// Get Data Capture Specifications (optionally filtered by tenantId and dataSourceId)
+export async function getDataCaptureSpecs(
+  tenantId?: string,
+  dataSourceId?: string
+): Promise<DataCaptureSpec[]> {
+  try {
+    let url = `${API_BASE_URL}/data-capture-specs`;
+    
+    // Build filters if provided
+    if (tenantId || dataSourceId) {
+      const filters: any = {};
+      if (tenantId) filters.TenantId = tenantId;
+      if (dataSourceId) filters.dataSourceId = dataSourceId;
+      
+      const filtersParam = encodeURIComponent(JSON.stringify(filters));
+      url += `?Filters=${filtersParam}`;
+    }
+
+    console.log('🔍 GET Data Capture Specs Request:');
+    console.log('  URL:', url);
+    console.log('  TenantId:', tenantId || 'none');
+    console.log('  DataSourceId:', dataSourceId || 'none');
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorData: ApiResponse<any> = await response.json();
+      throw new Error(errorData.status?.message || "Failed to fetch data capture specs");
+    }
+
+    const data: ApiResponse<{ DataCaptureSpecs: DataCaptureSpec[] }> = await response.json();
+    console.log('✅ Fetched data capture specs:', data.data.DataCaptureSpecs.length);
+    return data.data.DataCaptureSpecs || [];
+  } catch (error) {
+    console.error("Error fetching data capture specs:", error);
+    throw error;
+  }
+}
+
+// Create Data Capture Specification
+export async function createDataCaptureSpec(
+  spec: Omit<DataCaptureSpec, 'dataCaptureSpecId' | '_etag' | '_rid' | '_ts' | '_self' | '_attachments' | 'createTime' | 'updateTime'>
+): Promise<DataCaptureSpec> {
+  try {
+    console.log('➕ POST Data Capture Spec Request:');
+    console.log('  URL:', `${API_BASE_URL}/data-capture-specs`);
+    console.log('  Spec:', spec);
+
+    const response = await fetch(`${API_BASE_URL}/data-capture-specs`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(spec),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      let errorData: ApiResponse<any>;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Failed to create data capture spec: ${response.status} ${response.statusText}`);
+      }
+      throw new Error(errorData.status?.message || "Failed to create data capture spec");
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: ApiResponse<{ DataCaptureSpec: DataCaptureSpec }> = JSON.parse(responseText);
+    console.log("Created data capture spec:", data.data.DataCaptureSpec);
+    return data.data.DataCaptureSpec;
+  } catch (error) {
+    console.error("Error creating data capture spec:", error);
+    throw error;
+  }
+}
+
+// Update Data Capture Specification
+export async function updateDataCaptureSpec(
+  specId: string,
+  spec: Partial<DataCaptureSpec>,
+  etag: string
+): Promise<DataCaptureSpec> {
+  try {
+    console.log('📝 PUT Data Capture Spec Request:');
+    console.log('  SpecId:', specId);
+    console.log('  URL:', `${API_BASE_URL}/data-capture-specs/${specId}`);
+    console.log('  ETag:', etag);
+    console.log('  Updates:', spec);
+
+    const response = await fetch(`${API_BASE_URL}/data-capture-specs/${encodeURIComponent(specId)}`, {
+      method: "PUT",
+      headers: getHeaders(etag),
+      body: JSON.stringify(spec),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      let errorData: ApiResponse<any>;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Failed to update data capture spec: ${response.status} ${response.statusText}`);
+      }
+      throw new Error(errorData.status?.message || "Failed to update data capture spec");
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: ApiResponse<{ DataCaptureSpec: DataCaptureSpec }> = JSON.parse(responseText);
+    console.log("Updated data capture spec:", data.data.DataCaptureSpec);
+    return data.data.DataCaptureSpec;
+  } catch (error) {
+    console.error("Error updating data capture spec:", error);
+    throw error;
+  }
+}
+
+// Delete Data Capture Specification
+export async function deleteDataCaptureSpec(
+  specId: string,
+  etag: string
+): Promise<void> {
+  try {
+    console.log('🗑️ DELETE Data Capture Spec Request:');
+    console.log('  SpecId:', specId);
+    console.log('  URL:', `${API_BASE_URL}/data-capture-specs/${specId}`);
+    console.log('  ETag:', etag);
+
+    const response = await fetch(`${API_BASE_URL}/data-capture-specs/${encodeURIComponent(specId)}`, {
+      method: "DELETE",
+      headers: getHeaders(etag),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      let errorData: ApiResponse<any>;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Failed to delete data capture spec: ${response.status} ${response.statusText}`);
+      }
+      throw new Error(errorData.status?.message || "Failed to delete data capture spec");
+    }
+
+    console.log('✅ Data capture spec deleted successfully');
+  } catch (error) {
+    console.error("Error deleting data capture spec:", error);
     throw error;
   }
 }
