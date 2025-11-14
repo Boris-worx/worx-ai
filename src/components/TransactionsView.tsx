@@ -693,27 +693,25 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
 
   // Actions render function (displayed as last column on the right)
   const renderActions = (row: Transaction) => (
-    <div className="flex gap-0.5 md:gap-1 whitespace-nowrap justify-end">
+    <div className="flex gap-1 whitespace-nowrap justify-end">
       <Button
         variant="outline"
         size="sm"
         onClick={() => handleViewDetail(row)}
-        className="h-7 md:h-8 px-1.5 md:px-2"
+        className="h-7 md:h-8 w-7 md:w-8 p-0"
         title="View transaction details"
       >
-        <Eye className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
-        <span className="hidden md:inline">View</span>
+        <Eye className="h-3 w-3 md:h-3.5 md:w-3.5" />
       </Button>
       {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
         <Button
           variant="outline"
           size="sm"
           onClick={() => handleEditTransaction(row)}
-          className="h-7 md:h-8 px-1.5 md:px-2"
+          className="h-7 md:h-8 w-7 md:w-8 p-0"
           title="Edit transaction"
         >
-          <Pencil className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
-          <span className="hidden md:inline">Edit</span>
+          <Pencil className="h-3 w-3 md:h-3.5 md:w-3.5" />
         </Button>
       )}
       {(userRole === 'superuser' || userRole === 'admin' || userRole === 'developer') && (
@@ -721,11 +719,10 @@ export function TransactionsView({ transactions, setTransactions, isLoading, ref
           variant="outline"
           size="sm"
           onClick={() => handleDeleteTransaction(row)}
-          className="h-7 md:h-8 px-1.5 md:px-2 text-muted-foreground hover:text-destructive"
+          className="h-7 md:h-8 w-7 md:w-8 p-0 text-muted-foreground hover:text-destructive"
           title="Delete transaction"
         >
-          <Trash2 className="h-3 w-3 md:h-3.5 md:w-3.5 md:mr-1" />
-          <span className="hidden md:inline">Delete</span>
+          <Trash2 className="h-3 w-3 md:h-3.5 md:w-3.5" />
         </Button>
       )}
     </div>

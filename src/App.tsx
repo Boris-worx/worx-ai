@@ -167,19 +167,18 @@ function AppContent() {
     }
   }, [user, hasAccessTo, activeTab]);
 
-  // Auto-load tenants and data sources from API on mount
+  // Auto-load tenants from API on mount
   // Don't auto-load transactions - API requires TxnType parameter
   useEffect(() => {
     refreshTenants();
-    refreshDataSources();
   }, []);
 
-  // Reload data sources when active tenant changes
+  // Reload data sources when active tenant changes OR when tenants are loaded
   useEffect(() => {
-    if (activeTenantId) {
+    if (activeTenantId && tenants.length > 0) {
       refreshDataSources();
     }
-  }, [activeTenantId]);
+  }, [activeTenantId, tenants]);
 
   // Refresh tenants from API
   const refreshTenants = async () => {
@@ -218,12 +217,37 @@ function AppContent() {
   const refreshDataSources = async () => {
     setIsLoadingDataSources(true);
     try {
-      // Only filter by tenantId if not global tenant
-      const tenantIdFilter = activeTenantId !== 'global' ? activeTenantId : undefined;
-      const dataSourcesData = await getAllDataSources(tenantIdFilter);
+      let allDataSources: DataSource[] = [];
+      
+      if (activeTenantId === 'global') {
+        // For global tenant, fetch data sources from ALL tenants and combine them
+        console.log('📡 Fetching data sources for GLOBAL tenant (all tenants)...');
+        
+        // Get data sources for each tenant
+        const promises = tenants.map(async (tenant) => {
+          try {
+            const tenantDataSources = await getAllDataSources(tenant.TenantId);
+            console.log(`✅ Loaded ${tenantDataSources.length} data sources for tenant ${tenant.TenantId}`);
+            return tenantDataSources;
+          } catch (error) {
+            console.error(`❌ Failed to load data sources for tenant ${tenant.TenantId}:`, error);
+            return [];
+          }
+        });
+        
+        // Wait for all requests to complete
+        const results = await Promise.all(promises);
+        allDataSources = results.flat();
+        
+        console.log(`✅ Total data sources from all tenants: ${allDataSources.length}`);
+      } else {
+        // For specific tenant, fetch only that tenant's data sources
+        allDataSources = await getAllDataSources(activeTenantId);
+        console.log(`✅ Loaded ${allDataSources.length} data sources for tenant ${activeTenantId}`);
+      }
       
       // Sort by CreateTime descending (newest first)
-      const sortedDataSources = [...dataSourcesData].sort((a, b) => {
+      const sortedDataSources = [...allDataSources].sort((a, b) => {
         const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
         const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
         return dateB - dateA; // Descending order (newest first)

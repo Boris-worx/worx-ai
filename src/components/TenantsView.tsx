@@ -533,23 +533,25 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                 searchKeys={['TenantId', 'TenantName']}
                 emptyMessage="No tenants found. Click 'Add New Tenant' to create one."
                 actions={(tenant) => (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-1 justify-end">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleTenantIdClick(tenant)}
+                      className="h-8 w-8 p-0"
+                      title="View tenant"
                     >
-                      <ViewIcon className="h-4 w-4 mr-1" />
-                      View
+                      <ViewIcon className="h-4 w-4" />
                     </Button>
                     {canEdit && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleEdit(tenant)}
+                        className="h-8 w-8 p-0"
+                        title="Edit tenant"
                       >
-                        <EditIcon className="h-4 w-4 mr-1" />
-                        Edit
+                        <EditIcon className="h-4 w-4" />
                       </Button>
                     )}
                     {canDelete && (
@@ -557,10 +559,10 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                         variant="outline"
                         size="sm"
                         onClick={() => openDeleteDialog(tenant)}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        title="Delete tenant"
                       >
-                        <DeleteIcon className="h-4 w-4 mr-1" />
-                        Delete
+                        <DeleteIcon className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
@@ -608,7 +610,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
 
       {/* Create Tenant Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Add New Tenant</DialogTitle>
             <DialogDescription>

@@ -635,7 +635,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                               <td className="py-2 px-4">{spec.version}</td>
                               <td className="py-2 px-4">{spec.date}</td>
                               <td className="py-2 px-4">
-                                <div className="flex gap-2 justify-end">
+                                <div className="flex gap-1 justify-end">
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -643,10 +643,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                                       setSelectedSpec(spec);
                                       setIsSpecViewOpen(true);
                                     }}
+                                    className="h-8 w-8 p-0"
                                     title="View specification"
                                   >
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    View
+                                    <Eye className="h-4 w-4" />
                                   </Button>
                                   {canEdit && (
                                     <Button
@@ -656,10 +656,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                                         setSelectedSpec(spec);
                                         setIsSpecEditOpen(true);
                                       }}
+                                      className="h-8 w-8 p-0"
                                       title="Edit specification"
                                     >
-                                      <Pencil className="h-4 w-4 mr-1" />
-                                      Edit
+                                      <Pencil className="h-4 w-4" />
                                     </Button>
                                   )}
                                   {canDelete && (
@@ -670,10 +670,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                                         setSpecToDelete(spec);
                                         setIsSpecDeleteOpen(true);
                                       }}
+                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                       title="Delete specification"
                                     >
-                                      <Trash2 className="h-4 w-4 mr-1" />
-                                      Delete
+                                      <Trash2 className="h-4 w-4" />
                                     </Button>
                                   )}
                                 </div>
@@ -688,23 +688,25 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               );
             }}
             actions={(row) => (
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-1 justify-end">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleViewClick(row)}
+                  className="h-8 w-8 p-0"
+                  title="View application"
                 >
-                  <ViewIcon className="h-4 w-4 mr-1" />
-                  View
+                  <ViewIcon className="h-4 w-4" />
                 </Button>
                 {canEdit && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleEditClick(row)}
+                    className="h-8 w-8 p-0"
+                    title="Edit application"
                   >
-                    <EditIcon className="h-4 w-4 mr-1" />
-                    Edit
+                    <EditIcon className="h-4 w-4" />
                   </Button>
                 )}
                 {canDelete && (
@@ -712,10 +714,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                     variant="outline"
                     size="sm"
                     onClick={() => handleDeleteClick(row)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    title="Delete application"
                   >
-                    <DeleteIcon className="h-4 w-4 mr-1" />
-                    Delete
+                    <DeleteIcon className="h-4 w-4" />
                   </Button>
                 )}
               </div>
@@ -791,16 +793,6 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                 placeholder="e.g., 1.0"
                 value={newApplicationVersion}
                 onChange={(e) => setNewApplicationVersion(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="applicationDescription">Description</Label>
-              <Textarea
-                id="applicationDescription"
-                placeholder="Enter description"
-                value={newApplicationDescription}
-                onChange={(e) => setNewApplicationDescription(e.target.value)}
-                rows={3}
               />
             </div>
           </div>

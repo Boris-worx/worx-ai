@@ -581,23 +581,25 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             actions={(row) => {
               const isProtected = isProtectedType(row.model);
               return (
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-1 justify-end">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleViewClick(row)}
+                    className="h-8 w-8 p-0"
+                    title="View schema"
                   >
-                    <ViewIcon className="h-4 w-4 mr-1" />
-                    View
+                    <ViewIcon className="h-4 w-4" />
                   </Button>
                   {canEdit && !isProtected && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEditClick(row)}
+                      className="h-8 w-8 p-0"
+                      title="Edit schema"
                     >
-                      <EditIcon className="h-4 w-4 mr-1" />
-                      Edit
+                      <EditIcon className="h-4 w-4" />
                     </Button>
                   )}
                   {canEdit && isProtected && (
@@ -608,10 +610,10 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                             variant="outline"
                             size="sm"
                             disabled
-                            className="cursor-not-allowed"
+                            className="h-8 w-8 p-0 cursor-not-allowed"
+                            title="Protected system type"
                           >
-                            <EditIcon className="h-4 w-4 mr-1" />
-                            Edit
+                            <EditIcon className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -625,10 +627,10 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeleteClick(row)}
-                      className="text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      title="Delete schema"
                     >
-                      <DeleteIcon className="h-4 w-4 mr-1" />
-                      Delete
+                      <DeleteIcon className="h-4 w-4" />
                     </Button>
                   )}
                   {canDelete && isProtected && (
@@ -639,10 +641,10 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                             variant="outline"
                             size="sm"
                             disabled
-                            className="cursor-not-allowed"
+                            className="h-8 w-8 p-0 cursor-not-allowed"
+                            title="Protected system type"
                           >
-                            <DeleteIcon className="h-4 w-4 mr-1" />
-                            Delete
+                            <DeleteIcon className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
@@ -738,15 +740,16 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
 
       {/* Create Schema Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-[800px] max-h-[90vh]">
+        <DialogContent className="max-w-[900px] max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Create New Model Schema</DialogTitle>
             <DialogDescription>
               Add a new transaction model schema to the global registry
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4 overflow-y-auto max-h-[calc(90vh-200px)]">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6 py-4">
+            {/* Left Column - Form Fields (No Scroll) */}
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="create-model">Model Name *</Label>
                 <Input
@@ -766,8 +769,6 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                   onChange={(e) => setCreateFormData({ ...createFormData, version: parseInt(e.target.value) || 1 })}
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="create-semver">Semantic Version *</Label>
                 <Input
@@ -783,7 +784,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                   value={createFormData.state}
                   onValueChange={(value) => setCreateFormData({ ...createFormData, state: value })}
                 >
-                  <SelectTrigger id="create-state">
+                  <SelectTrigger id="create-state" className="bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -794,15 +795,19 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
+            
+            {/* Right Column - JSON Schema (Independent Scroll) */}
+            <div className="flex flex-col space-y-2">
               <Label htmlFor="create-jsonschema">JSON Schema *</Label>
-              <Textarea
-                id="create-jsonschema"
-                placeholder="Enter JSON Schema definition"
-                className="font-mono text-xs h-[300px]"
-                value={createFormData.jsonSchemaText}
-                onChange={(e) => setCreateFormData({ ...createFormData, jsonSchemaText: e.target.value })}
-              />
+              <ScrollArea className="h-[calc(90vh-280px)] border rounded-md">
+                <Textarea
+                  id="create-jsonschema"
+                  placeholder="Enter JSON Schema definition"
+                  className="font-mono text-xs min-h-[calc(90vh-280px)] border-0 focus-visible:ring-0"
+                  value={createFormData.jsonSchemaText}
+                  onChange={(e) => setCreateFormData({ ...createFormData, jsonSchemaText: e.target.value })}
+                />
+              </ScrollArea>
             </div>
           </div>
           <DialogFooter>
@@ -821,15 +826,16 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
 
       {/* Edit Schema Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-[800px] max-h-[90vh]">
+        <DialogContent className="max-w-[900px] max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Edit Model Schema</DialogTitle>
             <DialogDescription>
               Update the model schema details
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4 overflow-y-auto max-h-[calc(90vh-200px)]">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6 py-4">
+            {/* Left Column - Form Fields (No Scroll) */}
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-model">Model Name * (read-only)</Label>
                 <Input
@@ -851,8 +857,6 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                 />
                 <p className="text-xs text-muted-foreground">Version cannot be changed after creation</p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-semver">Semantic Version *</Label>
                 <Input
@@ -867,7 +871,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                   value={editFormData.state}
                   onValueChange={(value) => setEditFormData({ ...editFormData, state: value })}
                 >
-                  <SelectTrigger id="edit-state">
+                  <SelectTrigger id="edit-state" className="bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -878,14 +882,18 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
+            
+            {/* Right Column - JSON Schema (Independent Scroll) */}
+            <div className="flex flex-col space-y-2">
               <Label htmlFor="edit-jsonschema">JSON Schema *</Label>
-              <Textarea
-                id="edit-jsonschema"
-                className="font-mono text-xs h-[300px]"
-                value={editFormData.jsonSchemaText}
-                onChange={(e) => setEditFormData({ ...editFormData, jsonSchemaText: e.target.value })}
-              />
+              <ScrollArea className="h-[calc(90vh-280px)] border rounded-md">
+                <Textarea
+                  id="edit-jsonschema"
+                  className="font-mono text-xs min-h-[calc(90vh-280px)] border-0 focus-visible:ring-0"
+                  value={editFormData.jsonSchemaText}
+                  onChange={(e) => setEditFormData({ ...editFormData, jsonSchemaText: e.target.value })}
+                />
+              </ScrollArea>
             </div>
           </div>
           <DialogFooter>

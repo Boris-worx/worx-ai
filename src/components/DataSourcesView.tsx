@@ -14,7 +14,7 @@ import { DeleteIcon } from './icons/DeleteIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { Skeleton } from './ui/skeleton';
 import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
+import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec, getJsonSchemasForDataSource, getApicurioArtifactContent, ApicurioArtifact, getAllDataSourceSpecifications } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -24,6 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
+import { Checkbox } from './ui/checkbox';
 
 import { UserRole } from './AuthContext';
 
@@ -560,6 +561,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const [dataSourceToEdit, setDataSourceToEdit] = useState<DataSource | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editDataSourceName, setEditDataSourceName] = useState('');
+  const [editDataSourceTenantId, setEditDataSourceTenantId] = useState('');
   
   // Data Capture Specifications state
   const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
@@ -586,11 +588,36 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     sourcePrimaryKeyField: '',
     partitionKeyField: 'partitionKey',
     partitionKeyValue: '',
-    allowedFiltersText: '',
-    requiredFieldsText: '',
+    allowedFilters: [] as string[], // Changed to array for multiselect
     containerSchemaText: ''
   });
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
+
+  // Apicurio Registry state
+  const [availableApicurioSchemas, setAvailableApicurioSchemas] = useState<ApicurioArtifact[]>([]);
+  const [isLoadingApicurioSchemas, setIsLoadingApicurioSchemas] = useState(false);
+  const [selectedApicurioSchema, setSelectedApicurioSchema] = useState<string>('');
+  
+  // Discovery state
+  const [isDiscoveryDialogOpen, setIsDiscoveryDialogOpen] = useState(false);
+  const [discoveredSpecs, setDiscoveredSpecs] = useState<ApicurioArtifact[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+
+  // Available filters for multiselect dropdown
+  const [availableFilters] = useState([
+    'quoteId',
+    'customerId',
+    'quoteStatus',
+    'isPublished',
+    'isAutoMergeFailed',
+    'isLinkedQuote',
+    'isNewVersionNeeded',
+    'isSentToErp',
+    'useErpTaxes',
+    'isEditRestrictionEnabled',
+    'isPartialPackOrderingEnabled',
+    'isImportedByJson'
+  ]);
 
   // Edit Data Capture Spec form state
   const [editSpecForm, setEditSpecForm] = useState({
@@ -770,21 +797,84 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     }
   }, [isCreateDialogOpen, activeTenantId]);
 
-  // Auto-fill partitionKeyValue when opening create spec dialog
+  // Load Apicurio schemas when opening create spec dialog
+  useEffect(() => {
+    const loadApicurioSchemas = async () => {
+      if (isSpecCreateOpen && selectedDataSource) {
+        const dataSourceName = getDataSourceName(selectedDataSource);
+        
+        setIsLoadingApicurioSchemas(true);
+        try {
+          const schemas = await getJsonSchemasForDataSource(dataSourceName);
+          setAvailableApicurioSchemas(schemas);
+          
+          if (schemas.length > 0) {
+            console.log(`✅ Loaded ${schemas.length} JSON schemas from Apicurio for ${dataSourceName}`);
+          } else {
+            console.log(`ℹ️ No JSON schemas found in Apicurio for ${dataSourceName}`);
+          }
+        } catch (error) {
+          console.error('Failed to load Apicurio schemas:', error);
+          toast.error('Failed to load available schemas from Apicurio Registry');
+        } finally {
+          setIsLoadingApicurioSchemas(false);
+        }
+      }
+    };
+
+    loadApicurioSchemas();
+  }, [isSpecCreateOpen, selectedDataSource]);
+
+  // Auto-fill form and template when opening create spec dialog
   useEffect(() => {
     if (isSpecCreateOpen && selectedDataSource) {
       const dataSourceId = getDataSourceId(selectedDataSource);
       const tenantId = selectedDataSource.TenantId || activeTenantId;
       
       if (tenantId && tenantId !== 'global' && dataSourceId) {
-        // Auto-fill partition key value in format: {tenantId}-{dataSourceId}
+        // Auto-generate container schema template
+        const primaryKeyField = createSpecForm.sourcePrimaryKeyField || 'id';
+        const partitionKeyField = createSpecForm.partitionKeyField || 'partitionKey';
+        
+        const template = {
+          schemaVersion: 1,
+          type: "object",
+          properties: {
+            [primaryKeyField]: { type: "string" },
+            [partitionKeyField]: { type: "string" },
+            metaData: {
+              type: "object",
+              properties: {
+                sources: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      sourceDatabase: { type: "string" },
+                      sourceTable: { type: "string" },
+                      sourceCreateTime: { type: ["string", "null"], format: "date-time" },
+                      sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
+                      sourceEtag: { type: ["string", "null"] }
+                    }
+                  }
+                }
+              }
+            },
+            createTime: { type: ["string", "null"], format: "date-time" },
+            updateTime: { type: ["string", "null"], format: "date-time" }
+          },
+          required: [primaryKeyField, partitionKeyField],
+          unevaluatedProperties: true
+        };
+
         setCreateSpecForm(prev => ({
           ...prev,
-          partitionKeyValue: `${tenantId}-${dataSourceId}`
+          partitionKeyValue: `${tenantId}-${dataSourceId}`,
+          containerSchemaText: JSON.stringify(template, null, 2)
         }));
       }
     }
-  }, [isSpecCreateOpen, selectedDataSource, activeTenantId]);
+  }, [isSpecCreateOpen, selectedDataSource, activeTenantId, createSpecForm.sourcePrimaryKeyField, createSpecForm.partitionKeyField]);
 
   // Pre-fill edit form when opening edit spec dialog
   useEffect(() => {
@@ -942,8 +1032,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       
       toast.success(`Data source "${getDataSourceName(created)}" created successfully!`);
       
-      // Refresh data from API
-      refreshData();
+      // Refresh data from API after a short delay to allow backend to fully process
+      setTimeout(() => {
+        refreshData();
+      }, 1000);
     } catch (error: any) {
       toast.error(`Failed to create data source: ${error.message}`);
     } finally {
@@ -964,9 +1056,22 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     try {
       const etag = dataSourceToDelete._etag || '';
       const idToDelete = getDataSourceId(dataSourceToDelete);
-      await deleteDataSource(idToDelete, etag);
+      const tenantIdToDelete = dataSourceToDelete.TenantId;
       
-      // Remove from list
+      console.log('🗑️ Deleting data source:');
+      console.log('  Data Source:', dataSourceToDelete);
+      console.log('  ID to delete:', idToDelete);
+      console.log('  TenantId:', tenantIdToDelete);
+      console.log('  Name:', getDataSourceName(dataSourceToDelete));
+      console.log('  ETag:', etag);
+      
+      if (!idToDelete) {
+        throw new Error('Data Source ID is missing');
+      }
+      
+      await deleteDataSource(idToDelete, etag, tenantIdToDelete);
+      
+      // Remove from list immediately for better UX
       setDataSources(dataSources.filter(ds => getDataSourceId(ds) !== idToDelete));
       
       setIsDeleteDialogOpen(false);
@@ -974,8 +1079,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       
       toast.success(`Data source "${getDataSourceName(dataSourceToDelete)}" deleted successfully!`);
       
-      // Refresh data from API
-      refreshData();
+      // Refresh data from API after a short delay to allow backend to fully process the deletion
+      setTimeout(() => {
+        refreshData();
+      }, 1000);
     } catch (error: any) {
       toast.error(`Failed to delete data source: ${error.message}`);
     } finally {
@@ -993,6 +1100,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const handleEditClick = (dataSource: DataSource) => {
     setDataSourceToEdit(dataSource);
     setEditDataSourceName(getDataSourceName(dataSource));
+    setEditDataSourceTenantId(dataSource.TenantId || '');
     setIsEditOpen(true);
   };
 
@@ -1014,6 +1122,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         undefined, // type
         undefined, // connection
         undefined, // description
+        undefined, // tenantId - cannot be changed
       );
       
       // Update in list
@@ -1091,6 +1200,22 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     return <span className="text-xs md:text-sm">{String(value)}</span>;
   };
 
+  // Handle discovery of all specifications from Apicurio
+  const handleDiscoverSpecifications = async () => {
+    setIsDiscovering(true);
+    try {
+      const specs = await getAllDataSourceSpecifications();
+      setDiscoveredSpecs(specs);
+      
+      toast.success(`Discovered ${specs.length} specifications from Apicurio Registry`);
+    } catch (error) {
+      console.error('Failed to discover specifications:', error);
+      toast.error('Failed to discover specifications from Apicurio Registry');
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
   // Check permissions
   // SuperUser and Admin and Developer have full read/write access to Data Source Onboarding
   // ViewOnlySuperUser and Viewer have read-only access
@@ -1158,6 +1283,13 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       Add Data Source
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setIsDiscoveryDialogOpen(true);
+                      handleDiscoverSpecifications();
+                    }}>
+                      <Database className="h-4 w-4 mr-2" />
+                      Discover Specifications
                     </DropdownMenuItem>
                   </>
                 )}
@@ -1340,9 +1472,29 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                       <Button 
                         size="sm" 
                         className="bg-[#1D6BCD] hover:bg-[#1557A8]"
-                        onClick={() => {
+                        onClick={async () => {
                           setSelectedDataSource(row);
                           setIsSpecCreateOpen(true);
+                          
+                          // Load available schemas from Apicurio for this data source
+                          const dataSourceName = getDataSourceName(row);
+                          setIsLoadingApicurioSchemas(true);
+                          try {
+                            console.log(`🔍 Loading Apicurio schemas for data source: ${dataSourceName}`);
+                            const schemas = await getJsonSchemasForDataSource(dataSourceName);
+                            setAvailableApicurioSchemas(schemas);
+                            
+                            if (schemas.length > 0) {
+                              console.log(`✅ Loaded ${schemas.length} schema(s) from Apicurio`);
+                            } else {
+                              console.log(`⚠️ No JSON schemas found for ${dataSourceName}`);
+                            }
+                          } catch (error) {
+                            console.error('Failed to load Apicurio schemas:', error);
+                            // Don't show error toast - just continue without schemas
+                          } finally {
+                            setIsLoadingApicurioSchemas(false);
+                          }
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
@@ -1483,7 +1635,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                   <td className="py-2 px-4 whitespace-nowrap">{spec.tenantName}</td>
                                   <td className="py-2 px-4 whitespace-nowrap">{spec.dataSourceName}</td>
                                   <td className="py-2 px-4 whitespace-nowrap">
-                                    <div className="flex gap-2 justify-end">
+                                    <div className="flex gap-1 justify-end">
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -1491,10 +1643,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                           setSelectedSpec(spec);
                                           setIsSpecViewOpen(true);
                                         }}
+                                        className="h-8 w-8 p-0"
                                         title="View specification"
                                       >
-                                        <Eye className="h-4 w-4 mr-1" />
-                                        View
+                                        <Eye className="h-4 w-4" />
                                       </Button>
                                       {canEdit && (
                                         <Button
@@ -1504,10 +1656,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                             setSelectedSpec(spec);
                                             setIsSpecEditOpen(true);
                                           }}
+                                          className="h-8 w-8 p-0"
                                           title="Edit specification"
                                         >
-                                          <Pencil className="h-4 w-4 mr-1" />
-                                          Edit
+                                          <Pencil className="h-4 w-4" />
                                         </Button>
                                       )}
                                       {canDelete && (
@@ -1518,10 +1670,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                             setSpecToDelete(spec);
                                             setIsSpecDeleteOpen(true);
                                           }}
+                                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                                           title="Delete specification"
                                         >
-                                          <Trash2 className="h-4 w-4 mr-1" />
-                                          Delete
+                                          <Trash2 className="h-4 w-4" />
                                         </Button>
                                       )}
                                     </div>
@@ -1575,23 +1727,25 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               );
             }}
             actions={(row) => (
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-1 justify-end">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleViewClick(row)}
+                  className="h-8 w-8 p-0"
+                  title="View data source"
                 >
-                  <ViewIcon className="h-4 w-4 mr-1" />
-                  View
+                  <ViewIcon className="h-4 w-4" />
                 </Button>
                 {canEdit && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleEditClick(row)}
+                    className="h-8 w-8 p-0"
+                    title="Edit data source"
                   >
-                    <EditIcon className="h-4 w-4 mr-1" />
-                    Edit
+                    <EditIcon className="h-4 w-4" />
                   </Button>
                 )}
                 {canDelete && (
@@ -1599,10 +1753,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     variant="outline"
                     size="sm"
                     onClick={() => handleDeleteClick(row)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                    title="Delete data source"
                   >
-                    <DeleteIcon className="h-4 w-4 mr-1" />
-                    Delete
+                    <DeleteIcon className="h-4 w-4" />
                   </Button>
                 )}
               </div>
@@ -1648,7 +1802,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Create Data Source Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Create New Data Source</DialogTitle>
             <DialogDescription>
@@ -1678,7 +1832,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 value={newDataSourceTenantId}
                 onValueChange={setNewDataSourceTenantId}
               >
-                <SelectTrigger id="tenantId">
+                <SelectTrigger id="tenantId" className="bg-white border ">
                   <SelectValue placeholder="Select tenant" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1723,7 +1877,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Edit Data Source Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Edit Data Source</DialogTitle>
             <DialogDescription>
@@ -1746,6 +1900,32 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 }}
               />
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="editTenantId">Tenant ID</Label>
+              <Select
+                value={editDataSourceTenantId}
+                onValueChange={setEditDataSourceTenantId}
+                disabled
+              >
+                <SelectTrigger id="editTenantId" className="bg-white border border-input">
+                  <SelectValue placeholder="Select tenant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTenantId === 'global' && (
+                    <SelectItem value="none">None (No Tenant)</SelectItem>
+                  )}
+                  {tenants.map((tenant) => (
+                    <SelectItem key={tenant.TenantId} value={tenant.TenantId}>
+                      {tenant.TenantName} ({tenant.TenantId})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Tenant ID cannot be changed after creation
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1753,6 +1933,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               onClick={() => {
                 setIsEditOpen(false);
                 setDataSourceToEdit(null);
+                setEditDataSourceName('');
+                setEditDataSourceTenantId('');
               }}
               disabled={isSubmitting}
             >
@@ -1942,47 +2124,144 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             sourcePrimaryKeyField: '',
             partitionKeyField: 'partitionKey',
             partitionKeyValue: '',
-            allowedFiltersText: '',
-            requiredFieldsText: '',
+            allowedFilters: [],
             containerSchemaText: ''
           });
+          // Reset Apicurio state
+          setAvailableApicurioSchemas([]);
+          setSelectedApicurioSchema('');
         }
       }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[1400px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create Data Capture Specification</DialogTitle>
             <DialogDescription>
               Define how data from {selectedDataSource ? getDataSourceName(selectedDataSource) : 'data source'} should be captured into Cosmos DB
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="specName">Specification Name *</Label>
-                <Input
-                  id="specName"
-                  placeholder="e.g., Quote"
-                  value={createSpecForm.dataCaptureSpecName}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, dataCaptureSpecName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="version">Version *</Label>
-                <Input
-                  id="version"
-                  type="number"
-                  min="1"
-                  value={createSpecForm.version}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, version: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            </div>
+          
+          {/* Two column layout: Form on left, JSON on right */}
+          <div className="grid grid-cols-2 gap-6 py-4 max-h-[calc(90vh-200px)]">
+            {/* Left Column: Form Fields */}
+            <ScrollArea className="pr-4 h-full">
+              <div className="space-y-4 pb-4">
+                {/* Apicurio Schema Selector - Always show */}
+                <div className="space-y-2 pb-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="apicurioSchema">Load Schema from Apicurio Registry</Label>
+                    {isLoadingApicurioSchemas && <Badge variant="outline" className="text-xs animate-pulse">Loading...</Badge>}
+                  </div>
+                  
+                  {isLoadingApicurioSchemas ? (
+                    <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+                      <Database className="h-4 w-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Discovering schemas from Apicurio...</span>
+                    </div>
+                  ) : availableApicurioSchemas.length > 0 ? (
+                    <>
+                    <Select
+                      value={selectedApicurioSchema}
+                      onValueChange={async (value) => {
+                        setSelectedApicurioSchema(value);
+                        
+                        if (!value) return;
+                        
+                        try {
+                          // Find the selected schema to get its groupId
+                          const selectedSchema = availableApicurioSchemas.find(s => s.id === value);
+                          
+                          if (!selectedSchema || !selectedSchema.groupId) {
+                            toast.error('Unable to determine Apicurio group for this schema');
+                            return;
+                          }
+                          
+                          // Fetch the schema content using the groupId from the artifact
+                          const schemaContent = await getApicurioArtifactContent(selectedSchema.groupId, value);
+                          
+                          // Extract schema name from artifactId (e.g., "bfs.QuoteDetails.json" -> "QuoteDetails")
+                          const schemaName = value.replace(/^bfs\./, '').replace(/\.json$/, '');
+                          
+                          // Update form with loaded schema
+                          setCreateSpecForm(prev => ({
+                            ...prev,
+                            dataCaptureSpecName: prev.dataCaptureSpecName || schemaName,
+                            containerSchemaText: JSON.stringify(schemaContent, null, 2)
+                          }));
+                          
+                          toast.success(`Loaded schema "${value}" from group "${selectedSchema.groupId}"`);
+                        } catch (error) {
+                          console.error('Failed to load schema from Apicurio:', error);
+                          toast.error('Failed to load schema from Apicurio Registry');
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="apicurioSchema">
+                        <SelectValue placeholder="Select a schema to load..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableApicurioSchemas.map((schema) => (
+                          <SelectItem key={schema.id} value={schema.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{schema.id}</span>
+                              {schema.groupId && (
+                                <Badge variant="outline" className="ml-2 text-xs">
+                                  {schema.groupId}
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {availableApicurioSchemas.length} schema(s) available from Apicurio Registry (JSON + AVRO)
+                      </p>
+                      <Badge variant="outline" className="text-xs">
+                        Auto-loaded
+                      </Badge>
+                    </div>
+                    </>
+                  ) : (
+                    <div className="p-3 border rounded-md bg-muted/30">
+                      <p className="text-sm text-muted-foreground">
+                        No schemas found in Apicurio Registry for this data source.
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        You can still manually enter a schema below.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Basic Info - 2 columns 50% width */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="specName">Specification Name *</Label>
+                    <Input
+                      id="specName"
+                      placeholder="e.g., Quote"
+                      value={createSpecForm.dataCaptureSpecName}
+                      onChange={(e) => setCreateSpecForm({ ...createSpecForm, dataCaptureSpecName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="version">Version *</Label>
+                    <Input
+                      id="version"
+                      type="number"
+                      min="1"
+                      value={createSpecForm.version}
+                      onChange={(e) => setCreateSpecForm({ ...createSpecForm, version: parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
+                </div>
 
             {/* Partition & Keys */}
             <div className="space-y-4 pb-4 border-b">
               <div className="text-sm font-medium">Partition & Keys</div>
-              <div className="grid grid-cols-2 gap-4">
+              {/* 3 columns 33% width for first two fields */}
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="primaryKey">Source Primary Key Field *</Label>
                   <Input
@@ -2002,6 +2281,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   />
                 </div>
               </div>
+              {/* Partition Key Value - full width */}
               <div className="space-y-2">
                 <Label htmlFor="partitionValue">Partition Key Value *</Label>
                 <Input
@@ -2016,94 +2296,73 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               </div>
             </div>
 
-            {/* Allowed Filters & Required Fields */}
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b">
-              <div className="space-y-2">
-                <Label htmlFor="allowedFilters">Allowed Filters</Label>
-                <Textarea
-                  id="allowedFilters"
-                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId&#10;quoteStatus"
-                  value={createSpecForm.allowedFiltersText}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, allowedFiltersText: e.target.value })}
-                  rows={6}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fields that can be used for filtering data
+            {/* Allowed Filters - Multiselect Checkboxes */}
+            <div className="space-y-4">
+              <div>
+                <Label>Allowed Filters</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select fields that can be used for filtering data
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="requiredFields">Required Fields *</Label>
-                <Textarea
-                  id="requiredFields"
-                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId"
-                  value={createSpecForm.requiredFieldsText}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, requiredFieldsText: e.target.value })}
-                  rows={6}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fields that must be present in captured data
-                </p>
+              <ScrollArea className="h-[200px] rounded-md border p-4 bg-white">
+                <div className="space-y-2">
+                  {availableFilters.map((filter) => (
+                    <div key={filter} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`filter-${filter}`}
+                        checked={createSpecForm.allowedFilters.includes(filter)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setCreateSpecForm({
+                              ...createSpecForm,
+                              allowedFilters: [...createSpecForm.allowedFilters, filter]
+                            });
+                          } else {
+                            setCreateSpecForm({
+                              ...createSpecForm,
+                              allowedFilters: createSpecForm.allowedFilters.filter(f => f !== filter)
+                            });
+                          }
+                        }}
+                        className="border-white data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                      <Label htmlFor={`filter-${filter}`} className="text-sm cursor-pointer font-mono">
+                        {filter}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              <div className="text-xs text-muted-foreground">
+                Selected: {createSpecForm.allowedFilters.length} filters
               </div>
             </div>
 
-            {/* Container Schema */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="containerSchema">Container Schema (JSON) *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const template = {
-                      schemaVersion: 1,
-                      type: "object",
-                      properties: {
-                        [createSpecForm.sourcePrimaryKeyField || "id"]: { type: "string" },
-                        [createSpecForm.partitionKeyField || "partitionKey"]: { type: "string" },
-                        metaData: {
-                          type: "object",
-                          properties: {
-                            sources: {
-                              type: "array",
-                              items: {
-                                type: "object",
-                                properties: {
-                                  sourceDatabase: { type: "string" },
-                                  sourceTable: { type: "string" },
-                                  sourceCreateTime: { type: ["string", "null"], format: "date-time" },
-                                  sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
-                                  sourceEtag: { type: ["string", "null"] }
-                                }
-                              }
-                            }
-                          }
-                        },
-                        createTime: { type: ["string", "null"], format: "date-time" },
-                        updateTime: { type: ["string", "null"], format: "date-time" }
-                      },
-                      required: [createSpecForm.sourcePrimaryKeyField || "id", createSpecForm.partitionKeyField || "partitionKey"],
-                      unevaluatedProperties: true
-                    };
-                    setCreateSpecForm({ ...createSpecForm, containerSchemaText: JSON.stringify(template, null, 2) });
-                  }}
-                >
-                  Use Template
-                </Button>
+            <Separator />
               </div>
-              <Textarea
-                id="containerSchema"
-                placeholder='{"type": "object", "properties": {...}, "required": [...]}'
-                value={createSpecForm.containerSchemaText}
-                onChange={(e) => setCreateSpecForm({ ...createSpecForm, containerSchemaText: e.target.value })}
-                rows={10}
-                className="font-mono text-xs"
-              />
+            </ScrollArea>
+
+            {/* Right Column: Container Schema JSON */}
+            <div className="flex flex-col space-y-2 border-l pl-6 h-full">
+              <div className="flex justify-between items-center">
+                <Label>Container Schema (JSON) *</Label>
+                <Badge variant="outline" className="text-xs">Auto-generated</Badge>
+              </div>
               <p className="text-xs text-muted-foreground">
                 JSON Schema defining the structure of documents in Cosmos DB container
               </p>
+              <ScrollArea style={{ height: 'calc(90vh - 280px)', maxHeight: '600px' }}>
+                <Textarea
+                  className="font-mono text-xs resize-none min-h-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  value={createSpecForm.containerSchemaText}
+                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, containerSchemaText: e.target.value })}
+                  placeholder="Container schema will be auto-generated..."
+                  rows={30}
+                />
+              </ScrollArea>
             </div>
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -2122,7 +2381,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 // Validate required fields
                 if (!createSpecForm.dataCaptureSpecName || !createSpecForm.sourcePrimaryKeyField || 
                     !createSpecForm.partitionKeyField || !createSpecForm.partitionKeyValue || 
-                    !createSpecForm.requiredFieldsText || !createSpecForm.containerSchemaText) {
+                    !createSpecForm.containerSchemaText) {
                   toast.error('Please fill in all required fields');
                   return;
                 }
@@ -2136,21 +2395,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   return;
                 }
 
-                // Parse filters and required fields
-                const allowedFilters = createSpecForm.allowedFiltersText
-                  .split('\n')
-                  .map(f => f.trim())
-                  .filter(f => f.length > 0);
-                
-                const requiredFields = createSpecForm.requiredFieldsText
-                  .split('\n')
-                  .map(f => f.trim())
-                  .filter(f => f.length > 0);
-
-                if (requiredFields.length === 0) {
-                  toast.error('At least one required field must be specified');
-                  return;
-                }
+                // requiredFields are always quoteId and customerId
+                const requiredFields = ['quoteId', 'customerId'];
 
                 setIsCreatingSpec(true);
                 try {
@@ -2163,7 +2409,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     return;
                   }
 
-                  const newSpec = await createDataCaptureSpec({
+                  await createDataCaptureSpec({
                     dataCaptureSpecName: createSpecForm.dataCaptureSpecName,
                     tenantId: tenantId,
                     dataSourceId: dataSourceId,
@@ -2173,7 +2419,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     sourcePrimaryKeyField: createSpecForm.sourcePrimaryKeyField,
                     partitionKeyField: createSpecForm.partitionKeyField,
                     partitionKeyValue: createSpecForm.partitionKeyValue,
-                    allowedFilters: allowedFilters,
+                    allowedFilters: createSpecForm.allowedFilters,
                     requiredFields: requiredFields,
                     containerSchema: containerSchema
                   });
@@ -2195,6 +2441,101 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               {isCreatingSpec ? 'Creating...' : 'Create Specification'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Capture Specification Edit Dialog */}
+      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Data Capture Specification</DialogTitle>
+            <DialogDescription>
+              Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSpecName">Specification Name *</Label>
+                <Input
+                  id="editSpecName"
+                  placeholder="e.g., Quote"
+                  value={editSpecForm.dataCaptureSpecName}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editVersion">Version *</Label>
+                <Input
+                  id="editVersion"
+                  type="number"
+                  min="1"
+                  value={editSpecForm.version}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editProfile">Profile</Label>
+                <Input
+                  id="editProfile"
+                  value={editSpecForm.profile}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Data Capture Specification Edit Dialog */}
+      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Data Capture Specification</DialogTitle>
+            <DialogDescription>
+              Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editSpecName">Specification Name *</Label>
+                <Input
+                  id="editSpecName"
+                  placeholder="e.g., Quote"
+                  value={editSpecForm.dataCaptureSpecName}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editVersion">Version *</Label>
+                <Input
+                  id="editVersion"
+                  type="number"
+                  min="1"
+                  value={editSpecForm.version}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editProfile">Profile</Label>
+                <Input
+                  id="editProfile"
+                  value={editSpecForm.profile}
+                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2454,10 +2795,20 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     return;
                   }
 
+                  // Get tenantId from the spec or activeTenantId
+                  const tenantId = realSpec.tenantId || activeTenantId;
+                  if (!tenantId || tenantId === 'global') {
+                    toast.error('Cannot update spec: Invalid tenant');
+                    setIsUpdatingSpec(false);
+                    return;
+                  }
+
                   const updatedSpec = await updateDataCaptureSpec(
                     selectedSpec.dataCaptureSpecId,
                     {
                       dataCaptureSpecName: editSpecForm.dataCaptureSpecName,
+                      tenantId: tenantId,
+                      dataSourceId: realSpec.dataSourceId,
                       isActive: editSpecForm.isActive,
                       version: editSpecForm.version,
                       profile: editSpecForm.profile,
@@ -2547,6 +2898,157 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Discovery Dialog - Show all specifications from Apicurio */}
+      <Dialog open={isDiscoveryDialogOpen} onOpenChange={setIsDiscoveryDialogOpen}>
+        <DialogContent className="max-w-[1200px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Discovered Data Source Specifications</DialogTitle>
+            <DialogDescription>
+              All schemas and specifications found in Apicurio Registry across all groups
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Info banner about data source */}
+          <div className="px-1">
+            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+              <Database className="h-4 w-4 mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  <strong>Mock Data Mode:</strong> {discoveredSpecs.length > 0 
+                    ? `Loaded ${discoveredSpecs.length} artifact(s) from mock registry (CORS avoidance enabled).` 
+                    : 'Loading schemas from mock Apicurio Registry...'
+                  }
+                </p>
+                {discoveredSpecs.length > 0 && (
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    Set USE_MOCK_APICURIO = false in /lib/api.ts to connect to real Apicurio Registry.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-hidden py-4">
+            {isDiscovering ? (
+              <div className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : discoveredSpecs.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="mb-2">No Specifications Found</h3>
+                <p className="text-muted-foreground">
+                  No schemas were discovered in Apicurio Registry
+                </p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[600px]">
+                <div className="space-y-6">
+                  {/* Group specifications by groupId */}
+                  {Object.entries(
+                    discoveredSpecs.reduce((acc, spec) => {
+                      const groupId = spec.groupId || 'unknown';
+                      if (!acc[groupId]) acc[groupId] = [];
+                      acc[groupId].push(spec);
+                      return acc;
+                    }, {} as Record<string, ApicurioArtifact[]>)
+                  ).map(([groupId, specs]) => (
+                    <div key={groupId} className="space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b">
+                        <Badge variant="outline" className="text-sm">
+                          {groupId}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {specs.length} artifact{specs.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {specs.map((spec) => (
+                          <Card key={`${spec.groupId}-${spec.id}`} className="p-4 hover:shadow-md transition-shadow">
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate" title={spec.id}>
+                                    {spec.id}
+                                  </p>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <Badge 
+                                      variant={spec.type === 'JSON' ? 'default' : spec.type === 'AVRO' ? 'secondary' : 'outline'}
+                                      className="text-xs"
+                                    >
+                                      {spec.type === 'JSON' ? '📄 JSON' : spec.type === 'AVRO' ? '🔷 AVRO' : spec.type}
+                                    </Badge>
+                                    {spec.id.toLowerCase().endsWith('-key') && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Key
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {spec.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {spec.description}
+                                </p>
+                              )}
+                              
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <div className="text-xs text-muted-foreground">
+                                  {spec.version && `v${spec.version}`}
+                                </div>
+                                {spec.type === 'JSON' && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs"
+                                    onClick={async () => {
+                                      try {
+                                        const schemaContent = await getApicurioArtifactContent(
+                                          spec.groupId || groupId,
+                                          spec.id
+                                        );
+                                        
+                                        // Show schema in a new dialog or copy to clipboard
+                                        navigator.clipboard.writeText(JSON.stringify(schemaContent, null, 2));
+                                        toast.success(`Schema "${spec.id}" copied to clipboard`);
+                                      } catch (error) {
+                                        console.error('Failed to load schema:', error);
+                                        toast.error('Failed to load schema content');
+                                      }
+                                    }}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    View
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDiscoveryDialogOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={handleDiscoverSpecifications} disabled={isDiscovering}>
+              {isDiscovering ? 'Discovering...' : 'Refresh'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
