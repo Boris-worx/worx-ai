@@ -1,12 +1,14 @@
 // API Configuration
 const API_BASE_URL =
   "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.0";
+const API_BASE_URL_V11 =
+  "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.1";
 const AUTH_HEADER_KEY = "X-BFS-Auth";
 const AUTH_HEADER_VALUE =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
-// Apicurio Registry Configuration
-const APICURIO_REGISTRY_URL = "http://apicurio.52.158.160.62.nip.io/apis/registry/v2";
+// Apicurio Registry Configuration (v3 API)
+const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
 
 // Set to true to use demo mode (no real API calls)
 // Set to false to use real BFS API
@@ -14,6 +16,12 @@ const DEMO_MODE = false; // Always use real BFS API
 
 // Export demo mode status for UI
 export const isDemoMode = () => DEMO_MODE;
+
+// Helper function to build v1.1 txns URL with filters
+function buildTxnsUrl(filters: Record<string, string>): string {
+  const filtersJson = JSON.stringify(filters);
+  return `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}`;
+}
 
 // Tenant Interface
 export interface Tenant {
@@ -399,11 +407,12 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
   }
 
   try {
-    const url = `${API_BASE_URL}/txns?TxnType=ModelSchema`;
+    const url = buildTxnsUrl({ TxnType: 'ModelSchema' });
     const headers = getHeaders();
     
-    console.log('🔍 Fetching global ModelSchema from BFS API');
-    console.log(`   URL: ${url}`);
+    console.log('🔍 Fetching global ModelSchema from BFS API (v1.1)');
+    console.log('   Full URL:', url);
+    console.log('   Headers:', headers);
     
     const response = await fetch(url, {
       method: "GET",
@@ -503,6 +512,8 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
       return [];
     }
     console.error(`❌ Error fetching global model schemas:`, error);
+    console.error('  Error message:', error.message);
+    console.error('  Full error:', JSON.stringify(error, null, 2));
     return [];
   }
 }
@@ -537,11 +548,11 @@ export async function getModelSchemasForTenant(tenantId: string): Promise<ModelS
   }
 
   try {
-    // Try tenant-specific endpoint first
-    const url = `${API_BASE_URL}/tenants/${encodeURIComponent(tenantId)}/txns?TxnType=ModelSchema`;
+    // Use v1.1 endpoint with filters
+    const url = buildTxnsUrl({ TxnType: 'ModelSchema', TenantId: tenantId });
     const headers = getHeaders();
     
-    console.log(`🔍 Fetching ModelSchema for tenant: ${tenantId}`);
+    console.log(`🔍 Fetching ModelSchema for tenant: ${tenantId} (v1.1)`);
     console.log(`   URL: ${url}`);
     
     const response = await fetch(url, {
@@ -560,9 +571,7 @@ export async function getModelSchemasForTenant(tenantId: string): Promise<ModelS
       try {
         errorData = JSON.parse(errorText);
       } catch {
-        // If tenant-specific endpoint doesn't work, try global endpoint with TenantId
-        console.log(`ℹ️ Tenant-specific endpoint not found, trying global endpoint`);
-        return getModelSchemasByTenantGlobal(tenantId);
+        throw new Error(`API returned ${response.status}: ${errorText}`);
       }
       
       // Check if it's "Unsupported TxnType" - treat as empty result, not error
@@ -628,10 +637,10 @@ export async function getModelSchemasForTenant(tenantId: string): Promise<ModelS
 // Try global endpoint with TenantId parameter
 async function getModelSchemasByTenantGlobal(tenantId: string): Promise<ModelSchema[]> {
   try {
-    const url = `${API_BASE_URL}/txns?TxnType=ModelSchema&TenantId=${encodeURIComponent(tenantId)}`;
+    const url = buildTxnsUrl({ TxnType: 'ModelSchema', TenantId: tenantId });
     const headers = getHeaders();
     
-    console.log(`🔍 Trying global endpoint with TenantId parameter`);
+    console.log(`🔍 Trying global endpoint with TenantId parameter (v1.1)`);
     console.log(`   URL: ${url}`);
     
     const response = await fetch(url, {
@@ -741,12 +750,13 @@ export const TRANSACTION_TYPES = [
 
 // Format transaction type display name
 export const formatTransactionType = (type: string): string => {
+  // Data Plane uses plural form (adds 's') for Transaction Types display
   const typeMap: Record<string, string> = {
-    'keyi': 'Key Item (keyi)',
-    'podt': 'Purchase Order (podt)',
-    'invloc': 'Invoice Location (invloc)',
-    'invap': 'Invoice Approval (invap)',
-    'irc': 'IRC (irc)',
+    'keyi': 'keyis Items',
+    'podt': 'podts Items',
+    'invloc': 'invlocs Items',
+    'invap': 'invaps Items',
+    'irc': 'ircs Items',
   };
   
   return typeMap[type] || type;
@@ -776,17 +786,29 @@ export async function getTransactionsByType(
   }
 
   try {
-    let url = `${API_BASE_URL}/txns?TxnType=${encodeURIComponent(txnType)}`;
+    // Build filters object for v1.1 API
+    const filters: any = {
+      TxnType: txnType
+    };
     
     // Add TenantId filter if provided and not global
     if (tenantId && tenantId !== 'global') {
-      url += `&TenantId=${encodeURIComponent(tenantId)}`;
+      filters.TenantId = tenantId;
     }
     
-    // Add continuation token if provided
+    // Build URL with filters parameter (v1.1 format)
+    const filtersJson = JSON.stringify(filters);
+    let url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}`;
+    
+    // Add continuation token if provided (separate query parameter)
     if (continuationToken) {
       url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
     }
+    
+    console.log('🌐 Data Plane API Request (v1.1):');
+    console.log('  URL:', url);
+    console.log('  Filters:', filters);
+    console.log('  TenantId:', tenantId || 'global');
     
     const headers = getHeaders();
     
@@ -838,6 +860,14 @@ export async function getTransactionsByType(
     const responseText = await response.text();
     const responseData = JSON.parse(responseText);
     
+    // Log API response structure
+    console.log(`📦 API Response [${txnType}]:`, {
+      status: response.status,
+      hasData: !!responseData.data,
+      hasTxns: !!responseData.data?.Txns,
+      txnsCount: responseData.data?.Txns?.length || 0,
+    });
+    
     // Extract continuation token from response (check various possible locations)
     let nextToken: string | null = null;
     if (responseData.continuationToken) {
@@ -857,23 +887,58 @@ export async function getTransactionsByType(
         const rawTxns = responseData.data.Txns;
         const returnedTxnType = responseData.data.TxnType || txnType;
         
+        // Debug logging for Quote and keyi types
+        if (returnedTxnType === 'Quote' || returnedTxnType === 'keyi') {
+          console.log(`📊 BFS API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
+          if (rawTxns.length > 0) {
+            console.log(`📊 First ${returnedTxnType} transaction full structure:`, JSON.stringify(rawTxns[0], null, 2));
+          }
+        }
+        
         // Transform each raw transaction to our Transaction format
-        txns = rawTxns.map((rawTxn: any) => {
+        txns = rawTxns.map((rawTxn: any, index: number) => {
           // Get the entity ID from the transaction based on type
           let entityId = rawTxn.id;
           
-          // Check for type-specific ID fields
+          // Debug logging for each transaction
+          if (returnedTxnType === 'keyi') {
+            console.log(`\n🔍 Processing Transaction #${index}:`);
+            console.log('  Full object:', rawTxn);
+            console.log('  Type of rawTxn:', typeof rawTxn);
+            console.log('  rawTxn.id:', rawTxn.id);
+            console.log('  rawTxn["id"]:', rawTxn["id"]);
+            console.log('  "id" in rawTxn:', 'id' in rawTxn);
+            console.log('  hasOwnProperty("id"):', rawTxn.hasOwnProperty('id'));
+            console.log('  rawTxn._rid:', rawTxn._rid);
+            console.log('  rawTxn.invid:', rawTxn.invid);
+            console.log('  Available keys:', Object.keys(rawTxn).join(', '));
+            console.log('  All properties:', Object.getOwnPropertyNames(rawTxn).join(', '));
+          }
+          
+          // Check for type-specific ID fields, then Cosmos DB _rid
           if (!entityId) {
             if (rawTxn.CustomerId) entityId = rawTxn.CustomerId;
             else if (rawTxn.LocationId) entityId = rawTxn.LocationId;
             else if (rawTxn.quoteId) entityId = rawTxn.quoteId;
             else if (rawTxn.reasonCodeId) entityId = rawTxn.reasonCodeId;
             else if (rawTxn.InvoiceId) entityId = rawTxn.InvoiceId;
-            else entityId = `txn-${Date.now()}`;
+            else if (rawTxn.invid) entityId = rawTxn.invid;
+            // Use Cosmos DB Resource ID if available (always unique)
+            else if (rawTxn._rid) entityId = rawTxn._rid;
+            // Last resort: timestamp with index
+            else entityId = `txn-${Date.now()}-${index}`;
+            
+            if (returnedTxnType === 'keyi') {
+              console.log(`  ℹ️ Using fallback ID: ${entityId}`);
+            }
           }
           
           // Store the full TxnId in format "TxnType:EntityId" for API compatibility
           const fullTxnId = `${returnedTxnType}:${entityId}`;
+          
+          if (returnedTxnType === 'keyi') {
+            console.log(`  ✅ Final TxnId: ${fullTxnId}`);
+          }
           
           return {
             TxnId: fullTxnId,
@@ -1574,7 +1639,6 @@ export async function createDataCaptureSpec(
 ): Promise<DataCaptureSpec> {
   try {
     // BFS API expects specific format (based on curl example from client)
-    // NOTE: API uses "sourcePrimarykeyField" with lowercase "k" (not camelCase!)
     const apiPayload = {
       dataCaptureSpecName: spec.dataCaptureSpecName,
       containerName: spec.containerName,
@@ -1583,20 +1647,12 @@ export async function createDataCaptureSpec(
       isActive: spec.isActive,
       version: spec.version,
       profile: spec.profile,
-      sourcePrimarykeyField: spec.sourcePrimaryKeyField, // API expects lowercase 'k'
+      sourcePrimaryKeyField: spec.sourcePrimaryKeyField,
       partitionKeyField: spec.partitionKeyField,
       partitionKeyValue: spec.partitionKeyValue,
       allowedFilters: spec.allowedFilters,
       requiredFields: spec.requiredFields,
-      containerSchema: spec.containerSchema,
-      createTime: {
-        type: ["string", "null"],
-        format: "date-time"
-      },
-      updateTime: {
-        type: ["string", "null"],
-        format: "date-time"
-      }
+      containerSchema: spec.containerSchema
     };
     
     console.log('➕ POST Data Capture Spec Request:');
@@ -1605,6 +1661,7 @@ export async function createDataCaptureSpec(
     console.log('  containerName:', apiPayload.containerName);
     console.log('  tenantId:', apiPayload.tenantId);
     console.log('  dataSourceId:', apiPayload.dataSourceId);
+    console.log('  sourcePrimaryKeyField:', apiPayload.sourcePrimaryKeyField);
     console.log('  API Payload:', JSON.stringify(apiPayload, null, 2));
 
     const response = await fetch(`${API_BASE_URL}/data-capture-specs`, {
@@ -2110,17 +2167,21 @@ export interface ApicurioGroupsList {
   count: number;
 }
 
-// Apicurio Artifact Interface
+// Apicurio Artifact Interface (v3 API)
 export interface ApicurioArtifact {
-  id: string;
-  type: string; // AVRO, JSON, PROTOBUF, etc.
-  state?: string;
-  version?: string;
+  artifactId: string; // v3 uses "artifactId" instead of "id"
+  artifactType: string; // v3 uses "artifactType" instead of "type"
+  name?: string;
+  description?: string;
   createdOn?: string;
   modifiedOn?: string;
-  description?: string;
-  labels?: string[];
-  groupId?: string; // Added to track which group this artifact belongs to
+  modifiedBy?: string;
+  groupId?: string;
+  labels?: Record<string, string>;
+  state?: string;
+  // Legacy fields for backward compatibility
+  id?: string; // Will be populated from artifactId
+  type?: string; // Will be populated from artifactType
 }
 
 // Apicurio Artifacts List Response
@@ -2136,125 +2197,48 @@ export interface ApicurioSchemaContent {
 
 // Feature flag: Use mock data to avoid CORS errors
 // Set to true to skip real Apicurio API calls and use mock data immediately
-const USE_MOCK_APICURIO = true;
+const USE_MOCK_APICURIO = false; // v3 API should work without CORS issues
 
-// Get all groups from Apicurio Registry
+// Get all artifacts from Apicurio Registry (v3 API - no groups concept)
 export async function getApicurioGroups(): Promise<ApicurioGroupsList> {
-  // Use mock data if feature flag is enabled (avoids CORS errors completely)
-  if (USE_MOCK_APICURIO) {
-    console.log('📋 Using mock Apicurio groups (CORS avoidance mode enabled)');
-    return {
-      count: 3,
-      groups: [
-        { id: 'bfs.online', description: 'BFS Online Platform', createdOn: '', modifiedOn: '' },
-        { id: 'paradigm.mybldr.bidtools', description: 'Bidtools Application', createdOn: '', modifiedOn: '' },
-        { id: 'paradigm.txservices.quotes', description: 'Transaction Services - Quotes', createdOn: '', modifiedOn: '' }
-      ]
-    };
-  }
-  
-  try {
-    console.log('📡 Fetching all Apicurio groups...');
-    
-    const response = await fetch(`${APICURIO_REGISTRY_URL}/groups`, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Failed to fetch groups: ${response.status}`, errorText);
-      throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`);
-    }
-
-    const data: ApicurioGroupsList = await response.json();
-    console.log(`✅ Found ${data.count} groups in Apicurio Registry`);
-    
-    return data;
-  } catch (error) {
-    console.error("⚠️ Error fetching Apicurio groups (CORS issue?):", error);
-    
-    // Fallback to mock data for known groups
-    console.log('🔄 Using fallback mock data for Apicurio groups');
-    return {
-      count: 3,
-      groups: [
-        { id: 'bfs.online', description: 'BFS Online Platform', createdOn: '', modifiedOn: '' },
-        { id: 'paradigm.mybldr.bidtools', description: 'Bidtools Application', createdOn: '', modifiedOn: '' },
-        { id: 'paradigm.txservices.quotes', description: 'Transaction Services - Quotes', createdOn: '', modifiedOn: '' }
-      ]
-    };
-  }
+  // Note: v3 API doesn't have groups, but we return empty to maintain compatibility
+  // Real artifacts are fetched via getApicurioArtifacts()
+  console.log('⚠️ v3 API does not use groups - returning empty list');
+  return {
+    count: 0,
+    groups: []
+  };
 }
 
-// Get all artifacts from a specific group
-export async function getApicurioArtifacts(groupId: string): Promise<ApicurioArtifactsList> {
-  // Use mock data if feature flag is enabled (avoids CORS errors completely)
+// Get all artifacts from Apicurio Registry v3 API (no groups - returns all artifacts)
+export async function getApicurioArtifacts(searchQuery: string = "Value"): Promise<ApicurioArtifactsList> {
+  // Use mock data if feature flag is enabled (for testing)
   if (USE_MOCK_APICURIO) {
-    if (groupId === 'bfs.online') {
-      console.log(`📋 Using mock artifacts for group: ${groupId} (CORS avoidance mode)`);
-      return {
-        count: 10,
-        artifacts: [
-          // AVRO schemas for BFS.online
-          { id: 'bfs.online.inv', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.inv1', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.inv2', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.prod', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.quote', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.quotedetail', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.servicerequest', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.customer', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.linetype', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.reasoncode', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId }
-        ]
-      };
-    }
-    
-    if (groupId === 'paradigm.mybldr.bidtools') {
-      console.log(`📋 Using mock artifacts for group: ${groupId} (CORS avoidance mode)`);
-      return {
-        count: 16,
-        artifacts: [
-          // JSON Schema
-          { id: 'bfs.QuoteDetails.json', type: 'JSON', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          
-          // AVRO Key Schemas
-          { id: 'bidtools.LineTypes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuoteDetails-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuotePackOrder-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuotePacks-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.Quotes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.ReasonCodes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.ServiceRequests-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          
-          // AVRO Value Schemas
-          { id: 'bfs.ServiceRequests', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuoteDetails', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.WorkflowCustomers', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.LineTypes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuotePackOrder', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuotePacks', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.Quotes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.ReasonCodes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId }
-        ]
-      };
-    }
-    
-    // For other groups, return empty
-    console.log(`📋 No mock artifacts available for group: ${groupId}`);
+    console.log(`📋 Using mock Apicurio artifacts (CORS avoidance mode)`);
     return {
-      count: 0,
-      artifacts: []
+      count: 10,
+      artifacts: [
+        { artifactId: 'bfs.online.inv', artifactType: 'AVRO', id: 'bfs.online.inv', type: 'AVRO' },
+        { artifactId: 'bfs.online.quote', artifactType: 'AVRO', id: 'bfs.online.quote', type: 'AVRO' },
+        { artifactId: 'bfs.QuoteDetails.json', artifactType: 'JSON', id: 'bfs.QuoteDetails.json', type: 'JSON' },
+        { artifactId: 'bfs.ServiceRequests', artifactType: 'AVRO', id: 'bfs.ServiceRequests', type: 'AVRO' },
+        { artifactId: 'bfs.WorkflowCustomers', artifactType: 'AVRO', id: 'bfs.WorkflowCustomers', type: 'AVRO' },
+        { artifactId: 'bfs.LineTypes', artifactType: 'AVRO', id: 'bfs.LineTypes', type: 'AVRO' },
+        { artifactId: 'bfs.Quotes', artifactType: 'AVRO', id: 'bfs.Quotes', type: 'AVRO' },
+        { artifactId: 'bfs.ReasonCodes', artifactType: 'AVRO', id: 'bfs.ReasonCodes', type: 'AVRO' },
+        { artifactId: 'bidtools.Quotes-key', artifactType: 'AVRO', id: 'bidtools.Quotes-key', type: 'AVRO' },
+        { artifactId: 'bidtools.QuoteDetails-key', artifactType: 'AVRO', id: 'bidtools.QuoteDetails-key', type: 'AVRO' }
+      ]
     };
   }
   
   try {
-    console.log(`📡 Fetching Apicurio artifacts from group: ${groupId}`);
+    console.log(`📡 Fetching all Apicurio artifacts (v3 API) with search query: "${searchQuery}"...`);
     
-    const response = await fetch(`${APICURIO_REGISTRY_URL}/groups/${groupId}/artifacts`, {
+    const url = `${APICURIO_REGISTRY_URL}/search/artifacts?name=${encodeURIComponent(searchQuery)}`;
+    console.log(`  URL: ${url}`);
+    
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         "Accept": "application/json",
@@ -2264,73 +2248,51 @@ export async function getApicurioArtifacts(groupId: string): Promise<ApicurioArt
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Failed to fetch artifacts: ${response.status}`, errorText);
-      throw new Error(`Failed to fetch artifacts from group ${groupId}: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch artifacts: ${response.status} ${response.statusText}`);
     }
 
-    const data: ApicurioArtifactsList = await response.json();
-    console.log(`✅ Found ${data.count} artifacts in group "${groupId}"`);
+    const data = await response.json();
+    console.log(`✅ Found ${data.count} artifacts in Apicurio Registry`);
     
-    return data;
-  } catch (error) {
-    console.error("⚠️ Error fetching Apicurio artifacts (CORS issue?):", error);
+    // Transform v3 response to match our interface
+    // Add legacy "id" and "type" fields for backward compatibility
+    const artifacts = (data.artifacts || []).map((artifact: any) => ({
+      ...artifact,
+      id: artifact.artifactId, // Legacy field
+      type: artifact.artifactType, // Legacy field
+    }));
     
-    // Fallback to mock data for bfs.online group
-    if (groupId === 'bfs.online') {
-      console.log('🔄 Using fallback mock data for bfs.online artifacts');
-      return {
-        count: 10,
-        artifacts: [
-          // AVRO schemas for BFS.online
-          { id: 'bfs.online.inv', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.inv1', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.inv2', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.prod', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.quote', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.quotedetail', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.servicerequest', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.customer', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.linetype', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.online.reasoncode', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId }
-        ]
-      };
+    // Log first few artifacts for debugging
+    if (artifacts.length > 0) {
+      console.log('  Sample artifacts:');
+      artifacts.slice(0, 3).forEach((a: any) => {
+        console.log(`    - ${a.artifactId} (${a.artifactType})`);
+      });
     }
     
-    // Fallback to mock data for paradigm.mybldr.bidtools group
-    if (groupId === 'paradigm.mybldr.bidtools') {
-      console.log('🔄 Using fallback mock data for paradigm.mybldr.bidtools artifacts');
-      return {
-        count: 16,
-        artifacts: [
-          // JSON Schema
-          { id: 'bfs.QuoteDetails.json', type: 'JSON', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          
-          // AVRO Key Schemas
-          { id: 'bidtools.LineTypes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuoteDetails-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuotePackOrder-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.QuotePacks-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.Quotes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.ReasonCodes-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bidtools.ServiceRequests-key', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          
-          // AVRO Value Schemas
-          { id: 'bfs.ServiceRequests', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuoteDetails', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.WorkflowCustomers', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.LineTypes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuotePackOrder', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.QuotePacks', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.Quotes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId },
-          { id: 'bfs.ReasonCodes', type: 'AVRO', state: 'ENABLED', createdOn: '', modifiedOn: '', groupId }
-        ]
-      };
-    }
-    
-    // For other groups, return empty
-    console.log(`🔄 No fallback data available for group: ${groupId}`);
     return {
-      count: 0,
-      artifacts: []
+      count: data.count || artifacts.length,
+      artifacts
+    };
+  } catch (error) {
+    console.error("⚠️ Error fetching Apicurio artifacts:", error);
+    
+    // Fallback to mock data
+    console.log('🔄 Using fallback mock data for Apicurio artifacts');
+    return {
+      count: 10,
+      artifacts: [
+        { artifactId: 'bfs.online.inv', artifactType: 'AVRO', id: 'bfs.online.inv', type: 'AVRO' },
+        { artifactId: 'bfs.online.quote', artifactType: 'AVRO', id: 'bfs.online.quote', type: 'AVRO' },
+        { artifactId: 'bfs.QuoteDetails.json', artifactType: 'JSON', id: 'bfs.QuoteDetails.json', type: 'JSON' },
+        { artifactId: 'bfs.ServiceRequests', artifactType: 'AVRO', id: 'bfs.ServiceRequests', type: 'AVRO' },
+        { artifactId: 'bfs.WorkflowCustomers', artifactType: 'AVRO', id: 'bfs.WorkflowCustomers', type: 'AVRO' },
+        { artifactId: 'bfs.LineTypes', artifactType: 'AVRO', id: 'bfs.LineTypes', type: 'AVRO' },
+        { artifactId: 'bfs.Quotes', artifactType: 'AVRO', id: 'bfs.Quotes', type: 'AVRO' },
+        { artifactId: 'bfs.ReasonCodes', artifactType: 'AVRO', id: 'bfs.ReasonCodes', type: 'AVRO' },
+        { artifactId: 'bidtools.Quotes-key', artifactType: 'AVRO', id: 'bidtools.Quotes-key', type: 'AVRO' },
+        { artifactId: 'bidtools.QuoteDetails-key', artifactType: 'AVRO', id: 'bidtools.QuoteDetails-key', type: 'AVRO' }
+      ]
     };
   }
 }
@@ -2757,26 +2719,28 @@ export async function getApicurioArtifactContent(
   }
   
   try {
-    console.log(`📡 Fetching Apicurio artifact: ${groupId}/${artifactId}`);
+    console.log(`📡 Fetching Apicurio artifact content (v3 API): ${artifactId}`);
     
-    const response = await fetch(
-      `${APICURIO_REGISTRY_URL}/groups/${groupId}/artifacts/${artifactId}`,
-      {
-        method: "GET",
-        headers: {
-          "Accept": "application/json",
-        },
-      }
-    );
+    // v3 API endpoint: /artifacts/{artifactId}
+    const url = `${APICURIO_REGISTRY_URL}/artifacts/${encodeURIComponent(artifactId)}`;
+    console.log(`  URL: ${url}`);
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Failed to fetch artifact content: ${response.status}`, errorText);
-      throw new Error(`Failed to fetch artifact ${artifactId} from group ${groupId}: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch artifact ${artifactId}: ${response.status} ${response.statusText}`);
     }
 
     const data: ApicurioSchemaContent = await response.json();
-    console.log(`✅ Fetched schema for ${artifactId}`, data);
+    console.log(`✅ Fetched schema for ${artifactId}`);
+    console.log('  Schema preview:', JSON.stringify(data).substring(0, 200) + '...');
     
     return data;
   } catch (error) {
@@ -2893,40 +2857,26 @@ export async function getApicurioArtifactContent(
   }
 }
 
-// Get all Data Source Specifications from all groups in Apicurio Registry
-// Returns artifacts with their group information
+// Get all Data Source Specifications from Apicurio Registry v3 API
+// v3 API returns all artifacts directly without groups concept
 export async function getAllDataSourceSpecifications(): Promise<ApicurioArtifact[]> {
   try {
-    console.log('📡 Discovering all Data Source Specifications from Apicurio...');
+    console.log('📡 Discovering all Data Source Specifications from Apicurio (v3 API)...');
     
-    // Get all groups
-    const groupsList = await getApicurioGroups();
+    // v3 API: Fetch all artifacts directly (no groups)
+    const artifactsList = await getApicurioArtifacts('Value'); // Search query
     
-    const allArtifacts: ApicurioArtifact[] = [];
+    console.log(`✅ Total discovered: ${artifactsList.count} artifacts`);
     
-    // Fetch artifacts from each group
-    for (const group of groupsList.groups) {
-      try {
-        const artifactsList = await getApicurioArtifacts(group.id);
-        
-        // Add groupId to each artifact for tracking
-        const artifactsWithGroup = artifactsList.artifacts.map(artifact => ({
-          ...artifact,
-          groupId: group.id
-        }));
-        
-        allArtifacts.push(...artifactsWithGroup);
-        
-        console.log(`  ✅ Group "${group.id}": ${artifactsList.count} artifacts (${artifactsWithGroup.filter(a => a.type === 'JSON').length} JSON)`);
-      } catch (error) {
-        console.warn(`  ⚠️ Failed to fetch artifacts from group "${group.id}":`, error);
-        // Continue with other groups
-      }
-    }
+    // Log breakdown by type
+    const byType: Record<string, number> = {};
+    artifactsList.artifacts.forEach(a => {
+      const type = a.artifactType || a.type || 'unknown';
+      byType[type] = (byType[type] || 0) + 1;
+    });
+    console.log('  Breakdown by type:', byType);
     
-    console.log(`✅ Total discovered: ${allArtifacts.length} artifacts from ${groupsList.count} groups`);
-    
-    return allArtifacts;
+    return artifactsList.artifacts;
   } catch (error) {
     console.error('Error discovering Data Source Specifications:', error);
     // Return empty array on error rather than throwing - allows UI to handle gracefully
@@ -2934,66 +2884,27 @@ export async function getAllDataSourceSpecifications(): Promise<ApicurioArtifact
   }
 }
 
-// Get JSON schemas from Apicurio Registry for a specific data source
-// Maps data source names to Apicurio group IDs
+// Get JSON/AVRO schemas from Apicurio Registry v3 API for a specific data source
+// v3 API: Search by name pattern
 export async function getJsonSchemasForDataSource(dataSourceName: string): Promise<ApicurioArtifact[]> {
   try {
-    // Updated map with correct group mappings based on Apicurio Registry structure
-    const groupIdMap: Record<string, string> = {
-      'BFS': 'bfs.online', // BFS schemas in bfs.online group
-      'BFS.online': 'bfs.online', // BFS.online AVRO schemas in dedicated group
-      'bfs.online': 'bfs.online', // BFS.online AVRO schemas in dedicated group
-      'Bidtools': 'paradigm.mybldr.bidtools',
-      'BIDTOOLS': 'paradigm.mybldr.bidtools',
-      'bidtools': 'paradigm.mybldr.bidtools',
-      'TxServices': 'paradigm.txservices',
-      'Quotes': 'paradigm.txservices.quotes',
-      'Customers': 'paradigm.txservices.customers',
-    };
-
-    // Try direct mapping first
-    let groupId = groupIdMap[dataSourceName];
+    console.log(`📡 Fetching schemas for data source: ${dataSourceName} (v3 API)...`);
     
-    // If no direct mapping, try to find group dynamically
-    if (!groupId) {
-      console.log(`📡 No direct mapping for "${dataSourceName}", searching all groups...`);
-      
-      try {
-        const allGroups = await getApicurioGroups();
-        
-        // Try to find a matching group by name
-        const matchingGroup = allGroups.groups.find(g => 
-          g.id.toLowerCase().includes(dataSourceName.toLowerCase()) ||
-          dataSourceName.toLowerCase().includes(g.id.toLowerCase())
-        );
-        
-        if (matchingGroup) {
-          groupId = matchingGroup.id;
-          console.log(`  ✅ Found matching group: ${groupId}`);
-        }
-      } catch (error) {
-        console.warn('Failed to search for matching group:', error);
-      }
-    }
+    // v3 API: Search all artifacts and filter by data source name
+    const artifactsList = await getApicurioArtifacts(dataSourceName); // Use dataSourceName as search query
     
-    if (!groupId) {
-      console.log(`ℹ️ No Apicurio group mapping found for data source: ${dataSourceName} - skipping schema discovery`);
-      return [];
-    }
-
-    const artifactsList = await getApicurioArtifacts(groupId);
+    // Include both JSON and AVRO schemas
+    const schemas = artifactsList.artifacts.filter(artifact => {
+      const type = artifact.artifactType || artifact.type || '';
+      return type === 'JSON' || type === 'AVRO';
+    });
     
-    // Include both JSON and AVRO schemas (not just JSON), add groupId to each
-    const schemas = artifactsList.artifacts
-      .filter(artifact => artifact.type === 'JSON' || artifact.type === 'AVRO')
-      .map(artifact => ({ ...artifact, groupId }));
-    
-    console.log(`✅ Found ${schemas.length} schemas (JSON + AVRO) for ${dataSourceName} in group ${groupId}:`, 
-      schemas.map(s => `${s.id} (${s.type})`).join(', '));
+    console.log(`✅ Found ${schemas.length} schemas (JSON + AVRO) for ${dataSourceName}:`, 
+      schemas.map(s => `${s.artifactId || s.id} (${s.artifactType || s.type})`).join(', '));
     
     return schemas;
   } catch (error) {
-    console.error(`Error fetching JSON schemas for ${dataSourceName}:`, error);
+    console.error(`Error fetching schemas for ${dataSourceName}:`, error);
     // Return empty array on error rather than throwing - allows UI to handle gracefully
     return [];
   }
@@ -3147,15 +3058,17 @@ function getMockApplications(tenantId?: string): Application[] {
 // GET /applications - List all applications (optionally filtered by tenant)
 export async function getApplications(tenantId?: string): Promise<Application[]> {
   try {
-    // Use /txns endpoint with TxnType=Application query parameter
-    let url = `${API_BASE_URL}/txns?TxnType=Application`;
+    // Build filters for v1.1 API
+    const filters: Record<string, string> = { TxnType: 'Application' };
     
     // Add TenantId filter if provided
     if (tenantId && tenantId !== 'global') {
-      url += `&TenantId=${encodeURIComponent(tenantId)}`;
+      filters.TenantId = tenantId;
     }
     
-    console.log('🔍 GET Applications Request (via /txns):');
+    const url = buildTxnsUrl(filters);
+    
+    console.log('🔍 GET Applications Request (v1.1):');
     console.log('  URL:', url);
     console.log('  TenantId:', tenantId || 'all');
     
@@ -3748,17 +3661,18 @@ export async function getTransactionSpecifications(
   tenantId?: string
 ): Promise<TransactionSpecification[]> {
   try {
-    // Use /txns endpoint with TxnType=TransactionSpec query parameter
-    let url = `${API_BASE_URL}/txns?TxnType=TransactionSpec`;
+    // Build filters for v1.1 API
+    const filters: Record<string, string> = { TxnType: 'TransactionSpec' };
     
     // Add TenantId filter if provided
     if (tenantId && tenantId !== 'global') {
-      url += `&TenantId=${encodeURIComponent(tenantId)}`;
+      filters.TenantId = tenantId;
     }
     
     // Note: ApplicationId filtering will be done client-side since API may not support nested field filtering
+    const url = buildTxnsUrl(filters);
     
-    console.log('🔍 GET Transaction Specifications Request (via /txns):');
+    console.log('🔍 GET Transaction Specifications Request (v1.1):');
     console.log('  URL:', url);
     console.log('  ApplicationId:', applicationId || 'all');
     console.log('  TenantId:', tenantId || 'all');

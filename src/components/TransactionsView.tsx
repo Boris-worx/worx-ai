@@ -123,6 +123,41 @@ export function TransactionsView({
 
   // State for Data Capture Spec filtering
   const [dataSourceId, setDataSourceId] = useState<string>(""); // For filtering Data Capture Specs
+  
+  // State for dynamic Transaction Types from Data Capture Specs
+  const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
+  const [isLoadingSpecs, setIsLoadingSpecs] = useState(true);
+  
+  // Build dynamic transaction types list from Data Capture Specs
+  const transactionTypes = useMemo(() => {
+    // Hardcoded fallback types (legacy support for containers without Data Capture Specs)
+    const fallbackTypes = [
+      'Quote',
+      'QuotePack',
+      'QuoteDetail',
+      'Customer',
+      'Location',
+      'Invoice',
+      'Sales Order',
+    ];
+    
+    // Get unique container names from Data Capture Specs
+    const specTypes = dataCaptureSpecs
+      .filter(spec => spec.isActive !== false) // Only active specs
+      .map(spec => spec.containerName)
+      .filter((name, index, self) => self.indexOf(name) === index); // Unique
+    
+    // Combine both lists and remove duplicates
+    const combinedTypes = [...fallbackTypes, ...specTypes]
+      .filter((name, index, self) => self.indexOf(name) === index) // Unique
+      .sort();
+    
+    console.log('📋 Transaction Types (Fallback + Data Capture Specs):', combinedTypes);
+    console.log('  - Fallback types:', fallbackTypes);
+    console.log('  - From Data Capture Specs:', specTypes);
+    
+    return combinedTypes;
+  }, [dataCaptureSpecs]);
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -403,10 +438,34 @@ export function TransactionsView({
     }
   }, [availableFields]);
 
+  // Load Data Capture Specs on mount and when tenant changes
+  useEffect(() => {
+    loadDataCaptureSpecs();
+  }, [activeTenantId]);
+
+  // Load Data Capture Specs
+  const loadDataCaptureSpecs = async () => {
+    setIsLoadingSpecs(true);
+    try {
+      console.log('📡 Loading Data Capture Specs for tenant:', activeTenantId);
+      const specs = await getDataCaptureSpecs(activeTenantId);
+      console.log('✅ Loaded', specs.length, 'Data Capture Specs:', specs);
+      setDataCaptureSpecs(specs);
+    } catch (error) {
+      console.error('❌ Failed to load Data Capture Specs:', error);
+      setDataCaptureSpecs([]);
+    } finally {
+      setIsLoadingSpecs(false);
+    }
+  };
+
   // Load transaction counts for all types on mount
   useEffect(() => {
-    loadAllTypeCounts();
-  }, []);
+    // Wait for specs to load first
+    if (!isLoadingSpecs && transactionTypes.length > 0) {
+      loadAllTypeCounts();
+    }
+  }, [isLoadingSpecs, transactionTypes]);
 
   // Load counts for all transaction types
   const loadAllTypeCounts = async () => {
@@ -415,12 +474,13 @@ export function TransactionsView({
 
     try {
       console.log(
-        "Loading transaction counts for all types...",
+        "Loading transaction counts for dynamic types from Data Capture Specs...",
       );
+      console.log("Transaction Types:", transactionTypes);
 
       // Load counts for all types in parallel
       const results = await Promise.allSettled(
-        TRANSACTION_TYPES.map(async (type) => {
+        transactionTypes.map(async (type) => {
           try {
             const response = await getTransactionsByType(
               type,
@@ -464,16 +524,18 @@ export function TransactionsView({
       setTypeCounts(counts);
 
       // Find first type with data and load it
-      const firstActiveType = TRANSACTION_TYPES.find(
+      const firstActiveType = transactionTypes.find(
         (type) => counts[type] > 0,
       );
       if (firstActiveType) {
         setSelectedTxnType(firstActiveType);
         loadTransactionsForType(firstActiveType);
       } else {
-        // If no types have data, default to Customer
-        setSelectedTxnType("Customer");
-        loadTransactionsForType("Customer");
+        // If no types have data, use first type or show empty
+        if (transactionTypes.length > 0) {
+          setSelectedTxnType(transactionTypes[0]);
+          setTransactions([]);
+        }
       }
     } catch (error) {
       console.error("Error loading type counts:", error);
@@ -772,12 +834,12 @@ export function TransactionsView({
 
   // Filter types by search term
   const filteredTypes = useMemo(() => {
-    if (!searchTerm.trim()) return TRANSACTION_TYPES;
+    if (!searchTerm.trim()) return transactionTypes;
     const lower = searchTerm.toLowerCase();
-    return TRANSACTION_TYPES.filter((type) =>
+    return transactionTypes.filter((type) =>
       type.toLowerCase().includes(lower),
     );
-  }, [searchTerm]);
+  }, [searchTerm, transactionTypes]);
 
   // Helper function to get nested value from object
   const getNestedValue = (obj: any, path: string): any => {

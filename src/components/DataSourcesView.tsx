@@ -13,8 +13,8 @@ import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec, getJsonSchemasForDataSource, getApicurioArtifactContent, ApicurioArtifact, getAllDataSourceSpecifications } from '../lib/api';
+import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, Check, X } from 'lucide-react';
+import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -25,6 +25,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 import { Checkbox } from './ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
+import { Switch } from './ui/switch';
 import { DataCaptureSpecCreateDialog } from './DataCaptureSpecCreateDialog';
 
 import { UserRole } from './AuthContext';
@@ -598,15 +601,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   });
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
 
-  // Apicurio Registry state
-  const [availableApicurioSchemas, setAvailableApicurioSchemas] = useState<ApicurioArtifact[]>([]);
-  const [isLoadingApicurioSchemas, setIsLoadingApicurioSchemas] = useState(false);
-  const [selectedApicurioSchema, setSelectedApicurioSchema] = useState<string>('');
-  
-  // Discovery state
-  const [isDiscoveryDialogOpen, setIsDiscoveryDialogOpen] = useState(false);
-  const [discoveredSpecs, setDiscoveredSpecs] = useState<ApicurioArtifact[]>([]);
-  const [isDiscovering, setIsDiscovering] = useState(false);
+  // Removed: Apicurio Registry state - no longer using Apicurio integration
 
   // Available filters for multiselect dropdown
   const [availableFilters] = useState([
@@ -627,17 +622,48 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   // Edit Data Capture Spec form state
   const [editSpecForm, setEditSpecForm] = useState({
     dataCaptureSpecName: '',
+    containerName: '',
+    tenantId: '',
+    dataSourceId: '',
     version: 1,
     isActive: true,
     profile: 'data-capture',
     sourcePrimaryKeyField: '',
     partitionKeyField: 'partitionKey',
     partitionKeyValue: '',
-    allowedFiltersText: '',
-    requiredFieldsText: '',
+    allowedFilters: [] as string[],
+    requiredFields: [] as string[],
     containerSchemaText: ''
   });
   const [isUpdatingSpec, setIsUpdatingSpec] = useState(false);
+
+  // Load selected spec data into edit form when dialog opens
+  useEffect(() => {
+    if (isSpecEditOpen && selectedSpec) {
+      // Find the real spec with all data
+      const realSpec = dataCaptureSpecs.find(s => s.dataCaptureSpecId === selectedSpec.dataCaptureSpecId);
+      
+      if (realSpec) {
+        setEditSpecForm({
+          dataCaptureSpecName: realSpec.dataCaptureSpecName || '',
+          containerName: realSpec.containerName || '',
+          tenantId: realSpec.tenantId || '',
+          dataSourceId: realSpec.dataSourceId || '',
+          version: realSpec.version || 1,
+          isActive: realSpec.isActive !== undefined ? realSpec.isActive : true,
+          profile: realSpec.profile || 'data-capture',
+          sourcePrimaryKeyField: realSpec.sourcePrimaryKeyField || '',
+          partitionKeyField: realSpec.partitionKeyField || 'partitionKey',
+          partitionKeyValue: realSpec.partitionKeyValue || '',
+          allowedFilters: Array.isArray(realSpec.allowedFilters) ? realSpec.allowedFilters : [],
+          requiredFields: Array.isArray(realSpec.requiredFields) ? realSpec.requiredFields : [],
+          containerSchemaText: realSpec.containerSchema 
+            ? JSON.stringify(realSpec.containerSchema, null, 2) 
+            : ''
+        });
+      }
+    }
+  }, [isSpecEditOpen, selectedSpec, dataCaptureSpecs]);
 
   // Load IRC example template (from client's curl request)
   const loadIRCExampleTemplate = () => {
@@ -876,33 +902,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     }
   }, [isCreateDialogOpen, activeTenantId]);
 
-  // Load Apicurio schemas when opening create spec dialog
-  useEffect(() => {
-    const loadApicurioSchemas = async () => {
-      if (isSpecCreateOpen && selectedDataSource) {
-        const dataSourceName = getDataSourceName(selectedDataSource);
-        
-        setIsLoadingApicurioSchemas(true);
-        try {
-          const schemas = await getJsonSchemasForDataSource(dataSourceName);
-          setAvailableApicurioSchemas(schemas);
-          
-          if (schemas.length > 0) {
-            console.log(`✅ Loaded ${schemas.length} JSON schemas from Apicurio for ${dataSourceName}`);
-          } else {
-            console.log(`ℹ️ No JSON schemas found in Apicurio for ${dataSourceName}`);
-          }
-        } catch (error) {
-          console.error('Failed to load Apicurio schemas:', error);
-          toast.error('Failed to load available schemas from Apicurio Registry');
-        } finally {
-          setIsLoadingApicurioSchemas(false);
-        }
-      }
-    };
-
-    loadApicurioSchemas();
-  }, [isSpecCreateOpen, selectedDataSource]);
+  // Removed: Load Apicurio schemas - no longer using Apicurio integration
 
   // Auto-fill form and template when opening create spec dialog
   useEffect(() => {
@@ -1292,21 +1292,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     return <span className="text-xs md:text-sm">{String(value)}</span>;
   };
 
-  // Handle discovery of all specifications from Apicurio
-  const handleDiscoverSpecifications = async () => {
-    setIsDiscovering(true);
-    try {
-      const specs = await getAllDataSourceSpecifications();
-      setDiscoveredSpecs(specs);
-      
-      toast.success(`Discovered ${specs.length} specifications from Apicurio Registry`);
-    } catch (error) {
-      console.error('Failed to discover specifications:', error);
-      toast.error('Failed to discover specifications from Apicurio Registry');
-    } finally {
-      setIsDiscovering(false);
-    }
-  };
+  // Removed: handleDiscoverSpecifications - no longer using Apicurio integration
 
   // Check permissions
   // SuperUser and Admin and Developer have full read/write access to Data Source Onboarding
@@ -1371,19 +1357,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 {canCreate && (
-                  <>
-                    <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Data Source
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setIsDiscoveryDialogOpen(true);
-                      handleDiscoverSpecifications();
-                    }}>
-                      <Database className="h-4 w-4 mr-2" />
-                      Discover Specifications
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Data Source
+                  </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
@@ -1540,29 +1517,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                       <Button 
                         size="sm" 
                         className="bg-[#1D6BCD] hover:bg-[#1557A8]"
-                        onClick={async () => {
+                        onClick={() => {
                           setSelectedDataSource(row);
                           setIsSpecCreateOpen(true);
-                          
-                          // Load available schemas from Apicurio for this data source
-                          const dataSourceName = getDataSourceName(row);
-                          setIsLoadingApicurioSchemas(true);
-                          try {
-                            console.log(`🔍 Loading Apicurio schemas for data source: ${dataSourceName}`);
-                            const schemas = await getJsonSchemasForDataSource(dataSourceName);
-                            setAvailableApicurioSchemas(schemas);
-                            
-                            if (schemas.length > 0) {
-                              console.log(`✅ Loaded ${schemas.length} schema(s) from Apicurio`);
-                            } else {
-                              console.log(`⚠️ No JSON schemas found for ${dataSourceName}`);
-                            }
-                          } catch (error) {
-                            console.error('Failed to load Apicurio schemas:', error);
-                            // Don't show error toast - just continue without schemas
-                          } finally {
-                            setIsLoadingApicurioSchemas(false);
-                          }
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
@@ -2151,8 +2108,6 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         onClose={() => setIsSpecCreateOpen(false)}
         selectedDataSource={selectedDataSource}
         activeTenantId={activeTenantId}
-        availableApicurioSchemas={availableApicurioSchemas}
-        isLoadingApicurioSchemas={isLoadingApicurioSchemas}
         onSuccess={async () => {
           await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
         }}
@@ -2162,200 +2117,573 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Data Capture Specification Edit Dialog */}
       <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[700px] max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Edit Data Capture Specification</DialogTitle>
             <DialogDescription>
               Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editSpecName">Specification Name *</Label>
-                <Input
-                  id="editSpecName"
-                  placeholder="e.g., Quote"
-                  value={editSpecForm.dataCaptureSpecName}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editVersion">Version *</Label>
-                <Input
-                  id="editVersion"
-                  type="number"
-                  min="1"
-                  value={editSpecForm.version}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editProfile">Profile</Label>
-                <Input
-                  id="editProfile"
-                  value={editSpecForm.profile}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
-                />
-              </div>
-              <div className="flex items-center space-x-2 pt-8">
-                <input
-                  type="checkbox"
-                  id="editIsActive"
-                  checked={editSpecForm.isActive}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, isActive: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="editIsActive" className="cursor-pointer">
-                  Active
-                </Label>
-              </div>
-            </div>
-
-            {/* Partition & Keys */}
-            <div className="space-y-4 pb-4 border-b">
-              <div className="text-sm font-medium">Partition & Keys</div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="editPrimaryKey">Source Primary Key Field *</Label>
-                  <Input
-                    id="editPrimaryKey"
-                    placeholder="e.g., quoteId"
-                    value={editSpecForm.sourcePrimaryKeyField}
-                    onChange={(e) => setEditSpecForm({ ...editSpecForm, sourcePrimaryKeyField: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="editPartitionKey">Partition Key Field *</Label>
-                  <Input
-                    id="editPartitionKey"
-                    placeholder="e.g., partitionKey"
-                    value={editSpecForm.partitionKeyField}
-                    onChange={(e) => setEditSpecForm({ ...editSpecForm, partitionKeyField: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editPartitionValue">Partition Key Value *</Label>
-                <Input
-                  id="editPartitionValue"
-                  placeholder="e.g., BFS-bidtools"
-                  value={editSpecForm.partitionKeyValue}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, partitionKeyValue: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Typically: {`{tenantId}-{dataSourceId}`}
-                </p>
-              </div>
-            </div>
-
-            {/* Allowed Filters & Required Fields */}
-            <div className="grid grid-cols-2 gap-4 pb-4 border-b">
-              <div className="space-y-2">
-                <Label htmlFor="editAllowedFilters">Allowed Filters</Label>
-                <Textarea
-                  id="editAllowedFilters"
-                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId&#10;quoteStatus"
-                  value={editSpecForm.allowedFiltersText}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, allowedFiltersText: e.target.value })}
-                  rows={6}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fields that can be used for filtering data
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editRequiredFields">Required Fields *</Label>
-                <Textarea
-                  id="editRequiredFields"
-                  placeholder="One field per line, e.g.:&#10;quoteId&#10;customerId"
-                  value={editSpecForm.requiredFieldsText}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, requiredFieldsText: e.target.value })}
-                  rows={6}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Fields that must be present in every document
-                </p>
-              </div>
-            </div>
-
-            {/* Container Schema */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label htmlFor="editContainerSchema">Container Schema (JSON) *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const template = {
-                      schemaVersion: 1,
-                      type: "object",
-                      properties: {
-                        [editSpecForm.sourcePrimaryKeyField || "id"]: {
-                          type: "string"
-                        },
-                        [editSpecForm.partitionKeyField || "partitionKey"]: {
-                          type: "string"
-                        },
-                        metaData: {
-                          type: "object",
-                          properties: {
-                            sources: {
-                              type: "array",
-                              items: {
-                                type: "object",
-                                properties: {
-                                  sourceDatabase: { type: "string" },
-                                  sourceTable: { type: "string" },
-                                  sourceCreateTime: { type: ["string", "null"], format: "date-time" },
-                                  sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
-                                  sourceEtag: { type: ["string", "null"] }
-                                }
-                              }
-                            }
-                          }
-                        },
-                        createTime: {
-                          type: ["string", "null"],
-                          format: "date-time"
-                        },
-                        updateTime: {
-                          type: ["string", "null"],
-                          format: "date-time"
-                        }
-                      },
-                      required: [
-                        editSpecForm.sourcePrimaryKeyField || "id",
-                        editSpecForm.partitionKeyField || "partitionKey"
-                      ],
-                      unevaluatedProperties: true
-                    };
-                    setEditSpecForm({
-                      ...editSpecForm,
-                      containerSchemaText: JSON.stringify(template, null, 2)
-                    });
-                    toast.success('Template applied to Container Schema');
-                  }}
+          {/* Single column layout */}
+          <div className="overflow-y-auto h-[calc(90vh-220px)]">
+            <div className="space-y-3 pb-4 pr-2">
+              {/* Accordion for form sections */}
+              <Accordion
+                type="multiple"
+                defaultValue={["basic", "keys", "required"]}
+                className="w-full space-y-3"
+              >
+                {/* Basic Information */}
+                <AccordionItem
+                  value="basic"
+                  className="bg-white rounded-[10px] border px-4 py-0"
                 >
-                  Use Template
-                </Button>
-              </div>
-              <Textarea
-                id="editContainerSchema"
-                placeholder="JSON Schema definition..."
-                value={editSpecForm.containerSchemaText}
-                onChange={(e) => setEditSpecForm({ ...editSpecForm, containerSchemaText: e.target.value })}
-                rows={12}
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                JSON Schema defining the structure of documents in Cosmos DB container
-              </p>
+                  <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                    Basic Information
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2.5 pt-2 pb-2">
+                    {/* Tenant ID + Data Source ID */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="editTenantId" className="text-xs">
+                          Tenant ID *
+                        </Label>
+                        <Input
+                          id="editTenantId"
+                          value={editSpecForm.tenantId}
+                          disabled
+                          className="bg-muted h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editDataSourceId" className="text-xs">
+                          Data Source ID *
+                        </Label>
+                        <Input
+                          id="editDataSourceId"
+                          value={editSpecForm.dataSourceId}
+                          disabled
+                          className="bg-muted h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Specification Name + Container Name */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="editSpecName" className="text-xs">
+                          Spec Name *
+                        </Label>
+                        <Input
+                          id="editSpecName"
+                          placeholder="e.g., irc"
+                          value={editSpecForm.dataCaptureSpecName}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              dataCaptureSpecName: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editContainerName" className="text-xs">
+                          Container Name *
+                        </Label>
+                        <Input
+                          id="editContainerName"
+                          placeholder="e.g., ircs"
+                          value={editSpecForm.containerName}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              containerName: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Key Fields Configuration */}
+                <AccordionItem
+                  value="keys"
+                  className="bg-white rounded-[10px] border px-4 py-0"
+                >
+                  <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                    Key Fields Configuration
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2.5 pt-2 pb-2">
+                    {/* Source Primary Key Field + Partition Field + Partition Value in 3 columns */}
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="editPrimaryKey" className="text-xs">
+                          Source Primary Key Field *
+                        </Label>
+                        <Input
+                          id="editPrimaryKey"
+                          placeholder="e.g., quoteId"
+                          value={editSpecForm.sourcePrimaryKeyField}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              sourcePrimaryKeyField: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editPartitionKey" className="text-xs">
+                          Partition Key Field *
+                        </Label>
+                        <Input
+                          id="editPartitionKey"
+                          placeholder="e.g., partitionKey"
+                          value={editSpecForm.partitionKeyField}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              partitionKeyField: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editPartitionValue" className="text-xs">
+                          Partition Key Value
+                        </Label>
+                        <Input
+                          id="editPartitionValue"
+                          placeholder="Optional"
+                          value={editSpecForm.partitionKeyValue}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              partitionKeyValue: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Allowed Filters - Multi-Select Dropdown */}
+                    {(() => {
+                      // Extract available fields from schema
+                      const extractAvailableFields = (): string[] => {
+                        if (!editSpecForm.containerSchemaText) return [];
+                        try {
+                          const schema = JSON.parse(editSpecForm.containerSchemaText);
+                          let fields: string[] = [];
+                          if (schema.properties && typeof schema.properties === "object") {
+                            fields = Object.keys(schema.properties);
+                          } else if (Array.isArray(schema.fields)) {
+                            fields = schema.fields
+                              .filter((f: any) => f && f.name)
+                              .map((f: any) => f.name);
+                          }
+                          return fields;
+                        } catch (e) {
+                          return [];
+                        }
+                      };
+                      const availableFields = extractAvailableFields();
+
+                      if (availableFields.length === 0) return null;
+
+                      return (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Allowed Filters *</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                              >
+                                <div className="flex flex-wrap gap-1 flex-1">
+                                  {editSpecForm.allowedFilters.length === 0 ? (
+                                    <span className="text-muted-foreground">
+                                      Select filters...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {editSpecForm.allowedFilters.slice(0, 3).map((filter) => (
+                                        <Badge
+                                          key={filter}
+                                          variant="secondary"
+                                          className="text-[10px] px-1.5 py-0"
+                                        >
+                                          {filter}
+                                        </Badge>
+                                      ))}
+                                      {editSpecForm.allowedFilters.length > 3 && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[10px] px-1.5 py-0"
+                                        >
+                                          +{editSpecForm.allowedFilters.length - 3} more
+                                        </Badge>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search filters..." className="h-8 text-xs" />
+                                <CommandList>
+                                  <CommandEmpty className="text-xs py-2 text-center text-muted-foreground">
+                                    No filters found.
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {availableFields.map((field) => {
+                                      const isSelected = editSpecForm.allowedFilters.includes(field);
+                                      return (
+                                        <CommandItem
+                                          key={field}
+                                          value={field}
+                                          onSelect={() => {
+                                            if (isSelected) {
+                                              setEditSpecForm({
+                                                ...editSpecForm,
+                                                allowedFilters: editSpecForm.allowedFilters.filter(
+                                                  (f) => f !== field,
+                                                ),
+                                              });
+                                            } else {
+                                              setEditSpecForm({
+                                                ...editSpecForm,
+                                                allowedFilters: [
+                                                  ...editSpecForm.allowedFilters,
+                                                  field,
+                                                ],
+                                              });
+                                            }
+                                          }}
+                                          className="text-xs"
+                                        >
+                                          <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-2">
+                                              <div className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
+                                                isSelected ? "bg-primary border-primary" : "border-input"
+                                              }`}>
+                                                {isSelected && (
+                                                  <Check className="h-3 w-3 text-primary-foreground" />
+                                                )}
+                                              </div>
+                                              <span className="font-mono">{field}</span>
+                                            </div>
+                                          </div>
+                                        </CommandItem>
+                                      );
+                                    })}
+                                  </CommandGroup>
+                                </CommandList>
+                                <div className="border-t p-2 bg-muted/50">
+                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                    <span>{editSpecForm.allowedFilters.length} of {availableFields.length} selected</span>
+                                    {editSpecForm.allowedFilters.length > 0 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-[10px] px-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditSpecForm({
+                                            ...editSpecForm,
+                                            allowedFilters: [],
+                                          });
+                                        }}
+                                      >
+                                        Clear all
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      );
+                    })()}
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Required Fields */}
+                {(() => {
+                  // Extract available fields from schema
+                  const extractAvailableFields = (): string[] => {
+                    if (!editSpecForm.containerSchemaText) return [];
+                    try {
+                      const schema = JSON.parse(editSpecForm.containerSchemaText);
+                      let fields: string[] = [];
+                      if (schema.properties && typeof schema.properties === "object") {
+                        fields = Object.keys(schema.properties);
+                      } else if (Array.isArray(schema.fields)) {
+                        fields = schema.fields
+                          .filter((f: any) => f && f.name)
+                          .map((f: any) => f.name);
+                      }
+                      return fields;
+                    } catch (e) {
+                      return [];
+                    }
+                  };
+                  const availableFields = extractAvailableFields();
+
+                  if (availableFields.length === 0) return null;
+
+                  return (
+                    <AccordionItem
+                      value="required"
+                      className="bg-white rounded-[10px] border px-4 py-0"
+                    >
+                      <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                        Required Fields ({editSpecForm.requiredFields.length} selected)
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-2 pt-2 pb-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Required Fields *</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                              >
+                                <div className="flex flex-wrap gap-1 flex-1">
+                                  {editSpecForm.requiredFields.length === 0 ? (
+                                    <span className="text-muted-foreground">
+                                      Select required fields...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      {editSpecForm.requiredFields.slice(0, 3).map((field) => (
+                                        <Badge
+                                          key={field}
+                                          variant="secondary"
+                                          className="text-[10px] px-1.5 py-0"
+                                        >
+                                          {field}
+                                        </Badge>
+                                      ))}
+                                      {editSpecForm.requiredFields.length > 3 && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[10px] px-1.5 py-0"
+                                        >
+                                          +{editSpecForm.requiredFields.length - 3} more
+                                        </Badge>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search required fields..." className="h-8 text-xs" />
+                                <CommandList>
+                                  <CommandEmpty className="text-xs py-2 text-center text-muted-foreground">
+                                    No fields found.
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {availableFields.map((field) => {
+                                      const isSelected = editSpecForm.requiredFields.includes(field);
+                                      return (
+                                        <CommandItem
+                                          key={field}
+                                          value={field}
+                                          onSelect={() => {
+                                            if (isSelected) {
+                                              setEditSpecForm({
+                                                ...editSpecForm,
+                                                requiredFields: editSpecForm.requiredFields.filter(
+                                                  (f) => f !== field,
+                                                ),
+                                              });
+                                            } else {
+                                              setEditSpecForm({
+                                                ...editSpecForm,
+                                                requiredFields: [
+                                                  ...editSpecForm.requiredFields,
+                                                  field,
+                                                ],
+                                              });
+                                            }
+                                          }}
+                                          className="text-xs"
+                                        >
+                                          <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-2">
+                                              <div className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
+                                                isSelected ? "bg-primary border-primary" : "border-input"
+                                              }`}>
+                                                {isSelected && (
+                                                  <Check className="h-3 w-3 text-primary-foreground" />
+                                                )}
+                                              </div>
+                                              <span className="font-mono">{field}</span>
+                                            </div>
+                                          </div>
+                                        </CommandItem>
+                                      );
+                                    })}
+                                  </CommandGroup>
+                                </CommandList>
+                                <div className="border-t p-2 bg-muted/50">
+                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                    <span>{editSpecForm.requiredFields.length} of {availableFields.length} selected</span>
+                                    {editSpecForm.requiredFields.length > 0 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-[10px] px-2"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditSpecForm({
+                                            ...editSpecForm,
+                                            requiredFields: [],
+                                          });
+                                        }}
+                                      >
+                                        Clear all
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })()}
+
+                {/* Additional Fields - Collapsed by default */}
+                <AccordionItem
+                  value="additional"
+                  className="bg-white rounded-[10px] border px-4 py-0"
+                >
+                  <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <span>Additional Fields</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        Optional
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2.5 pt-2 pb-2">
+                    {/* Version + Profile + Is Active in 3 columns */}
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="editVersion" className="text-xs">
+                          Version *
+                        </Label>
+                        <Input
+                          id="editVersion"
+                          type="number"
+                          min="1"
+                          value={editSpecForm.version}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              version: parseInt(e.target.value) || 1,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editProfile" className="text-xs">
+                          Profile *
+                        </Label>
+                        <Input
+                          id="editProfile"
+                          value={editSpecForm.profile}
+                          onChange={(e) =>
+                            setEditSpecForm({
+                              ...editSpecForm,
+                              profile: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="editIsActive" className="text-xs">
+                          Is Active
+                        </Label>
+                        <div className="flex items-center space-x-2 h-8">
+                          <Switch
+                            id="editIsActive"
+                            checked={editSpecForm.isActive}
+                            onCheckedChange={(checked) =>
+                              setEditSpecForm({
+                                ...editSpecForm,
+                                isActive: checked,
+                              })
+                            }
+                          />
+                          <Label
+                            htmlFor="editIsActive"
+                            className="text-xs cursor-pointer"
+                          >
+                            {editSpecForm.isActive ? "Active" : "Inactive"}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Container Schema - Collapsed by default */}
+                <AccordionItem
+                  value="schema"
+                  className="bg-white rounded-[10px] border px-4 py-0"
+                >
+                  <AccordionTrigger className="text-sm py-2 hover:no-underline">
+                    <div className="flex items-center justify-between w-full p-[0px]">
+                      <span>Container Schema (JSON)</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        JSON Schema
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-2 pt-2 pb-2">
+                    <div className="border rounded-md overflow-hidden">
+                      <textarea
+                        className="w-full h-[300px] font-mono text-[11px] p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring bg-muted/20"
+                        value={editSpecForm.containerSchemaText}
+                        onChange={(e) =>
+                          setEditSpecForm({
+                            ...editSpecForm,
+                            containerSchemaText: e.target.value,
+                          })
+                        }
+                        placeholder="Paste JSON schema here..."
+                      />
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           </div>
           <DialogFooter>
@@ -2390,16 +2718,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   return;
                 }
 
-                // Parse filters and required fields
-                const allowedFilters = editSpecForm.allowedFiltersText
-                  .split('\n')
-                  .map(f => f.trim())
-                  .filter(f => f.length > 0);
-                
-                const requiredFields = editSpecForm.requiredFieldsText
-                  .split('\n')
-                  .map(f => f.trim())
-                  .filter(f => f.length > 0);
+                // Use filters and required fields from state (already arrays)
+                const allowedFilters = editSpecForm.allowedFilters;
+                const requiredFields = editSpecForm.requiredFields;
 
                 if (requiredFields.length === 0) {
                   toast.error('At least one required field must be specified');
@@ -2535,157 +2856,6 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Discovery Dialog - Show all specifications from Apicurio */}
-      <Dialog open={isDiscoveryDialogOpen} onOpenChange={setIsDiscoveryDialogOpen}>
-        <DialogContent className="max-w-[1200px] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Discovered Data Source Specifications</DialogTitle>
-            <DialogDescription>
-              All schemas and specifications found in Apicurio Registry across all groups
-            </DialogDescription>
-          </DialogHeader>
-          
-          {/* Info banner about data source */}
-          <div className="px-1">
-            <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
-              <Database className="h-4 w-4 mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-blue-900 dark:text-blue-100">
-                  <strong>Mock Data Mode:</strong> {discoveredSpecs.length > 0 
-                    ? `Loaded ${discoveredSpecs.length} artifact(s) from mock registry (CORS avoidance enabled).` 
-                    : 'Loading schemas from mock Apicurio Registry...'
-                  }
-                </p>
-                {discoveredSpecs.length > 0 && (
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    Set USE_MOCK_APICURIO = false in /lib/api.ts to connect to real Apicurio Registry.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-hidden py-4">
-            {isDiscovering ? (
-              <div className="space-y-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : discoveredSpecs.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="mb-2">No Specifications Found</h3>
-                <p className="text-muted-foreground">
-                  No schemas were discovered in Apicurio Registry
-                </p>
-              </div>
-            ) : (
-              <ScrollArea className="h-[600px]">
-                <div className="space-y-6">
-                  {/* Group specifications by groupId */}
-                  {Object.entries(
-                    discoveredSpecs.reduce((acc, spec) => {
-                      const groupId = spec.groupId || 'unknown';
-                      if (!acc[groupId]) acc[groupId] = [];
-                      acc[groupId].push(spec);
-                      return acc;
-                    }, {} as Record<string, ApicurioArtifact[]>)
-                  ).map(([groupId, specs]) => (
-                    <div key={groupId} className="space-y-3">
-                      <div className="flex items-center gap-2 pb-2 border-b">
-                        <Badge variant="outline" className="text-sm">
-                          {groupId}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {specs.length} artifact{specs.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {specs.map((spec) => (
-                          <Card key={`${spec.groupId}-${spec.id}`} className="p-4 hover:shadow-md transition-shadow">
-                            <div className="space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate" title={spec.id}>
-                                    {spec.id}
-                                  </p>
-                                  <div className="flex items-center gap-1 mt-1">
-                                    <Badge 
-                                      variant={spec.type === 'JSON' ? 'default' : spec.type === 'AVRO' ? 'secondary' : 'outline'}
-                                      className="text-xs"
-                                    >
-                                      {spec.type === 'JSON' ? '📄 JSON' : spec.type === 'AVRO' ? '🔷 AVRO' : spec.type}
-                                    </Badge>
-                                    {spec.id.toLowerCase().endsWith('-key') && (
-                                      <Badge variant="outline" className="text-xs">
-                                        Key
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {spec.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-2">
-                                  {spec.description}
-                                </p>
-                              )}
-                              
-                              <div className="flex items-center justify-between pt-2 border-t">
-                                <div className="text-xs text-muted-foreground">
-                                  {spec.version && `v${spec.version}`}
-                                </div>
-                                {spec.type === 'JSON' && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs"
-                                    onClick={async () => {
-                                      try {
-                                        const schemaContent = await getApicurioArtifactContent(
-                                          spec.groupId || groupId,
-                                          spec.id
-                                        );
-                                        
-                                        // Show schema in a new dialog or copy to clipboard
-                                        navigator.clipboard.writeText(JSON.stringify(schemaContent, null, 2));
-                                        toast.success(`Schema "${spec.id}" copied to clipboard`);
-                                      } catch (error) {
-                                        console.error('Failed to load schema:', error);
-                                        toast.error('Failed to load schema content');
-                                      }
-                                    }}
-                                  >
-                                    <Eye className="h-3 w-3 mr-1" />
-                                    View
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDiscoveryDialogOpen(false)}>
-              Close
-            </Button>
-            <Button onClick={handleDiscoverSpecifications} disabled={isDiscovering}>
-              {isDiscovering ? 'Discovering...' : 'Refresh'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
