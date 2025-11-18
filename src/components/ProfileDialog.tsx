@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { User, Mail, Shield, Loader2 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
@@ -99,6 +99,9 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
             <User className="h-5 w-5 text-[#1D6BCD]" />
             User Profile
           </DialogTitle>
+          <DialogDescription>
+            View your account information and settings
+          </DialogDescription>
         </DialogHeader>
 
         {loading ? (

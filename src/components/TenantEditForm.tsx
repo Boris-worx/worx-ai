@@ -86,7 +86,7 @@ export function TenantEditForm({ tenant, open, onOpenChange, onSuccess }: Tenant
               id="tenantId"
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
-              placeholder="e.g., tenant-001"
+              placeholder="e.g., BFS, PIM, Smith Douglas"
               disabled
             />
             <p className="text-xs text-muted-foreground">

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Alert, AlertDescription } from './ui/alert';
 import { ScrollArea } from './ui/scroll-area';
 import { Info, AlertCircle } from 'lucide-react';
-import { TRANSACTION_TYPES } from '../lib/api';
+import { TRANSACTION_TYPES, formatTransactionType } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
 
 interface TransactionCreateDialogProps {
@@ -289,7 +289,7 @@ export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultT
                 <SelectContent>
                   {TRANSACTION_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {type}
+                      {formatTransactionType(type)}
                     </SelectItem>
                   ))}
                 </SelectContent>

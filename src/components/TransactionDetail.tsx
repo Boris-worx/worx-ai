@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Transaction } from '../lib/api';
+import { Transaction, formatTransactionType } from '../lib/api';
 
 interface TransactionDetailProps {
   transaction: Transaction;
@@ -24,7 +24,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Transaction Detail
-            <Badge variant="secondary">{transaction.TxnType}</Badge>
+            <Badge variant="secondary">{formatTransactionType(transaction.TxnType)}</Badge>
           </DialogTitle>
           <DialogDescription>
             View transaction details and data
@@ -48,7 +48,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                   </div>
                   <div>
                     <div className="text-muted-foreground mb-1">Type</div>
-                    <Badge variant="outline">{transaction.TxnType}</Badge>
+                    <Badge variant="outline">{formatTransactionType(transaction.TxnType)}</Badge>
                   </div>
                   <div>
                     <div className="text-muted-foreground mb-1">Created</div>

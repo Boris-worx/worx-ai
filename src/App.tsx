@@ -26,7 +26,7 @@ import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
 
 function AppContent() {
-  const { user, isAuthenticated, hasAccessTo } = useAuth();
+  const { user, isAuthenticated, hasAccessTo, isGlobalUser } = useAuth();
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -34,10 +34,11 @@ function AppContent() {
   const getNavigationTabs = () => {
     const tabs = [];
     
-    if (hasAccessTo('Tenants')) {
+    // Tenants tab: Global users see "Tenants", tenant-specific users see "My Tenant"
+    if (hasAccessTo('Tenants') || user?.tenantId) {
       tabs.push({
         id: 'tenants',
-        label: 'Tenants',
+        label: user?.tenantId && !isGlobalUser() ? 'My Tenant' : 'Tenants',
         icon: <TenantsIcon className="h-4 w-4 mr-2" />,
       });
     }
@@ -111,21 +112,21 @@ function AppContent() {
 
   // Load active tenant from localStorage on mount or set from user
   useEffect(() => {
-    // If user is not a SuperUser and has a tenantId, lock to that tenant
-    if (user && user.role !== 'superuser' && user.tenantId) {
+    // Tenant-specific users: lock to their tenant
+    if (user && !isGlobalUser() && user.tenantId) {
       setActiveTenantId(user.tenantId);
       localStorage.setItem('bfs_active_tenant', user.tenantId);
       return;
     }
     
-    // For SuperUser, load from localStorage or default to 'global'
+    // Global users (superuser and viewonlysuperuser): allow tenant switching
     const savedTenantId = localStorage.getItem('bfs_active_tenant');
     if (savedTenantId) {
       setActiveTenantId(savedTenantId);
     } else {
       setActiveTenantId('global');
     }
-  }, [user]);
+  }, [user, isGlobalUser]);
 
   // Handle tenant change
   const handleTenantChange = (tenantId: string) => {

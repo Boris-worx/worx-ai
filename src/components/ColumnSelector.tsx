@@ -101,11 +101,11 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
   // Group columns by category (use tempColumns for UI)
   // Filter out columns with no data
   const coreColumns = tempColumns.filter(col => 
-    ['TxnId', 'Name', 'CreateTime'].includes(col.key) && !col.isEmpty
+    ['TxnId', 'TxnType', 'CreateTime'].includes(col.key) && !col.isEmpty
   );
   
   const otherColumns = tempColumns.filter(col => 
-    !['TxnId', 'Name', 'CreateTime'].includes(col.key) && !col.isEmpty
+    !['TxnId', 'TxnType', 'CreateTime'].includes(col.key) && !col.isEmpty
   );
 
   return (

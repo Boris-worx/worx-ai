@@ -25,6 +25,10 @@ interface AuthContextType {
   refreshAzureAuth: () => Promise<void>;
   hasAccessTo: (section: AccessSection) => boolean;
   updateUser: (updatedUser: User) => void;
+  canEdit: () => boolean;
+  canDelete: () => boolean;
+  canAccessTenant: (tenantId: string) => boolean;
+  isGlobalUser: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -193,6 +197,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('bfs_user', JSON.stringify(updatedUser));
   };
 
+  // Check if user can edit resources
+  const canEdit = (): boolean => {
+    if (!user) return false;
+    // Only read-only roles cannot edit
+    return !['viewonlysuperuser', 'viewer'].includes(user.role);
+  };
+
+  // Check if user can delete resources
+  const canDelete = (): boolean => {
+    if (!user) return false;
+    // Only read-only roles cannot delete
+    return !['viewonlysuperuser', 'viewer'].includes(user.role);
+  };
+
+  // Check if user can access a specific tenant's data
+  const canAccessTenant = (tenantId: string): boolean => {
+    if (!user) return false;
+    
+    // Global users (superuser and viewonlysuperuser) can access all tenants
+    if (['superuser', 'viewonlysuperuser'].includes(user.role)) {
+      return true;
+    }
+    
+    // Tenant-specific users can only access their own tenant
+    return user.tenantId === tenantId;
+  };
+
+  // Check if user is a global user (can see all tenants)
+  const isGlobalUser = (): boolean => {
+    if (!user) return false;
+    return ['superuser', 'viewonlysuperuser'].includes(user.role);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -204,6 +241,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         refreshAzureAuth,
         hasAccessTo,
         updateUser,
+        canEdit,
+        canDelete,
+        canAccessTenant,
+        isGlobalUser,
       }}
     >
       {children}

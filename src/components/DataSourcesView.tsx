@@ -25,6 +25,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
 import { Checkbox } from './ui/checkbox';
+import { DataCaptureSpecCreateDialog } from './DataCaptureSpecCreateDialog';
 
 import { UserRole } from './AuthContext';
 
@@ -64,6 +65,7 @@ interface DataCaptureSpecification {
   // Real Data Capture Spec fields
   dataCaptureSpecId?: string;
   dataCaptureSpecName?: string;
+  containerName?: string; // Cosmos DB container name
   isActive?: boolean;
   sourcePrimaryKeyField?: string;
   partitionKeyField?: string;
@@ -582,13 +584,16 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   // Create Data Capture Spec form state
   const [createSpecForm, setCreateSpecForm] = useState({
     dataCaptureSpecName: '',
+    containerName: '',
     version: 1,
     isActive: true,
     profile: 'data-capture',
     sourcePrimaryKeyField: '',
-    partitionKeyField: 'partitionKey',
+    partitionKeyField: '',
     partitionKeyValue: '',
     allowedFilters: [] as string[], // Changed to array for multiselect
+    allowedFiltersText: '', // Text input for allowed filters (comma-separated)
+    requiredFields: [] as string[], // ✅ US1: Make required fields editable
     containerSchemaText: ''
   });
   const [isCreatingSpec, setIsCreatingSpec] = useState(false);
@@ -633,6 +638,79 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     containerSchemaText: ''
   });
   const [isUpdatingSpec, setIsUpdatingSpec] = useState(false);
+
+  // Load IRC example template (from client's curl request)
+  const loadIRCExampleTemplate = () => {
+    const ircTemplate = {
+      dataCaptureSpecName: "irc",
+      containerName: "ircs",
+      version: 1,
+      isActive: true,
+      profile: "data-capture",
+      sourcePrimaryKeyField: "id",
+      partitionKeyField: "id",
+      partitionKeyValue: "",
+      allowedFilters: ["id"],
+      requiredFields: ["id"],
+      containerSchema: {
+        schemaVersion: 1,
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Document ID. developer/integrator sets it from webapp. Source primary key value in case of one source or combination, also mapped to id if needed"
+          },
+          metaData: {
+            type: "object",
+            properties: {
+              sources: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    sourceDatabase: { type: "string" },
+                    sourceTable: { type: "string" },
+                    sourcePrimaryKeyField: { type: "string" },
+                    sourceCreateTime: { type: ["string", "null"], format: "date-time" },
+                    sourceUpdateTime: { type: ["string", "null"], format: "date-time" },
+                    sourceEtag: { type: ["string", "null"] }
+                  }
+                }
+              }
+            }
+          },
+          createTime: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "populated by txservices"
+          },
+          updateTime: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "populated by txservices"
+          }
+        },
+        required: ["id"],
+        unevaluatedProperties: true
+      }
+    };
+
+    setCreateSpecForm({
+      dataCaptureSpecName: ircTemplate.dataCaptureSpecName,
+      containerName: ircTemplate.containerName,
+      version: ircTemplate.version,
+      isActive: ircTemplate.isActive,
+      profile: ircTemplate.profile,
+      sourcePrimaryKeyField: ircTemplate.sourcePrimaryKeyField,
+      partitionKeyField: ircTemplate.partitionKeyField,
+      partitionKeyValue: ircTemplate.partitionKeyValue,
+      allowedFilters: ircTemplate.allowedFilters,
+      requiredFields: ircTemplate.requiredFields,
+      containerSchemaText: JSON.stringify(ircTemplate.containerSchema, null, 2)
+    });
+
+    toast.success('Loaded IRC example template');
+  };
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -738,6 +816,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       // Real Data Capture Spec fields
       dataCaptureSpecId: spec.dataCaptureSpecId,
       dataCaptureSpecName: spec.dataCaptureSpecName,
+      containerName: spec.containerName,
       isActive: spec.isActive,
       sourcePrimaryKeyField: spec.sourcePrimaryKeyField,
       partitionKeyField: spec.partitionKeyField,
@@ -1031,6 +1110,19 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       setIsCreateDialogOpen(false);
       
       toast.success(`Data source "${getDataSourceName(created)}" created successfully!`);
+      
+      // ✅ US1: Offer to continue with Data Capture Specification
+      // Show a prompt asking if user wants to add a specification
+      setTimeout(() => {
+        const continueWithSpec = window.confirm(
+          'Data Source created successfully!\n\nWould you like to add a Data Capture Specification now?'
+        );
+        
+        if (continueWithSpec) {
+          setSelectedDataSource(created);
+          setIsSpecCreateOpen(true);
+        }
+      }, 500);
       
       // Refresh data from API after a short delay to allow backend to fully process
       setTimeout(() => {
@@ -1344,33 +1436,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               const dataSourceId = getDataSourceId(row);
               const dataSourceTenantId = row.TenantId;
               const specifications = getSpecificationsForDataSource(dataSourceId, dataSourceTenantId);
-              const models = getModelsFromSpecs(specifications);
               
-              // Get or set default selected model for this data source
-              const currentSelectedModel = selectedModelPerDataSource[dataSourceId] || models[0];
-              
-              const handleModelSelect = (model: string) => {
-                setSelectedModelPerDataSource(prev => ({
-                  ...prev,
-                  [dataSourceId]: model
-                }));
-                // Reset to page 1 when model changes
-                setCurrentPagePerDataSource(prev => ({
-                  ...prev,
-                  [dataSourceId]: 1
-                }));
-              };
-              
-              // Get specifications for selected model
-              const filteredSpecs = getSpecsByModel(specifications, currentSelectedModel);
-              
-              // Filter models by search
-              const filteredModels = models.filter(model => 
-                model.toLowerCase().includes(modelSearch.toLowerCase())
-              );
-              
-              // Filter specifications by search
-              const searchFilteredSpecs = filteredSpecs.filter(spec => 
+              // Filter specifications by search (show all, not filtered by model)
+              const searchFilteredSpecs = specifications.filter(spec => 
                 spec.modelSchemaId.toLowerCase().includes(specificationSearch.toLowerCase()) ||
                 spec.model.toLowerCase().includes(specificationSearch.toLowerCase()) ||
                 spec.semver.toLowerCase().includes(specificationSearch.toLowerCase()) ||
@@ -1515,60 +1583,23 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-[150px_1fr] gap-4">
-                      {/* Left Column - Models List */}
-                      <div className="space-y-2">
-                        <div className="relative">
-                          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search models..."
-                            value={modelSearch}
-                            onChange={(e) => setModelSearch(e.target.value)}
-                            className="pl-9 h-9"
-                          />
-                        </div>
-                        <Card className="border">
-                          <ScrollArea className="h-[300px]">
-                            <div className="space-y-1 p-2">
-                              {filteredModels.length > 0 ? (
-                                filteredModels.map((model) => (
-                                  <Button
-                                    key={model}
-                                    variant={currentSelectedModel === model ? 'default' : 'ghost'}
-                                    className="w-full justify-start text-left h-auto py-2 px-3"
-                                    onClick={() => handleModelSelect(model)}
-                                  >
-                                    <span className="text-sm truncate">{model}</span>
-                                  </Button>
-                                ))
-                              ) : (
-                                <div className="text-center py-8 text-xs text-muted-foreground">
-                                  No models found
-                                </div>
-                              )}
-                            </div>
-                          </ScrollArea>
-                        </Card>
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search specifications..."
+                          value={specificationSearch}
+                          onChange={(e) => {
+                            setSpecificationSearch(e.target.value);
+                            // Reset to page 1 when search changes
+                            setCurrentPagePerDataSource(prev => ({
+                              ...prev,
+                              [dataSourceId]: 1
+                            }));
+                          }}
+                          className="pl-9 h-9"
+                        />
                       </div>
-
-                      {/* Right Column - Specifications Table */}
-                      <div className="min-w-0 space-y-2">
-                        <div className="relative">
-                          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search specifications..."
-                            value={specificationSearch}
-                            onChange={(e) => {
-                              setSpecificationSearch(e.target.value);
-                              // Reset to page 1 when search changes
-                              setCurrentPagePerDataSource(prev => ({
-                                ...prev,
-                                [dataSourceId]: 1
-                              }));
-                            }}
-                            className="pl-9 h-9"
-                          />
-                        </div>
                         <div className="border rounded-lg overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead className="bg-muted/50 border-b">
@@ -1720,7 +1751,6 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                             </div>
                           </div>
                         )}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -2016,10 +2046,14 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
           {selectedSpec && (
             <div className="space-y-4">
               {/* Basic Info */}
-              <div className="grid grid-cols-3 gap-4 pb-4 border-b">
+              <div className="grid grid-cols-4 gap-4 pb-4 border-b">
                 <div>
                   <div className="text-sm text-muted-foreground">Model</div>
                   <div className="text-sm">{selectedSpec.dataCaptureSpecName || selectedSpec.table}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Container Name</div>
+                  <div className="text-sm font-mono">{selectedSpec.containerName || '—'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Version</div>
@@ -2112,432 +2146,19 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       </Dialog>
 
       {/* Create Data Capture Specification Dialog */}
-      <Dialog open={isSpecCreateOpen} onOpenChange={(open) => {
-        setIsSpecCreateOpen(open);
-        if (!open) {
-          // Reset form when closing
-          setCreateSpecForm({
-            dataCaptureSpecName: '',
-            version: 1,
-            isActive: true,
-            profile: 'data-capture',
-            sourcePrimaryKeyField: '',
-            partitionKeyField: 'partitionKey',
-            partitionKeyValue: '',
-            allowedFilters: [],
-            containerSchemaText: ''
-          });
-          // Reset Apicurio state
-          setAvailableApicurioSchemas([]);
-          setSelectedApicurioSchema('');
-        }
-      }}>
-        <DialogContent className="max-w-[1400px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Create Data Capture Specification</DialogTitle>
-            <DialogDescription>
-              Define how data from {selectedDataSource ? getDataSourceName(selectedDataSource) : 'data source'} should be captured into Cosmos DB
-            </DialogDescription>
-          </DialogHeader>
-          
-          {/* Two column layout: Form on left, JSON on right */}
-          <div className="grid grid-cols-2 gap-6 py-4 max-h-[calc(90vh-200px)]">
-            {/* Left Column: Form Fields */}
-            <ScrollArea className="pr-4 h-full">
-              <div className="space-y-4 pb-4">
-                {/* Apicurio Schema Selector - Always show */}
-                <div className="space-y-2 pb-4 border-b">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="apicurioSchema">Load Schema from Apicurio Registry</Label>
-                    {isLoadingApicurioSchemas && <Badge variant="outline" className="text-xs animate-pulse">Loading...</Badge>}
-                  </div>
-                  
-                  {isLoadingApicurioSchemas ? (
-                    <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
-                      <Database className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">Discovering schemas from Apicurio...</span>
-                    </div>
-                  ) : availableApicurioSchemas.length > 0 ? (
-                    <>
-                    <Select
-                      value={selectedApicurioSchema}
-                      onValueChange={async (value) => {
-                        setSelectedApicurioSchema(value);
-                        
-                        if (!value) return;
-                        
-                        try {
-                          // Find the selected schema to get its groupId
-                          const selectedSchema = availableApicurioSchemas.find(s => s.id === value);
-                          
-                          if (!selectedSchema || !selectedSchema.groupId) {
-                            toast.error('Unable to determine Apicurio group for this schema');
-                            return;
-                          }
-                          
-                          // Fetch the schema content using the groupId from the artifact
-                          const schemaContent = await getApicurioArtifactContent(selectedSchema.groupId, value);
-                          
-                          // Extract schema name from artifactId (e.g., "bfs.QuoteDetails.json" -> "QuoteDetails")
-                          const schemaName = value.replace(/^bfs\./, '').replace(/\.json$/, '');
-                          
-                          // Update form with loaded schema
-                          setCreateSpecForm(prev => ({
-                            ...prev,
-                            dataCaptureSpecName: prev.dataCaptureSpecName || schemaName,
-                            containerSchemaText: JSON.stringify(schemaContent, null, 2)
-                          }));
-                          
-                          toast.success(`Loaded schema "${value}" from group "${selectedSchema.groupId}"`);
-                        } catch (error) {
-                          console.error('Failed to load schema from Apicurio:', error);
-                          toast.error('Failed to load schema from Apicurio Registry');
-                        }
-                      }}
-                    >
-                      <SelectTrigger id="apicurioSchema">
-                        <SelectValue placeholder="Select a schema to load..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableApicurioSchemas.map((schema) => (
-                          <SelectItem key={schema.id} value={schema.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <span>{schema.id}</span>
-                              {schema.groupId && (
-                                <Badge variant="outline" className="ml-2 text-xs">
-                                  {schema.groupId}
-                                </Badge>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        {availableApicurioSchemas.length} schema(s) available from Apicurio Registry (JSON + AVRO)
-                      </p>
-                      <Badge variant="outline" className="text-xs">
-                        Auto-loaded
-                      </Badge>
-                    </div>
-                    </>
-                  ) : (
-                    <div className="p-3 border rounded-md bg-muted/30">
-                      <p className="text-sm text-muted-foreground">
-                        No schemas found in Apicurio Registry for this data source.
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        You can still manually enter a schema below.
-                      </p>
-                    </div>
-                  )}
-                </div>
+      <DataCaptureSpecCreateDialog
+        isOpen={isSpecCreateOpen}
+        onClose={() => setIsSpecCreateOpen(false)}
+        selectedDataSource={selectedDataSource}
+        activeTenantId={activeTenantId}
+        availableApicurioSchemas={availableApicurioSchemas}
+        isLoadingApicurioSchemas={isLoadingApicurioSchemas}
+        onSuccess={async () => {
+          await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+        }}
+      />
 
-                {/* Basic Info - 2 columns 50% width */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="specName">Specification Name *</Label>
-                    <Input
-                      id="specName"
-                      placeholder="e.g., Quote"
-                      value={createSpecForm.dataCaptureSpecName}
-                      onChange={(e) => setCreateSpecForm({ ...createSpecForm, dataCaptureSpecName: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="version">Version *</Label>
-                    <Input
-                      id="version"
-                      type="number"
-                      min="1"
-                      value={createSpecForm.version}
-                      onChange={(e) => setCreateSpecForm({ ...createSpecForm, version: parseInt(e.target.value) || 1 })}
-                    />
-                  </div>
-                </div>
 
-            {/* Partition & Keys */}
-            <div className="space-y-4 pb-4 border-b">
-              <div className="text-sm font-medium">Partition & Keys</div>
-              {/* 3 columns 33% width for first two fields */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="primaryKey">Source Primary Key Field *</Label>
-                  <Input
-                    id="primaryKey"
-                    placeholder="e.g., quoteId"
-                    value={createSpecForm.sourcePrimaryKeyField}
-                    onChange={(e) => setCreateSpecForm({ ...createSpecForm, sourcePrimaryKeyField: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="partitionKey">Partition Key Field *</Label>
-                  <Input
-                    id="partitionKey"
-                    placeholder="e.g., partitionKey"
-                    value={createSpecForm.partitionKeyField}
-                    onChange={(e) => setCreateSpecForm({ ...createSpecForm, partitionKeyField: e.target.value })}
-                  />
-                </div>
-              </div>
-              {/* Partition Key Value - full width */}
-              <div className="space-y-2">
-                <Label htmlFor="partitionValue">Partition Key Value *</Label>
-                <Input
-                  id="partitionValue"
-                  placeholder="e.g., BFS-bidtools"
-                  value={createSpecForm.partitionKeyValue}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, partitionKeyValue: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Typically: {`{tenantId}-{dataSourceId}`}
-                </p>
-              </div>
-            </div>
-
-            {/* Allowed Filters - Multiselect Checkboxes */}
-            <div className="space-y-4">
-              <div>
-                <Label>Allowed Filters</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Select fields that can be used for filtering data
-                </p>
-              </div>
-              <ScrollArea className="h-[200px] rounded-md border p-4 bg-white">
-                <div className="space-y-2">
-                  {availableFilters.map((filter) => (
-                    <div key={filter} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`filter-${filter}`}
-                        checked={createSpecForm.allowedFilters.includes(filter)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setCreateSpecForm({
-                              ...createSpecForm,
-                              allowedFilters: [...createSpecForm.allowedFilters, filter]
-                            });
-                          } else {
-                            setCreateSpecForm({
-                              ...createSpecForm,
-                              allowedFilters: createSpecForm.allowedFilters.filter(f => f !== filter)
-                            });
-                          }
-                        }}
-                        className="border-white data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                      />
-                      <Label htmlFor={`filter-${filter}`} className="text-sm cursor-pointer font-mono">
-                        {filter}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-              <div className="text-xs text-muted-foreground">
-                Selected: {createSpecForm.allowedFilters.length} filters
-              </div>
-            </div>
-
-            <Separator />
-              </div>
-            </ScrollArea>
-
-            {/* Right Column: Container Schema JSON */}
-            <div className="flex flex-col space-y-2 border-l pl-6 h-full">
-              <div className="flex justify-between items-center">
-                <Label>Container Schema (JSON) *</Label>
-                <Badge variant="outline" className="text-xs">Auto-generated</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                JSON Schema defining the structure of documents in Cosmos DB container
-              </p>
-              <ScrollArea style={{ height: 'calc(90vh - 280px)', maxHeight: '600px' }}>
-                <Textarea
-                  className="font-mono text-xs resize-none min-h-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  value={createSpecForm.containerSchemaText}
-                  onChange={(e) => setCreateSpecForm({ ...createSpecForm, containerSchemaText: e.target.value })}
-                  placeholder="Container schema will be auto-generated..."
-                  rows={30}
-                />
-              </ScrollArea>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsSpecCreateOpen(false)}
-              disabled={isCreatingSpec}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!selectedDataSource) {
-                  toast.error('No data source selected');
-                  return;
-                }
-
-                // Validate required fields
-                if (!createSpecForm.dataCaptureSpecName || !createSpecForm.sourcePrimaryKeyField || 
-                    !createSpecForm.partitionKeyField || !createSpecForm.partitionKeyValue || 
-                    !createSpecForm.containerSchemaText) {
-                  toast.error('Please fill in all required fields');
-                  return;
-                }
-
-                // Parse container schema
-                let containerSchema;
-                try {
-                  containerSchema = JSON.parse(createSpecForm.containerSchemaText);
-                } catch (error) {
-                  toast.error('Invalid JSON in Container Schema');
-                  return;
-                }
-
-                // requiredFields are always quoteId and customerId
-                const requiredFields = ['quoteId', 'customerId'];
-
-                setIsCreatingSpec(true);
-                try {
-                  const dataSourceId = getDataSourceId(selectedDataSource);
-                  const tenantId = selectedDataSource.TenantId || activeTenantId;
-
-                  if (!tenantId || tenantId === 'global') {
-                    toast.error('Cannot create spec: Invalid tenant');
-                    setIsCreatingSpec(false);
-                    return;
-                  }
-
-                  await createDataCaptureSpec({
-                    dataCaptureSpecName: createSpecForm.dataCaptureSpecName,
-                    tenantId: tenantId,
-                    dataSourceId: dataSourceId,
-                    isActive: createSpecForm.isActive,
-                    version: createSpecForm.version,
-                    profile: createSpecForm.profile,
-                    sourcePrimaryKeyField: createSpecForm.sourcePrimaryKeyField,
-                    partitionKeyField: createSpecForm.partitionKeyField,
-                    partitionKeyValue: createSpecForm.partitionKeyValue,
-                    allowedFilters: createSpecForm.allowedFilters,
-                    requiredFields: requiredFields,
-                    containerSchema: containerSchema
-                  });
-
-                  toast.success(`Data Capture Specification "${createSpecForm.dataCaptureSpecName}" created successfully!`);
-                  setIsSpecCreateOpen(false);
-                  
-                  // Reload specs
-                  await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
-                } catch (error: any) {
-                  console.error('Failed to create spec:', error);
-                  toast.error(error.message || 'Failed to create data capture specification');
-                } finally {
-                  setIsCreatingSpec(false);
-                }
-              }}
-              disabled={isCreatingSpec}
-            >
-              {isCreatingSpec ? 'Creating...' : 'Create Specification'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Data Capture Specification Edit Dialog */}
-      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Data Capture Specification</DialogTitle>
-            <DialogDescription>
-              Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editSpecName">Specification Name *</Label>
-                <Input
-                  id="editSpecName"
-                  placeholder="e.g., Quote"
-                  value={editSpecForm.dataCaptureSpecName}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editVersion">Version *</Label>
-                <Input
-                  id="editVersion"
-                  type="number"
-                  min="1"
-                  value={editSpecForm.version}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editProfile">Profile</Label>
-                <Input
-                  id="editProfile"
-                  value={editSpecForm.profile}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
-                />
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Data Capture Specification Edit Dialog */}
-      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Data Capture Specification</DialogTitle>
-            <DialogDescription>
-              Update the data capture specification for {selectedSpec?.dataCaptureSpecName || selectedSpec?.table}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editSpecName">Specification Name *</Label>
-                <Input
-                  id="editSpecName"
-                  placeholder="e.g., Quote"
-                  value={editSpecForm.dataCaptureSpecName}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, dataCaptureSpecName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="editVersion">Version *</Label>
-                <Input
-                  id="editVersion"
-                  type="number"
-                  min="1"
-                  value={editSpecForm.version}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, version: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="editProfile">Profile</Label>
-                <Input
-                  id="editProfile"
-                  value={editSpecForm.profile}
-                  onChange={(e) => setEditSpecForm({ ...editSpecForm, profile: e.target.value })}
-                  disabled
-                />
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Data Capture Specification Edit Dialog */}
       <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
@@ -2878,7 +2499,23 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     return;
                   }
 
-                  await deleteDataCaptureSpec(specToDelete.dataCaptureSpecId, realSpec._etag);
+                  console.log('Deleting spec with:', {
+                    dataCaptureSpecId: realSpec.dataCaptureSpecId,
+                    dataCaptureSpecName: realSpec.dataCaptureSpecName,
+                    version: realSpec.version,
+                    etag: realSpec._etag
+                  });
+
+                  // Use dataCaptureSpecId directly as returned from API
+                  // Pass all available identifiers to help with different API deletion strategies
+                  await deleteDataCaptureSpec(
+                    realSpec.dataCaptureSpecId || realSpec.dataCaptureSpecName, 
+                    realSpec._etag,
+                    realSpec.version,
+                    realSpec.containerName,
+                    realSpec.tenantId,
+                    realSpec.dataSourceId
+                  );
                   toast.success(`Specification for ${specToDelete.table} deleted successfully!`);
                   
                   // Reload specs

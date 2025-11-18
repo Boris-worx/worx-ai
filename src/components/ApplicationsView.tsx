@@ -1,26 +1,29 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { DataTable } from './DataTable';
 import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter } from 'lucide-react';
+import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter, Info } from 'lucide-react';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
 import { TenantSelector } from './TenantSelector';
-import { Tenant } from '../lib/api';
+import { Tenant, Application, getApplications, createApplication, updateApplication, deleteApplication, TransactionSpecification, getTransactionSpecifications, createTransactionSpecification, updateTransactionSpecification, deleteTransactionSpecification } from '../lib/api';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Separator } from './ui/separator';
-
-import { UserRole } from './AuthContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Label } from './ui/label';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { Alert, AlertDescription } from './ui/alert';
+import { TransactionSpecificationDialog } from './TransactionSpecificationDialog';
+import { TransactionSpecificationViewDialog } from './TransactionSpecificationViewDialog';
+import type { UserRole } from './AuthContext';
 
 interface ApplicationsViewProps {
   userRole: UserRole;
@@ -29,94 +32,29 @@ interface ApplicationsViewProps {
   onTenantChange: (tenantId: string) => void;
 }
 
-// Application Interface
-interface Application {
-  ApplicationId: string;
-  ApplicationName: string;
-  Version?: string;
-  Description?: string;
-  Status?: string;
-  CreateTime?: string;
-  UpdateTime?: string;
-  _rid?: string;
-  _self?: string;
-  _etag?: string;
-  _attachments?: string;
-  _ts?: number;
-}
-
-// Transaction Specification interface
-interface TransactionSpecification {
-  id: string;
-  table: string;
-  version: string;
-  date: string;
-  schema?: any;
-}
-
 // Helper functions to handle field name
 const getApplicationId = (app: Application) => app.ApplicationId || '';
 const getApplicationName = (app: Application) => app.ApplicationName || '';
 
-// Mock Applications
-const mockApplications: Application[] = [
-  {
-    ApplicationId: 'app-001',
-    ApplicationName: 'myBLDR',
-    Version: '1.0',
-    Description: '',
-    Status: 'Active',
-    CreateTime: '2025-10-30T00:00:00Z',
-    UpdateTime: '2025-10-30T00:00:00Z',
-    _etag: 'etag-001',
-  },
-  {
-    ApplicationId: 'app-002',
-    ApplicationName: 'Will Call',
-    Version: '2.1',
-    Description: '',
-    Status: 'Active',
-    CreateTime: '2025-10-31T00:00:00Z',
-    UpdateTime: '2025-10-31T00:00:00Z',
-    _etag: 'etag-002',
-  },
-];
-
-// Mock Transaction Specifications
-const getMockSpecifications = (applicationName: string): TransactionSpecification[] => {
-  // All applications have the same specifications
-  return [
-    {
-      id: 'spec_quote',
-      table: 'Quote',
-      version: '2.0',
-      date: '10/30/2025',
-    },
-    {
-      id: 'spec_customer',
-      table: 'Customer',
-      version: '2.1',
-      date: '10/31/2025',
-    },
-    {
-      id: 'spec_order',
-      table: 'Order',
-      version: '2.1',
-      date: '10/31/2025',
-    },
-  ];
-};
-
 export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantChange }: ApplicationsViewProps) {
-  const [applications, setApplications] = useState<Application[]>(mockApplications);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [isUsingMockSpecs, setIsUsingMockSpecs] = useState(false);
   
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [applicationToDelete, setApplicationToDelete] = useState<Application | null>(null);
-  const [newApplicationName, setNewApplicationName] = useState('');
-  const [newApplicationVersion, setNewApplicationVersion] = useState('');
-  const [newApplicationDescription, setNewApplicationDescription] = useState('');
+  
+  // Create form state
+  const [newApplicationForm, setNewApplicationForm] = useState({
+    name: '',
+    tenantId: '',
+    version: '',
+    description: '',
+    status: 'Active'
+  });
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Detail view state
@@ -126,14 +64,210 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
   // Edit state
   const [applicationToEdit, setApplicationToEdit] = useState<Application | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editApplicationName, setEditApplicationName] = useState('');
+  const [editApplicationForm, setEditApplicationForm] = useState({
+    name: '',
+    version: '',
+    description: '',
+    status: 'Active'
+  });
   
   // Transaction Specifications state
+  const [transactionSpecs, setTransactionSpecs] = useState<Map<string, TransactionSpecification[]>>(new Map());
+  const [isLoadingSpecs, setIsLoadingSpecs] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<TransactionSpecification | null>(null);
   const [isSpecViewOpen, setIsSpecViewOpen] = useState(false);
+  const [isSpecCreateOpen, setIsSpecCreateOpen] = useState(false);
   const [isSpecEditOpen, setIsSpecEditOpen] = useState(false);
   const [isSpecDeleteOpen, setIsSpecDeleteOpen] = useState(false);
   const [specToDelete, setSpecToDelete] = useState<TransactionSpecification | null>(null);
+  const [currentApplicationForSpec, setCurrentApplicationForSpec] = useState<Application | null>(null);
+  const [isSubmittingSpec, setIsSubmittingSpec] = useState(false);
+
+  // Load applications from API when tenant changes
+  useEffect(() => {
+    loadApplications();
+  }, [activeTenantId]);
+
+  const loadApplications = async () => {
+    setIsLoading(true);
+    setIsUsingMockData(false); // Reset flag
+    try {
+      const data = await getApplications(
+        activeTenantId === 'global' ? undefined : activeTenantId
+      );
+      
+      // Check if we got mock data by looking at the application IDs
+      // Mock data typically has IDs like 'app-001', 'app-002', etc.
+      const hasMockPattern = data.some(app => /^app-\d{3,}$/.test(app.ApplicationId));
+      setIsUsingMockData(hasMockPattern || data.length === 0);
+      
+      setApplications(data);
+      console.log(`✅ Loaded ${data.length} applications for tenant: ${activeTenantId}`);
+      
+      // Load transaction specifications for each application
+      await loadTransactionSpecifications(data);
+    } catch (error: any) {
+      console.error('Error loading applications:', error);
+      toast.error(`Failed to load applications: ${error.message}`);
+      setApplications([]);
+      setIsUsingMockData(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load Transaction Specifications for applications
+  const loadTransactionSpecifications = async (apps: Application[]) => {
+    setIsLoadingSpecs(true);
+    setIsUsingMockSpecs(false); // Reset flag
+    try {
+      const specsMap = new Map<string, TransactionSpecification[]>();
+      let foundMockSpecs = false;
+      
+      // Load specs for each application
+      await Promise.all(
+        apps.map(async (app) => {
+          try {
+            const appId = getApplicationId(app);
+            const specs = await getTransactionSpecifications(appId, activeTenantId === 'global' ? undefined : activeTenantId);
+            
+            // Check if specs have mock pattern (txspec-xxx format)
+            if (specs.some(spec => /^txspec-\d{3,}$/.test(spec.TransactionSpecId || ''))) {
+              foundMockSpecs = true;
+            }
+            
+            specsMap.set(appId, specs);
+          } catch (error) {
+            console.error(`Failed to load specs for application ${getApplicationId(app)}:`, error);
+            specsMap.set(getApplicationId(app), []);
+          }
+        })
+      );
+      
+      setIsUsingMockSpecs(foundMockSpecs);
+      setTransactionSpecs(specsMap);
+    } catch (error: any) {
+      console.error('Error loading transaction specifications:', error);
+      setIsUsingMockSpecs(true);
+    } finally {
+      setIsLoadingSpecs(false);
+    }
+  };
+
+  // Reload specifications for a specific application
+  const reloadSpecificationsForApp = async (applicationId: string) => {
+    try {
+      const specs = await getTransactionSpecifications(applicationId, activeTenantId === 'global' ? undefined : activeTenantId);
+      setTransactionSpecs(new Map(transactionSpecs.set(applicationId, specs)));
+    } catch (error: any) {
+      console.error(`Failed to reload specs for application ${applicationId}:`, error);
+      toast.error(`Failed to reload specifications: ${error.message}`);
+    }
+  };
+
+  // Create Transaction Specification
+  const handleCreateSpec = async (data: {
+    specName: string;
+    version: string;
+    description: string;
+    status: 'Active' | 'Inactive';
+    jsonSchema: any;
+  }) => {
+    if (!currentApplicationForSpec) return;
+    
+    setIsSubmittingSpec(true);
+    try {
+      const applicationId = getApplicationId(currentApplicationForSpec);
+      const tenantId = currentApplicationForSpec.TenantId;
+      
+      const created = await createTransactionSpecification({
+        ApplicationId: applicationId,
+        TenantId: tenantId,
+        SpecName: data.specName,
+        Version: data.version,
+        Description: data.description,
+        Status: data.status,
+        JsonSchema: data.jsonSchema
+      });
+      
+      // Reload specifications for this application
+      await reloadSpecificationsForApp(applicationId);
+      
+      setIsSpecCreateOpen(false);
+      setCurrentApplicationForSpec(null);
+      
+      toast.success(`Transaction Specification "${data.specName}" created successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to create specification: ${error.message}`);
+      throw error; // Re-throw to keep dialog open
+    } finally {
+      setIsSubmittingSpec(false);
+    }
+  };
+
+  // Edit Transaction Specification
+  const handleEditSpec = async (data: {
+    specName: string;
+    version: string;
+    description: string;
+    status: 'Active' | 'Inactive';
+    jsonSchema: any;
+  }) => {
+    if (!selectedSpec) return;
+    
+    setIsSubmittingSpec(true);
+    try {
+      const updated = await updateTransactionSpecification(
+        selectedSpec.TransactionSpecId!,
+        {
+          SpecName: data.specName,
+          Version: data.version,
+          Description: data.description,
+          Status: data.status,
+          JsonSchema: data.jsonSchema
+        },
+        selectedSpec._etag
+      );
+      
+      // Reload specifications for this application
+      await reloadSpecificationsForApp(selectedSpec.ApplicationId);
+      
+      setIsSpecEditOpen(false);
+      setSelectedSpec(null);
+      
+      toast.success(`Transaction Specification "${data.specName}" updated successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to update specification: ${error.message}`);
+      throw error; // Re-throw to keep dialog open
+    } finally {
+      setIsSubmittingSpec(false);
+    }
+  };
+
+  // Delete Transaction Specification
+  const handleDeleteSpec = async () => {
+    if (!specToDelete) return;
+    
+    setIsSubmittingSpec(true);
+    try {
+      await deleteTransactionSpecification(
+        specToDelete.TransactionSpecId!,
+        specToDelete._etag
+      );
+      
+      // Reload specifications for this application
+      await reloadSpecificationsForApp(specToDelete.ApplicationId);
+      
+      setIsSpecDeleteOpen(false);
+      setSpecToDelete(null);
+      
+      toast.success(`Transaction Specification "${specToDelete.SpecName}" deleted successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to delete specification: ${error.message}`);
+    } finally {
+      setIsSubmittingSpec(false);
+    }
+  };
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -146,6 +280,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
     { key: 'ApplicationName', label: 'Application', enabled: true, locked: true },
     { key: 'Version', label: 'Version', enabled: true },
     { key: 'CreateTime', label: 'Date', enabled: true },
+    { key: 'TenantId', label: 'Tenant ID', enabled: userRole === 'superuser' }, // Only enabled for SuperUser
     { key: 'ApplicationId', label: 'Application ID', enabled: false },
     { key: 'Status', label: 'Status', enabled: false },
     { key: 'Description', label: 'Description', enabled: false },
@@ -286,34 +421,38 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
   // Create application handler
   const handleCreate = async () => {
-    if (!newApplicationName.trim()) {
+    if (!newApplicationForm.name.trim()) {
       toast.error('Application Name is required');
+      return;
+    }
+
+    // Validate TenantId selection
+    if (!newApplicationForm.tenantId) {
+      toast.error('Please select a Tenant');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const created: Application = {
-        ApplicationId: `app-${Date.now()}`,
-        ApplicationName: newApplicationName.trim(),
-        Version: newApplicationVersion.trim() || '1.0',
-        Description: newApplicationDescription.trim(),
-        Status: 'Active',
-        CreateTime: new Date().toISOString(),
-        UpdateTime: new Date().toISOString(),
-        _etag: `etag-${Date.now()}`,
-      };
+      const created = await createApplication({
+        ApplicationName: newApplicationForm.name.trim(),
+        TenantId: newApplicationForm.tenantId,
+        Version: newApplicationForm.version.trim() || '1.0',
+        Description: newApplicationForm.description.trim(),
+        Status: newApplicationForm.status || 'Active',
+      });
       
       // Add to list (prepend - newest first)
       setApplications([created, ...applications]);
       
       // Reset form
-      setNewApplicationName('');
-      setNewApplicationVersion('');
-      setNewApplicationDescription('');
+      setNewApplicationForm({
+        name: '',
+        tenantId: '',
+        version: '',
+        description: '',
+        status: 'Active'
+      });
       setIsCreateDialogOpen(false);
       
       toast.success(`Application "${getApplicationName(created)}" created successfully!`);
@@ -335,10 +474,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       const idToDelete = getApplicationId(applicationToDelete);
+      
+      // Call real BFS API to delete application
+      await deleteApplication(idToDelete, applicationToDelete._etag);
       
       // Remove from list
       setApplications(applications.filter(app => getApplicationId(app) !== idToDelete));
@@ -363,29 +502,37 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
   // Edit application
   const handleEditClick = (application: Application) => {
     setApplicationToEdit(application);
-    setEditApplicationName(getApplicationName(application));
+    setEditApplicationForm({
+      name: getApplicationName(application),
+      version: application.Version || '',
+      description: application.Description || '',
+      status: application.Status || 'Active'
+    });
     setIsEditOpen(true);
   };
 
   const handleEdit = async () => {
     if (!applicationToEdit) return;
-    if (!editApplicationName.trim()) {
+    if (!editApplicationForm.name.trim()) {
       toast.error('Application Name is required');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Call real BFS API to update application
+      const updated = await updateApplication(
+        getApplicationId(applicationToEdit),
+        {
+          ApplicationName: editApplicationForm.name.trim(),
+          Version: editApplicationForm.version.trim() || '1.0',
+          Description: editApplicationForm.description.trim(),
+          Status: editApplicationForm.status,
+        },
+        applicationToEdit._etag // Pass ETag for optimistic concurrency
+      );
       
-      const updated: Application = {
-        ...applicationToEdit,
-        ApplicationName: editApplicationName.trim(),
-        UpdateTime: new Date().toISOString(),
-      };
-      
-      // Update in list
+      // Update in list with the response from API
       setApplications(applications.map(app => 
         getApplicationId(app) === getApplicationId(updated) ? updated : app
       ));
@@ -548,6 +695,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
         </div>
       </CardHeader>
       <CardContent>
+       
+        
         {isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-12 w-full" />
@@ -577,7 +726,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             expandable={true}
             getRowId={(row) => getApplicationId(row)}
             renderExpandedContent={(row) => {
-              const specifications = getMockSpecifications(getApplicationName(row));
+              const applicationId = getApplicationId(row);
+              const specifications = transactionSpecs.get(applicationId) || [];
               
               return (
                 <div className="space-y-3">
@@ -588,7 +738,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                         size="sm" 
                         className="bg-[#1D6BCD] hover:bg-[#1557A8]"
                         onClick={() => {
-                          toast.info('Add Transaction Specification - Coming soon!');
+                          setCurrentApplicationForSpec(row);
+                          setIsSpecCreateOpen(true);
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
@@ -597,7 +748,12 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                     )}
                   </div>
                   
-                  {specifications.length === 0 ? (
+                  {isLoadingSpecs ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : specifications.length === 0 ? (
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <AppWindow className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
@@ -609,7 +765,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                           variant="outline" 
                           className="mt-3"
                           onClick={() => {
-                            toast.info('Add Transaction Specification - Coming soon!');
+                            setCurrentApplicationForSpec(row);
+                            setIsSpecCreateOpen(true);
                           }}
                         >
                           <Plus className="h-4 w-4 mr-1" />
@@ -622,18 +779,31 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                       <table className="w-full text-sm">
                         <thead className="bg-muted/50 border-b">
                           <tr>
-                            <th className="text-left py-2 px-4">Table</th>
+                            <th className="text-left py-2 px-4">Specification Name</th>
                             <th className="text-left py-2 px-4">Version</th>
-                            <th className="text-left py-2 px-4">Date</th>
-                            <th className="text-right py-2 px-4">Action</th>
+                            <th className="text-left py-2 px-4">Status</th>
+                            <th className="text-left py-2 px-4">Created</th>
+                            <th className="text-right py-2 px-4">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {specifications.map((spec) => (
-                            <tr key={spec.id} className="border-b last:border-0 hover:bg-muted/30">
-                              <td className="py-2 px-4">{spec.table}</td>
-                              <td className="py-2 px-4">{spec.version}</td>
-                              <td className="py-2 px-4">{spec.date}</td>
+                            <tr key={spec.TransactionSpecId} className="border-b last:border-0 hover:bg-muted/30">
+                              <td className="py-2 px-4 font-medium">{spec.SpecName}</td>
+                              <td className="py-2 px-4">
+                                <Badge variant="outline" className="text-xs">{spec.Version}</Badge>
+                              </td>
+                              <td className="py-2 px-4">
+                                <Badge 
+                                  variant={spec.Status === 'Active' ? 'default' : 'secondary'}
+                                  className="text-xs"
+                                >
+                                  {spec.Status || 'Active'}
+                                </Badge>
+                              </td>
+                              <td className="py-2 px-4 text-xs text-muted-foreground">
+                                {spec.CreateTime ? new Date(spec.CreateTime).toLocaleDateString() : '—'}
+                              </td>
                               <td className="py-2 px-4">
                                 <div className="flex gap-1 justify-end">
                                   <Button
@@ -776,8 +946,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               <Input
                 id="applicationName"
                 placeholder="Enter application name"
-                value={newApplicationName}
-                onChange={(e) => setNewApplicationName(e.target.value)}
+                value={newApplicationForm.name}
+                onChange={(e) => setNewApplicationForm({ ...newApplicationForm, name: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -791,9 +961,56 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               <Input
                 id="applicationVersion"
                 placeholder="e.g., 1.0"
-                value={newApplicationVersion}
-                onChange={(e) => setNewApplicationVersion(e.target.value)}
+                value={newApplicationForm.version}
+                onChange={(e) => setNewApplicationForm({ ...newApplicationForm, version: e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="applicationTenant">Tenant</Label>
+              <Select
+                value={newApplicationForm.tenantId}
+                onValueChange={(value) => setNewApplicationForm({ ...newApplicationForm, tenantId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a tenant">
+                    {newApplicationForm.tenantId ? tenants.find(t => t.TenantId === newApplicationForm.tenantId)?.TenantName : 'Select a tenant'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map(tenant => (
+                    <SelectItem key={tenant.TenantId} value={tenant.TenantId}>
+                      {tenant.TenantName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="applicationDescription">Description</Label>
+              <Textarea
+                id="applicationDescription"
+                placeholder="Enter application description (optional)"
+                value={newApplicationForm.description}
+                onChange={(e) => setNewApplicationForm({ ...newApplicationForm, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="applicationStatus">Status</Label>
+              <Select
+                value={newApplicationForm.status}
+                onValueChange={(value) => setNewApplicationForm({ ...newApplicationForm, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status">
+                    {newApplicationForm.status}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -801,9 +1018,13 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               variant="outline"
               onClick={() => {
                 setIsCreateDialogOpen(false);
-                setNewApplicationName('');
-                setNewApplicationVersion('');
-                setNewApplicationDescription('');
+                setNewApplicationForm({
+                  name: '',
+                  tenantId: '',
+                  version: '',
+                  description: '',
+                  status: 'Active'
+                });
               }}
               disabled={isSubmitting}
             >
@@ -822,7 +1043,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
           <DialogHeader>
             <DialogTitle>Edit Application</DialogTitle>
             <DialogDescription>
-              Update application name
+              Update application information
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -831,8 +1052,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               <Input
                 id="editApplicationName"
                 placeholder="Enter application name"
-                value={editApplicationName}
-                onChange={(e) => setEditApplicationName(e.target.value)}
+                value={editApplicationForm.name}
+                onChange={(e) => setEditApplicationForm({ ...editApplicationForm, name: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -841,6 +1062,42 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                 }}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="editApplicationVersion">Version</Label>
+              <Input
+                id="editApplicationVersion"
+                placeholder="e.g., 1.0"
+                value={editApplicationForm.version}
+                onChange={(e) => setEditApplicationForm({ ...editApplicationForm, version: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editApplicationDescription">Description</Label>
+              <Textarea
+                id="editApplicationDescription"
+                placeholder="Enter application description (optional)"
+                value={editApplicationForm.description}
+                onChange={(e) => setEditApplicationForm({ ...editApplicationForm, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editApplicationStatus">Status</Label>
+              <Select
+                value={editApplicationForm.status}
+                onValueChange={(value) => setEditApplicationForm({ ...editApplicationForm, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status">
+                    {editApplicationForm.status}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -848,7 +1105,12 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               onClick={() => {
                 setIsEditOpen(false);
                 setApplicationToEdit(null);
-                setEditApplicationName('');
+                setEditApplicationForm({
+                  name: '',
+                  version: '',
+                  description: '',
+                  status: 'Active'
+                });
               }}
               disabled={isSubmitting}
             >
@@ -943,52 +1205,35 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
       </Dialog>
 
       {/* View Transaction Specification Dialog */}
-      <Dialog open={isSpecViewOpen} onOpenChange={setIsSpecViewOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Transaction Specification Details</DialogTitle>
-            <DialogDescription>
-              View transaction specification information
-            </DialogDescription>
-          </DialogHeader>
-          {selectedSpec && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Table</p>
-                  <p className="text-sm">{selectedSpec.table}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Version</p>
-                  <p className="text-sm">{selectedSpec.version}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Date</p>
-                  <p className="text-sm">{selectedSpec.date}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setIsSpecViewOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TransactionSpecificationViewDialog
+        open={isSpecViewOpen}
+        onOpenChange={setIsSpecViewOpen}
+        specification={selectedSpec}
+      />
+
+      {/* Create Transaction Specification Dialog */}
+      <TransactionSpecificationDialog
+        open={isSpecCreateOpen}
+        onOpenChange={setIsSpecCreateOpen}
+        mode="create"
+        specification={null}
+        applicationId={currentApplicationForSpec ? getApplicationId(currentApplicationForSpec) : ''}
+        tenantId={currentApplicationForSpec?.TenantId || ''}
+        onSubmit={handleCreateSpec}
+        isSubmitting={isSubmittingSpec}
+      />
 
       {/* Edit Transaction Specification Dialog */}
-      <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Transaction Specification</DialogTitle>
-            <DialogDescription>
-              Edit specification - Coming soon!
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setIsSpecEditOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TransactionSpecificationDialog
+        open={isSpecEditOpen}
+        onOpenChange={setIsSpecEditOpen}
+        mode="edit"
+        specification={selectedSpec}
+        applicationId={selectedSpec?.ApplicationId || ''}
+        tenantId={selectedSpec?.TenantId || ''}
+        onSubmit={handleEditSpec}
+        isSubmitting={isSubmittingSpec}
+      />
 
       {/* Delete Transaction Specification Dialog */}
       <AlertDialog open={isSpecDeleteOpen} onOpenChange={setIsSpecDeleteOpen}>
@@ -996,11 +1241,18 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Transaction Specification</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete specification - Coming soon!
+              Are you sure you want to delete "{specToDelete?.SpecName}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmittingSpec}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSpec}
+              disabled={isSubmittingSpec}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isSubmittingSpec ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
