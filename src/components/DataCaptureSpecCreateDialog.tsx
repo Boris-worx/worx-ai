@@ -151,6 +151,7 @@ export function DataCaptureSpecCreateDialog({
       const schema = await getApicurioArtifact(
         artifact.groupId,
         artifact.artifactId,
+        artifact.version, // Pass version (e.g., "1.0.0" for CDC artifacts, undefined for others)
       );
 
       // Process schema - handle both JSON Schema and AVRO formats
@@ -182,6 +183,8 @@ export function DataCaptureSpecCreateDialog({
       const propertyNames = Object.keys(
         jsonSchema.properties || {},
       );
+      console.log('📦 All property names from jsonSchema.properties:', propertyNames);
+      
       const allowedFilters = propertyNames
         .filter(
           (name) =>
@@ -190,6 +193,9 @@ export function DataCaptureSpecCreateDialog({
             ),
         )
         .join(", ");
+      
+      console.log('📦 Allowed filters (filtered):', allowedFilters);
+      console.log('📦 Required fields from jsonSchema:', jsonSchema.required);
 
       // Auto-populate form
       setFormData((prev) => ({

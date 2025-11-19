@@ -57,20 +57,43 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
 function getMockApicurioArtifacts(): ApicurioSearchResponse {
   return {
     artifacts: [
+      // CDC Format artifacts (use version 1.0.0)
       {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.LineTypes.Value",
+        artifactId: "CDC_SQLServer_WorkflowCustomers",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.LineTypes.Value",
-        description: "AVRO schema for LineTypes",
-        createdOn: "2025-11-18T15:35:18Z",
-        modifiedOn: "2025-11-18T15:35:18Z"
+        name: "WorkflowCustomers (CDC)",
+        description: "CDC AVRO schema for WorkflowCustomers",
+        createdOn: "2025-11-18T15:36:35Z",
+        modifiedOn: "2025-11-18T15:36:35Z",
+        version: "1.0.0"
       },
+      {
+        artifactId: "CDC_SQLServer_LineTypes",
+        groupId: "paradigm.bidtools",
+        artifactType: "AVRO",
+        name: "LineTypes (CDC)",
+        description: "CDC AVRO schema for LineTypes",
+        createdOn: "2025-11-18T15:35:18Z",
+        modifiedOn: "2025-11-18T15:35:18Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "CDC_SQLServer_ServiceRequests",
+        groupId: "paradigm.bidtools",
+        artifactType: "AVRO",
+        name: "ServiceRequests (CDC)",
+        description: "CDC AVRO schema for ServiceRequests",
+        createdOn: "2025-11-18T15:36:30Z",
+        modifiedOn: "2025-11-18T15:36:30Z",
+        version: "1.0.0"
+      },
+      // Original format artifacts
       {
         artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuoteDetails.Value",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.QuoteDetails.Value",
+        name: "QuoteDetails (AVRO)",
         description: "AVRO schema for QuoteDetails",
         createdOn: "2025-11-18T15:35:18Z",
         modifiedOn: "2025-11-18T15:35:18Z"
@@ -79,7 +102,7 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value",
+        name: "QuotePacks (AVRO)",
         description: "AVRO schema for QuotePacks",
         createdOn: "2025-11-18T15:36:08Z",
         modifiedOn: "2025-11-18T15:36:08Z"
@@ -88,7 +111,7 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         artifactId: "paradigm.bidtools.ppapdb_import.bfs.Quotes.Value",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.Quotes.Value",
+        name: "Quotes (AVRO)",
         description: "AVRO schema for Quotes",
         createdOn: "2025-11-18T15:36:17Z",
         modifiedOn: "2025-11-18T15:36:17Z"
@@ -97,28 +120,10 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         artifactId: "paradigm.bidtools.ppapdb_import.bfs.ReasonCodes.Value",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.ReasonCodes.Value",
+        name: "ReasonCodes (AVRO)",
         description: "AVRO schema for ReasonCodes",
         createdOn: "2025-11-18T15:36:25Z",
         modifiedOn: "2025-11-18T15:36:25Z"
-      },
-      {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.ServiceRequests.Value",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.ServiceRequests.Value",
-        description: "AVRO schema for ServiceRequests",
-        createdOn: "2025-11-18T15:36:30Z",
-        modifiedOn: "2025-11-18T15:36:30Z"
-      },
-      {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.WorkflowCustomers.Value",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "paradigm.bidtools.ppapdb_import.bfs.WorkflowCustomers.Value",
-        description: "AVRO schema for WorkflowCustomers",
-        createdOn: "2025-11-18T15:36:35Z",
-        modifiedOn: "2025-11-18T15:36:35Z"
       }
     ],
     count: 7
@@ -126,9 +131,13 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
 }
 
 // Get artifact content (schema) by groupId and artifactId
-export async function getApicurioArtifact(groupId: string, artifactId: string): Promise<any> {
+export async function getApicurioArtifact(groupId: string, artifactId: string, version?: string): Promise<any> {
   try {
-    const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}`;
+    // Use version if provided (for CDC artifacts: 1.0.0), otherwise use 'latest'
+    const versionPath = version || 'latest';
+    const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionPath}/content`;
+    
+    console.log('📦 Fetching artifact from:', url);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -140,11 +149,15 @@ export async function getApicurioArtifact(groupId: string, artifactId: string): 
     });
 
     if (!response.ok) {
-      throw new Error(`Apicurio API returned ${response.status}`);
+      console.error('❌ Apicurio API error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('❌ Error body:', errorText);
+      throw new Error(`Apicurio API returned ${response.status}: ${errorText}`);
     }
 
     const schema = await response.json();
     console.log('📦 Loaded schema from Apicurio Registry:', artifactId);
+    console.log('📦 Schema keys:', Object.keys(schema).join(', '));
     return schema;
   } catch (error: any) {
     // Return mock schema for development (CORS or network issues)
@@ -160,7 +173,149 @@ export async function getApicurioArtifact(groupId: string, artifactId: string): 
 
 // Mock schema data for development
 function getMockArtifactSchema(artifactId: string): any {
-  // Generic schema based on artifact type
+  // CDC Format schemas (Debezium Envelope)
+  if (artifactId === 'CDC_SQLServer_LineTypes') {
+    return {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ENVELOPE",
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [null, { "type": "object", "properties": {} }]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "title": "VALUE",
+              "type": "object",
+              "properties": {
+                "LineTypeId": { "type": "integer" },
+                "LineTypeCode": { "type": "string" },
+                "Description": { "type": "string" },
+                "ColorCode": { "type": ["string", "null"] },
+                "SortOrder": { "type": "integer" },
+                "SkuType": { "type": "integer" },
+                "CategoryRequired": { "type": "integer" },
+                "ManualCostRequired": { "type": "integer" },
+                "ManualPriceRequired": { "type": "integer" },
+                "IsNotesAllowed": { "type": "boolean" },
+                "DefaultSku": { "type": ["string", "null"] },
+                "DefaultDescription": { "type": ["string", "null"] },
+                "DefaultCategory": { "type": ["string", "null"] },
+                "DefaultQuantity": { "type": ["integer", "null"] },
+                "ErpOrderLineType": { "type": ["string", "null"] },
+                "ERP": { "type": "string" },
+                "IsActive": { "type": "boolean" },
+                "IsSkuTypeDefault": { "type": "boolean" },
+                "EnforceQuantityOfOne": { "type": "boolean" },
+                "IsInstallOnly": { "type": "boolean" }
+              },
+              "required": [
+                "LineTypeId",
+                "LineTypeCode",
+                "Description",
+                "SortOrder",
+                "SkuType",
+                "CategoryRequired",
+                "ManualCostRequired",
+                "ManualPriceRequired",
+                "ERP",
+                "IsActive"
+              ]
+            },
+            null
+          ]
+        }
+      }
+    };
+  } else if (artifactId === 'CDC_SQLServer_WorkflowCustomers') {
+    return {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ENVELOPE",
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [null, { "type": "object", "properties": {} }]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "title": "VALUE",
+              "type": "object",
+              "properties": {
+                "WorkflowCustomerId": { "type": "integer" },
+                "OnlineAlphaCode": { "type": "string" },
+                "CustomerName": { "type": "string" },
+                "CreatedBy": { "type": ["string", "null"] },
+                "CreatedDate": { "type": "string", "format": "date-time" },
+                "LastModifiedBy": { "type": ["string", "null"] },
+                "LastModifiedDate": { "type": ["string", "null"], "format": "date-time" },
+                "CustomerErpSystem": { "type": ["string", "null"] },
+                "DefaultWorkFlowMarketId": { "type": ["integer", "null"] },
+                "DefaultWorkflowLocationId": { "type": ["integer", "null"] },
+                "DefaultSalesRepResourceId": { "type": ["integer", "null"] },
+                "GeoOverrideDefaultWorkFlowMarketId": { "type": ["integer", "null"] },
+                "AccountType": { "type": ["string", "null"] }
+              },
+              "required": [
+                "WorkflowCustomerId",
+                "OnlineAlphaCode",
+                "CustomerName",
+                "CreatedDate"
+              ]
+            },
+            null
+          ]
+        }
+      }
+    };
+  } else if (artifactId === 'CDC_SQLServer_ServiceRequests') {
+    return {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ENVELOPE",
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [null, { "type": "object", "properties": {} }]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "title": "VALUE",
+              "type": "object",
+              "properties": {
+                "ServiceRequestId": { "type": "integer" },
+                "RequestNumber": { "type": "string" },
+                "CustomerId": { "type": "integer" },
+                "RequestDate": { "type": "string", "format": "date-time" },
+                "Status": { "type": "string" },
+                "Priority": { "type": ["string", "null"] },
+                "AssignedTo": { "type": ["string", "null"] },
+                "Description": { "type": ["string", "null"] },
+                "Resolution": { "type": ["string", "null"] },
+                "CreatedBy": { "type": "string" },
+                "CreatedDate": { "type": "string", "format": "date-time" },
+                "LastModifiedBy": { "type": ["string", "null"] },
+                "LastModifiedDate": { "type": ["string", "null"], "format": "date-time" }
+              },
+              "required": [
+                "ServiceRequestId",
+                "RequestNumber",
+                "CustomerId",
+                "RequestDate",
+                "Status",
+                "CreatedBy",
+                "CreatedDate"
+              ]
+            },
+            null
+          ]
+        }
+      }
+    };
+  }
+  
+  // Original format artifacts
   if (artifactId.includes('QuotePacks')) {
     return {
       type: 'object',
@@ -332,7 +487,7 @@ export function convertAvroToJsonSchema(avroSchema: any): any {
 
     return jsonSchema;
   } catch (error) {
-    console.error('��� Error converting AVRO to JSON Schema:', error);
+    console.error(' Error converting AVRO to JSON Schema:', error);
     throw error;
   }
 }
@@ -396,17 +551,26 @@ export function getArtifactDisplayName(artifact: ApicurioArtifact): string {
 
 // Process schema - handle both JSON Schema and AVRO formats
 export function processSchema(schema: any, artifactType: string): any {
+  console.log('📦 Processing schema, artifactType:', artifactType);
+  console.log('📦 Full schema:', JSON.stringify(schema, null, 2));
+  
   // Handle CDC JSON Schema format (Debezium-style)
   // Structure: { properties: { after: { anyOf: [{ properties: {...} }, null] } } }
   if (schema.properties && schema.properties.after) {
+    console.log('📦 Detected "properties.after" field - checking for CDC pattern');
     const afterField = schema.properties.after;
     
     // Check for anyOf pattern (union with null)
     if (afterField.anyOf && Array.isArray(afterField.anyOf)) {
+      console.log('📦 Found "anyOf" pattern, extracting non-null schema');
       // Find the non-null schema
       const valueSchema = afterField.anyOf.find((s: any) => s && s.type === 'object' && s.properties);
       if (valueSchema) {
-        console.log('📦 Detected CDC JSON Schema, extracting fields from "after.anyOf" record');
+        const fieldNames = Object.keys(valueSchema.properties || {});
+        console.log('📦 ✅ Detected CDC JSON Schema, extracting fields from "after.anyOf" record');
+        console.log('📦 Found fields:', fieldNames);
+        console.log('📦 Required fields:', valueSchema.required || []);
+        
         // Extract properties from the CDC "after" field
         const cdcProperties = valueSchema.properties || {};
         const cdcRequired = valueSchema.required || [];
@@ -422,42 +586,71 @@ export function processSchema(schema: any, artifactType: string): any {
         });
       }
     }
+    
+    // Check for direct properties (no anyOf)
+    if (afterField.properties) {
+      const fieldNames = Object.keys(afterField.properties || {});
+      console.log('📦 ✅ Detected CDC JSON Schema (direct), extracting fields from "after.properties"');
+      console.log('📦 Found fields:', fieldNames);
+      
+      return enhanceJsonSchemaWithIRCMetadata({
+        schemaVersion: 1,
+        type: 'object',
+        title: afterField.title || schema.title || 'Schema',
+        description: afterField.description || schema.description || 'Generated from CDC JSON Schema',
+        properties: afterField.properties,
+        required: afterField.required || []
+      });
+    }
   }
   
   // Handle CDC AVRO format
   // These have structure like { type: "record", fields: [{ name: "after", type: { type: "record", fields: [...] } }] }
   if (artifactType === 'AVRO' && schema.type === 'record' && Array.isArray(schema.fields)) {
+    console.log('📦 AVRO schema detected, checking for CDC pattern...');
+    console.log('📦 Top-level fields:', schema.fields.map((f: any) => f.name).join(', '));
+    
     // Check if this is a CDC schema (has 'after' field with nested record)
     const afterField = schema.fields.find((f: any) => f.name === 'after');
     if (afterField && afterField.type && Array.isArray(afterField.type)) {
       // Union type - find the record type
       const recordType = afterField.type.find((t: any) => t && typeof t === 'object' && t.type === 'record');
       if (recordType && Array.isArray(recordType.fields)) {
-        console.log('📦 Detected CDC AVRO schema, extracting fields from "after" record');
+        const fieldNames = recordType.fields.map((f: any) => f.name);
+        console.log('📦 ✅ Detected CDC AVRO schema (union type), extracting fields from "after" record');
+        console.log('📦 After fields:', fieldNames);
         // Use the nested record schema instead
         return convertAvroToJsonSchema(recordType);
       }
     } else if (afterField && afterField.type && typeof afterField.type === 'object' && afterField.type.type === 'record') {
       // Direct record type (not union)
-      console.log('📦 Detected CDC AVRO schema, extracting fields from "after" record');
+      const fieldNames = afterField.type.fields.map((f: any) => f.name);
+      console.log('📦 ✅ Detected CDC AVRO schema (direct type), extracting fields from "after" record');
+      console.log('📦 After fields:', fieldNames);
       return convertAvroToJsonSchema(afterField.type);
     }
     
     // Not a CDC schema, process normally
+    console.log('📦 Not a CDC schema, processing as regular AVRO schema');
     return convertAvroToJsonSchema(schema);
   }
   
   // If it's already a JSON Schema, enhance it with IRC metadata
   if (schema.type === 'object' || schema.properties) {
+    console.log('📦 JSON Schema detected, enhancing with IRC metadata');
+    const fieldNames = Object.keys(schema.properties || {});
+    console.log('📦 Found fields:', fieldNames);
     return enhanceJsonSchemaWithIRCMetadata(schema);
   }
   
   // If it's AVRO, convert to JSON Schema
   if (artifactType === 'AVRO' && schema.type === 'record') {
+    console.log('📦 AVRO schema detected, converting to JSON Schema');
     return convertAvroToJsonSchema(schema);
   }
   
   // Otherwise, return as-is wrapped in a JSON Schema structure
+  console.log('📦 Unknown schema format, wrapping in JSON Schema structure');
   return enhanceJsonSchemaWithIRCMetadata(schema);
 }
 
