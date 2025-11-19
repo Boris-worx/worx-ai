@@ -513,14 +513,9 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
         </CardHeader>
         <CardContent>
           {tenants.length === 0 ? (
-            /* Empty State - Show only Import button */
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Upload className="h-16 w-16 text-muted-foreground mb-4" />
-              <h3 className="text-lg mb-2">Tenants are loading</h3>
-              <p className="text-muted-foreground mb-6 max-w-md">
-               No tenants available. Contact a SuperUser to import tenant data.
-              </p>
-          
+            /* Loading State - Show only spinner */
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           ) : (
             /* Full Functionality - Show after tenants are imported */

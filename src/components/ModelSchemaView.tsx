@@ -561,18 +561,9 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             <Skeleton className="h-12 w-full" />
           </div>
         ) : schemaError ? (
-          <div className="text-center py-12 border-2 border-dashed rounded-lg">
-            <FileCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="mb-2">No Schemas Found</h3>
-            <p className="text-muted-foreground mb-4">
-              {schemaError}
-            </p>
-            {canCreate && (
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Schema
-              </Button>
-            )}
+          /* Loading State - Show only spinner */
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : (
           <DataTable

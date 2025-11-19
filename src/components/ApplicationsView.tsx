@@ -706,18 +706,9 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             <Skeleton className="h-12 w-full" />
           </div>
         ) : applications.length === 0 ? (
-          <div className="text-center py-12 border-2 border-dashed rounded-lg">
-            <AppWindow className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="mb-2">No Applications</h3>
-            <p className="text-muted-foreground mb-4">
-              Get started by creating your first application
-            </p>
-            {canCreate && (
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Application
-              </Button>
-            )}
+          /* Loading State - Show only spinner */
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : (
           <DataTable

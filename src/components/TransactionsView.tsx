@@ -56,6 +56,8 @@ import {
   MoreVertical,
   Filter,
   RefreshCw,
+  ArrowUpDown,
+  Check,
 } from "lucide-react";
 import { DataTable } from "./DataTable";
 import { TransactionDetail } from "./TransactionDetail";
@@ -128,6 +130,10 @@ export function TransactionsView({
   const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
   const [isLoadingSpecs, setIsLoadingSpecs] = useState(true);
   
+  // State for sorting transaction types
+  type SortMode = 'name-asc' | 'name-desc' | 'count-asc' | 'count-desc';
+  const [sortMode, setSortMode] = useState<SortMode>('name-asc');
+
   // Build dynamic transaction types list from Data Capture Specs
   const transactionTypes = useMemo(() => {
     // All supported transaction types from BFS API
@@ -940,6 +946,32 @@ export function TransactionsView({
       type.toLowerCase().includes(lower),
     );
   }, [searchTerm, transactionTypes]);
+  
+  // Sort filtered types based on sort mode
+  const sortedFilteredTypes = useMemo(() => {
+    const typesToSort = filteredTypes.filter((type) => {
+      const count = typeCounts[type] || 0;
+      return count > 0;
+    });
+    
+    return [...typesToSort].sort((a, b) => {
+      const countA = typeCounts[a] || 0;
+      const countB = typeCounts[b] || 0;
+      
+      switch (sortMode) {
+        case 'name-asc':
+          return a.localeCompare(b);
+        case 'name-desc':
+          return b.localeCompare(a);
+        case 'count-desc':
+          return countB - countA;
+        case 'count-asc':
+          return countA - countB;
+        default:
+          return 0;
+      }
+    });
+  }, [filteredTypes, typeCounts, sortMode]);
 
   // Helper function to get nested value from object
   const getNestedValue = (obj: any, path: string): any => {
@@ -1333,7 +1365,7 @@ export function TransactionsView({
         </CardHeader>
         <CardContent className="overflow-x-hidden">
           {/* Top Bar - Headers */}
-          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[200px_1fr] gap-6 mb-3">
+          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[260px_1fr] gap-6 mb-3">
             {/* Left: Transaction Types Header - Hidden on mobile */}
             <div className="hidden md:flex items-center gap-2">
               <h3 className="text-base md:text-lg">
@@ -1459,20 +1491,52 @@ export function TransactionsView({
           </div>
 
           {/* Main Layout: Sidebar + Content */}
-          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
             {/* Left Sidebar - Transaction Types List */}
             <div className="space-y-3 md:block hidden">
-              {/* Search Types */}
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search types..."
-                  value={searchTerm}
-                  onChange={(e) =>
-                    setSearchTerm(e.target.value)
-                  }
-                  className="pl-9"
-                />
+              {/* Search Types and Sort */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search types..."
+                    value={searchTerm}
+                    onChange={(e) =>
+                      setSearchTerm(e.target.value)
+                    }
+                    className="pl-9"
+                  />
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="flex-shrink-0"
+                    >
+                      <ArrowUpDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortMode('name-asc')}>
+                      <Check className={`h-4 w-4 mr-2 ${sortMode === 'name-asc' ? 'opacity-100' : 'opacity-0'}`} />
+                      Name (A-Z)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortMode('name-desc')}>
+                      <Check className={`h-4 w-4 mr-2 ${sortMode === 'name-desc' ? 'opacity-100' : 'opacity-0'}`} />
+                      Name (Z-A)
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setSortMode('count-desc')}>
+                      <Check className={`h-4 w-4 mr-2 ${sortMode === 'count-desc' ? 'opacity-100' : 'opacity-0'}`} />
+                      Count (High to Low)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortMode('count-asc')}>
+                      <Check className={`h-4 w-4 mr-2 ${sortMode === 'count-asc' ? 'opacity-100' : 'opacity-0'}`} />
+                      Count (Low to High)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {/* Types List */}
@@ -1488,11 +1552,7 @@ export function TransactionsView({
                     </div>
                   ) : (
                     <div className="space-y-1 p-2">
-                      {filteredTypes
-                        .filter((type) => {
-                          const count = typeCounts[type] || 0;
-                          return count > 0; // Показываем только типы с данными
-                        })
+                      {sortedFilteredTypes
                         .map((type) => {
                           const count = typeCounts[type] || 0;
 
@@ -1504,15 +1564,21 @@ export function TransactionsView({
                                   ? "default"
                                   : "ghost"
                               }
-                              className="w-full justify-start text-left h-auto py-1.5 px-3"
+                              className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
                               onClick={() =>
                                 handleTypeChange(type)
                               }
                               title={`${count} transaction(s)`}
                             >
-                              <span className="text-sm truncate">
+                              <span className="text-sm truncate flex-1">
                                 {formatTransactionType(type)}
                               </span>
+                              <Badge 
+                                variant={selectedTxnType === type ? "secondary" : "outline"}
+                                className="ml-auto flex-shrink-0 text-xs"
+                              >
+                                {count}
+                              </Badge>
                             </Button>
                           );
                         })}
@@ -1535,29 +1601,11 @@ export function TransactionsView({
                 </div>
               )}
 
-              {/* Empty State */}
+              {/* Empty State - Loading Spinner */}
               {transactions.length === 0 && !isLoadingType && (
-                <Card className="border-2 border-dashed">
-                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                    <Receipt className="h-16 w-16 text-muted-foreground mb-4" />
-                    <h3 className="text-lg mb-2">
-                      No {selectedTxnType} transactions
-                    </h3>
-                    <p className="text-muted-foreground mb-4 max-w-sm">
-                      No transactions found in the database for
-                      this type. Create your first transaction
-                      to get started.
-                    </p>
-                    <Button
-                      onClick={() =>
-                        setIsCreateDialogOpen(true)
-                      }
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create {selectedTxnType} Transaction
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
               )}
 
               {/* Data Table */}

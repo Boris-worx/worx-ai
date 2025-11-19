@@ -2,6 +2,18 @@
 
 const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
 
+// Cache for artifacts search results (avoid repeated API calls)
+let artifactsCache: ApicurioSearchResponse | null = null;
+let artifactsCacheTimestamp = 0;
+const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// Clear the artifacts cache (useful for force refresh)
+export function clearArtifactsCache() {
+  artifactsCache = null;
+  artifactsCacheTimestamp = 0;
+  console.log('📦 Apicurio artifacts cache cleared');
+}
+
 export interface ApicurioArtifact {
   artifactId: string;
   groupId: string;
@@ -21,6 +33,15 @@ export interface ApicurioSearchResponse {
 // Search Apicurio artifacts by name pattern
 export async function searchApicurioArtifacts(namePattern: string = 'Value'): Promise<ApicurioSearchResponse> {
   try {
+    // Check cache first
+    const now = Date.now();
+    if (artifactsCache && (now - artifactsCacheTimestamp) < CACHE_DURATION_MS) {
+      console.log('📦 Using cached Apicurio artifacts (age:', Math.round((now - artifactsCacheTimestamp) / 1000), 'seconds)');
+      return artifactsCache;
+    }
+    
+    console.log('📦 Fetching fresh Apicurio artifacts...');
+    
     // Get all artifacts from paradigm.bidtools group
     // Using group-specific endpoint to get all 12 artifacts
     const url = `${APICURIO_REGISTRY_URL}/groups/paradigm.bidtools/artifacts?limit=100`;
@@ -40,6 +61,11 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
 
     const data: ApicurioSearchResponse = await response.json();
     console.log(`📦 Loaded ${data.count} Apicurio artifacts from paradigm.bidtools group`);
+    
+    // Update cache
+    artifactsCache = data;
+    artifactsCacheTimestamp = now;
+    
     return data;
   } catch (error: any) {
     // Return mock data for development (CORS or network issues)

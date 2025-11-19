@@ -541,16 +541,20 @@ export function DataCaptureSpecCreateDialog({
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {apicurioArtifacts.map((artifact) => (
+                      {apicurioArtifacts
+                        .slice()
+                        .sort((a, b) => {
+                          const nameA = getArtifactDisplayName(a).toLowerCase();
+                          const nameB = getArtifactDisplayName(b).toLowerCase();
+                          return nameA.localeCompare(nameB);
+                        })
+                        .map((artifact) => (
                         <SelectItem
                           key={artifact.artifactId}
                           value={artifact.artifactId}
                           className="text-xs"
                         >
-                          {extractArtifactName(
-                            artifact.artifactId,
-                          )}{" "}
-                          ({artifact.artifactType})
+                          {getArtifactDisplayName(artifact)}
                         </SelectItem>
                       ))}
                       {apicurioArtifacts.length === 0 &&
