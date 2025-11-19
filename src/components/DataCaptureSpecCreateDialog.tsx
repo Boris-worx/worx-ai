@@ -93,7 +93,7 @@ export function DataCaptureSpecCreateDialog({
     version: 1,
     profile: "data-capture",
     sourcePrimaryKeyField: "",
-    partitionKeyField: "",
+    partitionKeyField: "id", // Default to "id"
     partitionKeyValue: "",
     allowedFilters: [] as string[], // Changed from allowedFiltersText to array
     requiredFields: [] as string[],
@@ -116,6 +116,10 @@ export function DataCaptureSpecCreateDialog({
       console.log(
         `✅ Loaded ${response.count} Apicurio artifacts`,
       );
+      // Log each artifact for debugging
+      response.artifacts.forEach((artifact, index) => {
+        console.log(`  ${index + 1}. ${artifact.artifactId} (${artifact.artifactType})`);
+      });
     } catch (error) {
       console.error(
         "Failed to load Apicurio artifacts:",
@@ -169,6 +173,9 @@ export function DataCaptureSpecCreateDialog({
       // Container Name: plural form (keep as-is: QuotePacks)
       const containerNamePlural = specName;
 
+      // Generate Primary Key Field: QuotePack -> quotePackId
+      const primaryKeyField = specNameSingular.charAt(0).toLowerCase() + specNameSingular.slice(1) + "Id";
+
       // Get all property names for allowed filters
       const propertyNames = Object.keys(
         jsonSchema.properties || {},
@@ -187,8 +194,8 @@ export function DataCaptureSpecCreateDialog({
         ...prev,
         dataCaptureSpecName: specNameSingular,
         containerName: containerNamePlural,
-        sourcePrimaryKeyField: "id",
-        partitionKeyField: "partitionKey",
+        sourcePrimaryKeyField: primaryKeyField, // Auto-generated: quotePackId
+        partitionKeyField: "id", // Changed from "partitionKey" to "id"
         allowedFilters: allowedFilters.split(", ").map((f) => f.trim()),
         requiredFields: Array.isArray(jsonSchema.required)
           ? jsonSchema.required
@@ -277,7 +284,7 @@ export function DataCaptureSpecCreateDialog({
         isActive: true,
         profile: "data-capture",
         sourcePrimaryKeyField: "id",
-        partitionKeyField: "partitionKey",
+        partitionKeyField: "id", // Changed from "partitionKey" to "id"
         partitionKeyValue: "",
         allowedFilters: ["id", "customerId", "quoteStatus"],
         requiredFields: ["id"],
@@ -302,7 +309,7 @@ export function DataCaptureSpecCreateDialog({
         version: 1,
         profile: "data-capture",
         sourcePrimaryKeyField: "",
-        partitionKeyField: "",
+        partitionKeyField: "id", // Default to "id"
         partitionKeyValue: "",
         allowedFilters: [],
         requiredFields: [],
@@ -672,7 +679,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="partitionKeyField"
-                        placeholder="e.g., partitionKey"
+                        placeholder="e.g., id"
                         value={formData.partitionKeyField}
                         onChange={(e) =>
                           setFormData({
@@ -967,7 +974,7 @@ export function DataCaptureSpecCreateDialog({
                 className="bg-white rounded-[10px] border px-4 py-0"
               >
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
-                  <div className="flex items-center justify-between w-full pr-4">
+                  <div className="flex items-center justify-between w-full p-[0px]">
                     <span>Additional Fields</span>
                     <Badge variant="outline" className="text-[10px]">
                       Optional

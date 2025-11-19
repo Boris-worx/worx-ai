@@ -21,8 +21,9 @@ export interface ApicurioSearchResponse {
 // Search Apicurio artifacts by name pattern
 export async function searchApicurioArtifacts(namePattern: string = 'Value'): Promise<ApicurioSearchResponse> {
   try {
-    // Search all artifacts without name filter to get all available schemas
-    const url = `${APICURIO_REGISTRY_URL}/search/artifacts`;
+    // Get all artifacts from paradigm.bidtools group
+    // Using group-specific endpoint to get all 12 artifacts
+    const url = `${APICURIO_REGISTRY_URL}/groups/paradigm.bidtools/artifacts?limit=100`;
     
     const response = await fetch(url, {
       method: 'GET',
@@ -38,12 +39,12 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     }
 
     const data: ApicurioSearchResponse = await response.json();
-    console.log(`📦 Loaded ${data.count} Apicurio artifacts from registry`);
+    console.log(`📦 Loaded ${data.count} Apicurio artifacts from paradigm.bidtools group`);
     return data;
   } catch (error: any) {
     // Return mock data for development (CORS or network issues)
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.log('📦 Using local Apicurio templates (4 available)');
+      console.log('📦 Using local Apicurio templates (12 available)');
       return getMockApicurioArtifacts();
     }
     
@@ -57,43 +58,70 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
   return {
     artifacts: [
       {
-        artifactId: "TxServices_SQLServer_QuoteDetails.response",
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.LineTypes.Value",
         groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "TxServices_SQLServer_QuoteDetails.response",
-        description: "Response schema for SQL Server TxServices QuoteDetails",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.LineTypes.Value",
+        description: "AVRO schema for LineTypes",
         createdOn: "2025-11-18T15:35:18Z",
         modifiedOn: "2025-11-18T15:35:18Z"
       },
       {
-        artifactId: "TxServices_SQLServer_QuotePacks.response",
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuoteDetails.Value",
         groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "TxServices_SQLServer_QuotePacks.response",
-        description: "Response schema for SQL Server TxServices QuotePacks",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.QuoteDetails.Value",
+        description: "AVRO schema for QuoteDetails",
+        createdOn: "2025-11-18T15:35:18Z",
+        modifiedOn: "2025-11-18T15:35:18Z"
+      },
+      {
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value",
+        groupId: "paradigm.bidtools",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value",
+        description: "AVRO schema for QuotePacks",
         createdOn: "2025-11-18T15:36:08Z",
         modifiedOn: "2025-11-18T15:36:08Z"
       },
       {
-        artifactId: "TxServices_SQLServer_Quotes.response",
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.Quotes.Value",
         groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "TxServices_SQLServer_Quotes.response",
-        description: "Response schema for SQL Server TxServices Quotes",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.Quotes.Value",
+        description: "AVRO schema for Quotes",
         createdOn: "2025-11-18T15:36:17Z",
         modifiedOn: "2025-11-18T15:36:17Z"
       },
       {
-        artifactId: "TxServices_SQLServer_ReasonCodes.response",
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.ReasonCodes.Value",
         groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "TxServices_SQLServer_ReasonCodes.response",
-        description: "Response schema for SQL Server TxServices ReasonCodes",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.ReasonCodes.Value",
+        description: "AVRO schema for ReasonCodes",
         createdOn: "2025-11-18T15:36:25Z",
         modifiedOn: "2025-11-18T15:36:25Z"
+      },
+      {
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.ServiceRequests.Value",
+        groupId: "paradigm.bidtools",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.ServiceRequests.Value",
+        description: "AVRO schema for ServiceRequests",
+        createdOn: "2025-11-18T15:36:30Z",
+        modifiedOn: "2025-11-18T15:36:30Z"
+      },
+      {
+        artifactId: "paradigm.bidtools.ppapdb_import.bfs.WorkflowCustomers.Value",
+        groupId: "paradigm.bidtools",
+        artifactType: "AVRO",
+        name: "paradigm.bidtools.ppapdb_import.bfs.WorkflowCustomers.Value",
+        description: "AVRO schema for WorkflowCustomers",
+        createdOn: "2025-11-18T15:36:35Z",
+        modifiedOn: "2025-11-18T15:36:35Z"
       }
     ],
-    count: 4
+    count: 7
   };
 }
 
