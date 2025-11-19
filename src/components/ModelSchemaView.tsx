@@ -799,11 +799,11 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             {/* Right Column - JSON Schema (Independent Scroll) */}
             <div className="flex flex-col space-y-2">
               <Label htmlFor="create-jsonschema">JSON Schema *</Label>
-              <ScrollArea className="h-[calc(90vh-280px)] border rounded-md">
+              <ScrollArea className="h-[280px] border rounded-md">
                 <Textarea
                   id="create-jsonschema"
                   placeholder="Enter JSON Schema definition"
-                  className="font-mono text-xs min-h-[calc(90vh-280px)] border-0 focus-visible:ring-0"
+                  className="font-mono text-xs min-h-[280px] border-0 focus-visible:ring-0"
                   value={createFormData.jsonSchemaText}
                   onChange={(e) => setCreateFormData({ ...createFormData, jsonSchemaText: e.target.value })}
                 />
@@ -886,10 +886,10 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             {/* Right Column - JSON Schema (Independent Scroll) */}
             <div className="flex flex-col space-y-2">
               <Label htmlFor="edit-jsonschema">JSON Schema *</Label>
-              <ScrollArea className="h-[calc(90vh-280px)] border rounded-md">
+              <ScrollArea className="h-[280px] border rounded-md">
                 <Textarea
                   id="edit-jsonschema"
-                  className="font-mono text-xs min-h-[calc(90vh-280px)] border-0 focus-visible:ring-0"
+                  className="font-mono text-xs min-h-[280px] border-0 focus-visible:ring-0"
                   value={editFormData.jsonSchemaText}
                   onChange={(e) => setEditFormData({ ...editFormData, jsonSchemaText: e.target.value })}
                 />
