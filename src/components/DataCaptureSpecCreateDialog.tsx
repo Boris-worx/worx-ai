@@ -164,16 +164,18 @@ export function DataCaptureSpecCreateDialog({
         .replace(/^TxServices_SQLServer_/, "")
         .replace(/\.response$/, "");
 
-      // Spec Name: singular form (QuotePacks -> QuotePack)
+      // Spec Name: singular form (QuotePacks -> QuotePack, ReasonCodes -> ReasonCode)
       let specNameSingular = specName;
       if (specNameSingular.endsWith("s")) {
         specNameSingular = specNameSingular.slice(0, -1);
       }
 
-      // Container Name: plural form (keep as-is: QuotePacks)
-      const containerNamePlural = specName;
+      // Container Name: IMPORTANT - BFS API uses singular form for TxnType
+      // API expects TxnType=ReasonCode (not ReasonCodes), TxnType=Quote (not Quotes)
+      // So containerName must be singular to match TxnType
+      const containerName = specNameSingular; // Use singular form for API compatibility
 
-      // Generate Primary Key Field: QuotePack -> quotePackId
+      // Generate Primary Key Field: QuotePack -> quotePackId, ReasonCode -> reasonCodeId
       const primaryKeyField = specNameSingular.charAt(0).toLowerCase() + specNameSingular.slice(1) + "Id";
 
       // Get all property names for allowed filters
@@ -183,7 +185,7 @@ export function DataCaptureSpecCreateDialog({
       const allowedFilters = propertyNames
         .filter(
           (name) =>
-            !["createTime", "updateTime", "metaData"].includes(
+            !["id", "partitionKey", "createTime", "updateTime", "metaData"].includes(
               name,
             ),
         )
@@ -193,7 +195,7 @@ export function DataCaptureSpecCreateDialog({
       setFormData((prev) => ({
         ...prev,
         dataCaptureSpecName: specNameSingular,
-        containerName: containerNamePlural,
+        containerName: containerName,
         sourcePrimaryKeyField: primaryKeyField, // Auto-generated: quotePackId
         partitionKeyField: "id", // Changed from "partitionKey" to "id"
         allowedFilters: allowedFilters.split(", ").map((f) => f.trim()),

@@ -332,7 +332,7 @@ export function convertAvroToJsonSchema(avroSchema: any): any {
 
     return jsonSchema;
   } catch (error) {
-    console.error('❌ Error converting AVRO to JSON Schema:', error);
+    console.error('��� Error converting AVRO to JSON Schema:', error);
     throw error;
   }
 }
@@ -361,15 +361,22 @@ function mapAvroTypeToJson(avroType: any): string {
 // Extract readable name from artifactId
 // e.g., "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value" -> "QuotePacks"
 // e.g., "TxServices_SQLServer_QuotePacks.response" -> "QuotePacks"
+// e.g., "CDC_SQLServer_LineTypes" -> "LineTypes"
 export function extractArtifactName(artifactId: string): string {
   // If it's a UUID, return as-is
   if (artifactId.match(/^[a-f0-9-]{36}$/i)) {
     return artifactId;
   }
   
+  // Handle CDC format: "CDC_SQLServer_LineTypes" -> "LineTypes"
+  if (artifactId.includes('CDC_SQLServer_')) {
+    const match = artifactId.match(/CDC_SQLServer_([\w]+)/);
+    if (match) return match[1];
+  }
+  
   // Handle new format: "TxServices_SQLServer_QuotePacks.response"
   if (artifactId.includes('TxServices_SQLServer_')) {
-    const match = artifactId.match(/TxServices_SQLServer_(\w+)/);
+    const match = artifactId.match(/TxServices_SQLServer_([\w]+)/);
     if (match) return match[1];
   }
   
@@ -389,6 +396,57 @@ export function getArtifactDisplayName(artifact: ApicurioArtifact): string {
 
 // Process schema - handle both JSON Schema and AVRO formats
 export function processSchema(schema: any, artifactType: string): any {
+  // Handle CDC JSON Schema format (Debezium-style)
+  // Structure: { properties: { after: { anyOf: [{ properties: {...} }, null] } } }
+  if (schema.properties && schema.properties.after) {
+    const afterField = schema.properties.after;
+    
+    // Check for anyOf pattern (union with null)
+    if (afterField.anyOf && Array.isArray(afterField.anyOf)) {
+      // Find the non-null schema
+      const valueSchema = afterField.anyOf.find((s: any) => s && s.type === 'object' && s.properties);
+      if (valueSchema) {
+        console.log('📦 Detected CDC JSON Schema, extracting fields from "after.anyOf" record');
+        // Extract properties from the CDC "after" field
+        const cdcProperties = valueSchema.properties || {};
+        const cdcRequired = valueSchema.required || [];
+        
+        // Create enhanced schema with CDC fields + IRC metadata
+        return enhanceJsonSchemaWithIRCMetadata({
+          schemaVersion: 1,
+          type: 'object',
+          title: valueSchema.title || schema.title || 'Schema',
+          description: valueSchema.description || schema.description || 'Generated from CDC JSON Schema',
+          properties: cdcProperties,
+          required: cdcRequired
+        });
+      }
+    }
+  }
+  
+  // Handle CDC AVRO format
+  // These have structure like { type: "record", fields: [{ name: "after", type: { type: "record", fields: [...] } }] }
+  if (artifactType === 'AVRO' && schema.type === 'record' && Array.isArray(schema.fields)) {
+    // Check if this is a CDC schema (has 'after' field with nested record)
+    const afterField = schema.fields.find((f: any) => f.name === 'after');
+    if (afterField && afterField.type && Array.isArray(afterField.type)) {
+      // Union type - find the record type
+      const recordType = afterField.type.find((t: any) => t && typeof t === 'object' && t.type === 'record');
+      if (recordType && Array.isArray(recordType.fields)) {
+        console.log('📦 Detected CDC AVRO schema, extracting fields from "after" record');
+        // Use the nested record schema instead
+        return convertAvroToJsonSchema(recordType);
+      }
+    } else if (afterField && afterField.type && typeof afterField.type === 'object' && afterField.type.type === 'record') {
+      // Direct record type (not union)
+      console.log('📦 Detected CDC AVRO schema, extracting fields from "after" record');
+      return convertAvroToJsonSchema(afterField.type);
+    }
+    
+    // Not a CDC schema, process normally
+    return convertAvroToJsonSchema(schema);
+  }
+  
   // If it's already a JSON Schema, enhance it with IRC metadata
   if (schema.type === 'object' || schema.properties) {
     return enhanceJsonSchemaWithIRCMetadata(schema);

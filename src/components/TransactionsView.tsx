@@ -130,15 +130,39 @@ export function TransactionsView({
   
   // Build dynamic transaction types list from Data Capture Specs
   const transactionTypes = useMemo(() => {
-    // Hardcoded fallback types (legacy support for containers without Data Capture Specs)
+    // All supported transaction types from BFS API
     const fallbackTypes = [
-      'Quote',
-      'QuotePack',
-      'QuoteDetail',
       'Customer',
+      'Customer Aging',
       'Location',
+      'Quote',
+      'QuoteDetail',
+      'QuotePack',
+      'QuotePackOrder',
+      'ReasonCode',
+      'LineType',
+      'LineTypes',
+      'ServiceRequest',
+      'WorkflowCustomer',
+      'Job',
+      'Items',
       'Invoice',
+      'Invoice PDF',
       'Sales Order',
+      'Item Pricing',
+      'Item Pricing PDF',
+      'Invoice Reprice',
+      'Target Margin',
+      'Statements',
+      'Statements PDF',
+      'Sales Order Create/DI Order',
+      'Product Hierarchy/Item Class',
+      'PO Create',
+      'Sales Order Query',
+      'DI order enhancements',
+      'Quotes',
+      'Publish Sales Order Quote',
+      'Publish Bid Quote-Quote',
     ];
     
     // Get unique container names from Data Capture Specs
@@ -152,8 +176,8 @@ export function TransactionsView({
       .filter((name, index, self) => self.indexOf(name) === index) // Unique
       .sort();
     
-    console.log('📋 Transaction Types (Fallback + Data Capture Specs):', combinedTypes);
-    console.log('  - Fallback types:', fallbackTypes);
+    console.log('📋 Transaction Types (API + Data Capture Specs):', combinedTypes);
+    console.log('  - API types:', fallbackTypes);
     console.log('  - From Data Capture Specs:', specTypes);
     
     return combinedTypes;
@@ -252,6 +276,82 @@ export function TransactionsView({
         ...coreFields,
         { key: "TenantId", label: "Tenant ID", enabled: true },
         { key: "Txn.id", label: "Spec ID", enabled: false },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // LineType-specific additional columns
+    if (txnType === "LineType" || txnType === "LineTypes") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.lineTypeId",
+          label: "Line Type ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.lineTypeCode",
+          label: "Code",
+          enabled: true,
+        },
+        {
+          key: "Txn.description",
+          label: "Description",
+          enabled: true,
+        },
+        {
+          key: "Txn.erpOrderLineType",
+          label: "ERP Order Type",
+          enabled: true,
+        },
+        {
+          key: "Txn.isActive",
+          label: "Active",
+          enabled: true,
+        },
+        { key: "Txn.colorCode", label: "Color Code", enabled: false },
+        { key: "Txn.sortOrder", label: "Sort Order", enabled: false },
+        { key: "Txn.skuType", label: "SKU Type", enabled: false },
+        { key: "Txn.categoryRequired", label: "Category Required", enabled: false },
+        { key: "Txn.manualCostRequired", label: "Manual Cost Required", enabled: false },
+        { key: "Txn.manualPriceRequired", label: "Manual Price Required", enabled: false },
+        { key: "Txn.isNotesAllowed", label: "Notes Allowed", enabled: false },
+        { key: "Txn.defaultSku", label: "Default SKU", enabled: false },
+        { key: "Txn.defaultDescription", label: "Default Description", enabled: false },
+        { key: "Txn.defaultCategory", label: "Default Category", enabled: false },
+        { key: "Txn.defaultQuantity", label: "Default Quantity", enabled: false },
+        { key: "Txn.eRP", label: "ERP", enabled: false },
+        { key: "Txn.isSkuTypeDefault", label: "SKU Type Default", enabled: false },
+        { key: "Txn.enforceQuantityOfOne", label: "Enforce Qty of 1", enabled: false },
+        { key: "Txn.isInstallOnly", label: "Install Only", enabled: false },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // ReasonCode-specific additional columns
+    if (txnType === "ReasonCode") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.reasonCodeId",
+          label: "Reason Code ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.reasonCodeText",
+          label: "Reason Text",
+          enabled: true,
+        },
+        {
+          key: "Txn.eRPCode",
+          label: "ERP Code",
+          enabled: true,
+        },
+        {
+          key: "Txn.isActive",
+          label: "Active",
+          enabled: true,
+        },
         { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
