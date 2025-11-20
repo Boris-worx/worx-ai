@@ -362,6 +362,336 @@ export function TransactionsView({
       ];
     }
 
+    // QuoteDetail-specific additional columns
+    if (txnType === "QuoteDetail") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.quoteDetailId",
+          label: "Quote Detail ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.quoteId",
+          label: "Quote ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.lineNumber",
+          label: "Line Number",
+          enabled: true,
+        },
+        {
+          key: "Txn.manualPrice",
+          label: "Manual Price",
+          enabled: true,
+        },
+        {
+          key: "Txn.systemPrice",
+          label: "System Price",
+          enabled: true,
+        },
+        {
+          key: "Txn.systemAverageCost",
+          label: "System Avg Cost",
+          enabled: true,
+        },
+        {
+          key: "Txn.quantity",
+          label: "Quantity",
+          enabled: false,
+        },
+        {
+          key: "Txn.sku",
+          label: "SKU",
+          enabled: false,
+        },
+        {
+          key: "Txn.description",
+          label: "Description",
+          enabled: false,
+        },
+        {
+          key: "Txn.lineTypeCode",
+          label: "Line Type Code",
+          enabled: false,
+        },
+        {
+          key: "Txn.category",
+          label: "Category",
+          enabled: false,
+        },
+        {
+          key: "Txn.unitOfMeasure",
+          label: "Unit of Measure",
+          enabled: false,
+        },
+        {
+          key: "Txn.notes",
+          label: "Notes",
+          enabled: false,
+        },
+        {
+          key: "Txn.isActive",
+          label: "Active",
+          enabled: false,
+        },
+        {
+          key: "Txn.productCode",
+          label: "Product Code",
+          enabled: false,
+        },
+        {
+          key: "Txn.vendorCode",
+          label: "Vendor Code",
+          enabled: false,
+        },
+        {
+          key: "Txn.extendedPrice",
+          label: "Extended Price",
+          enabled: false,
+        },
+        {
+          key: "Txn.discount",
+          label: "Discount",
+          enabled: false,
+        },
+        {
+          key: "Txn.taxAmount",
+          label: "Tax Amount",
+          enabled: false,
+        },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // QuotePack-specific additional columns
+    if (txnType === "QuotePack") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.quotePackId",
+          label: "Quote Pack ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.quoteId",
+          label: "Quote ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.packNumber",
+          label: "Pack Number",
+          enabled: true,
+        },
+        {
+          key: "Txn.packName",
+          label: "Pack Name",
+          enabled: true,
+        },
+        {
+          key: "Txn.totalPrice",
+          label: "Total Price",
+          enabled: true,
+        },
+        {
+          key: "Txn.quantity",
+          label: "Quantity",
+          enabled: false,
+        },
+        {
+          key: "Txn.description",
+          label: "Description",
+          enabled: false,
+        },
+        {
+          key: "Txn.isActive",
+          label: "Active",
+          enabled: false,
+        },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // Quotes-specific additional columns  
+    if (txnType === "Quotes") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.quoteId",
+          label: "Quote ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.quoteNumber",
+          label: "Quote Number",
+          enabled: true,
+        },
+        {
+          key: "Txn.customerId",
+          label: "Customer ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.customerName",
+          label: "Customer Name",
+          enabled: true,
+        },
+        {
+          key: "Txn.totalAmount",
+          label: "Total Amount",
+          enabled: true,
+        },
+        {
+          key: "Txn.status",
+          label: "Status",
+          enabled: true,
+        },
+        {
+          key: "Txn.quoteDate",
+          label: "Quote Date",
+          enabled: false,
+        },
+        {
+          key: "Txn.expirationDate",
+          label: "Expiration Date",
+          enabled: false,
+        },
+        {
+          key: "Txn.salesperson",
+          label: "Salesperson",
+          enabled: false,
+        },
+        {
+          key: "Txn.notes",
+          label: "Notes",
+          enabled: false,
+        },
+        {
+          key: "Txn.isActive",
+          label: "Active",
+          enabled: false,
+        },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // ServiceRequest-specific additional columns
+    if (txnType === "ServiceRequest") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.serviceRequestId",
+          label: "Service Request ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.customerId",
+          label: "Customer ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.requestType",
+          label: "Request Type",
+          enabled: true,
+        },
+        {
+          key: "Txn.status",
+          label: "Status",
+          enabled: true,
+        },
+        {
+          key: "Txn.priority",
+          label: "Priority",
+          enabled: true,
+        },
+        {
+          key: "Txn.description",
+          label: "Description",
+          enabled: false,
+        },
+        {
+          key: "Txn.assignedTo",
+          label: "Assigned To",
+          enabled: false,
+        },
+        {
+          key: "Txn.requestDate",
+          label: "Request Date",
+          enabled: false,
+        },
+        {
+          key: "Txn.completedDate",
+          label: "Completed Date",
+          enabled: false,
+        },
+        {
+          key: "Txn.notes",
+          label: "Notes",
+          enabled: false,
+        },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
+    // WorkflowCustomer-specific additional columns
+    if (txnType === "WorkflowCustomer") {
+      return [
+        ...coreFields,
+        {
+          key: "Txn.workflowCustomerId",
+          label: "Workflow Customer ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.customerId",
+          label: "Customer ID",
+          enabled: true,
+        },
+        {
+          key: "Txn.customerName",
+          label: "Customer Name",
+          enabled: true,
+        },
+        {
+          key: "Txn.workflowStatus",
+          label: "Workflow Status",
+          enabled: true,
+        },
+        {
+          key: "Txn.stage",
+          label: "Stage",
+          enabled: true,
+        },
+        {
+          key: "Txn.assignedTo",
+          label: "Assigned To",
+          enabled: false,
+        },
+        {
+          key: "Txn.priority",
+          label: "Priority",
+          enabled: false,
+        },
+        {
+          key: "Txn.startDate",
+          label: "Start Date",
+          enabled: false,
+        },
+        {
+          key: "Txn.expectedCompletionDate",
+          label: "Expected Completion",
+          enabled: false,
+        },
+        {
+          key: "Txn.notes",
+          label: "Notes",
+          enabled: false,
+        },
+        { key: "UpdateTime", label: "Updated", enabled: false },
+      ];
+    }
+
     // Customer-specific additional columns
     if (txnType === "Customer") {
       return [
@@ -415,7 +745,7 @@ export function TransactionsView({
   const [columnConfigs, setColumnConfigs] = useState<
     ColumnConfig[]
   >(() => {
-    const STORAGE_VERSION = "10"; // v10: Core Fields (TxnId, Type, Created) are always locked and enabled
+    const STORAGE_VERSION = "11"; // v11: Added QuoteDetail, QuotePack, Quotes, ServiceRequest, WorkflowCustomer specific columns
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     const saved = localStorage.getItem(storageKey);
     const savedVersion = localStorage.getItem(
@@ -441,7 +771,7 @@ export function TransactionsView({
 
   // Reset columns to default
   const handleResetColumns = () => {
-    const STORAGE_VERSION = "10";
+    const STORAGE_VERSION = "11";
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     setColumnConfigs(getDefaultColumns(selectedTxnType));
     localStorage.removeItem(storageKey);
@@ -454,7 +784,7 @@ export function TransactionsView({
 
   // Save column configs to localStorage whenever they change (per transaction type)
   useEffect(() => {
-    const STORAGE_VERSION = "10";
+    const STORAGE_VERSION = "11";
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     localStorage.setItem(
       storageKey,
@@ -808,7 +1138,7 @@ export function TransactionsView({
 
   // Load columns for selected transaction type
   useEffect(() => {
-    const STORAGE_VERSION = "10";
+    const STORAGE_VERSION = "11";
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     const saved = localStorage.getItem(storageKey);
     const savedVersion = localStorage.getItem(

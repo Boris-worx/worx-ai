@@ -149,13 +149,41 @@ export function DataTable<T extends Record<string, any>>({
   const sortedData = useMemo(() => {
     if (!sortConfig) return filteredData;
 
-    const sorted = [...filteredData].sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
+    // Helper to get nested value
+    const getNestedValue = (obj: any, path: string): any => {
+      if (path.includes('.')) {
+        const parts = path.split('.');
+        let value = obj;
+        for (const part of parts) {
+          value = value?.[part];
+          if (value === undefined) return undefined;
+        }
+        return value;
+      }
+      return obj[path];
+    };
 
+    const sorted = [...filteredData].sort((a, b) => {
+      const aValue = getNestedValue(a, sortConfig.key);
+      const bValue = getNestedValue(b, sortConfig.key);
+
+      // Handle null/undefined values - put them at the end
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+      
       if (aValue === bValue) return 0;
       
-      const comparison = aValue < bValue ? -1 : 1;
+      // Handle numeric values
+      const aNum = typeof aValue === 'number' ? aValue : parseFloat(aValue);
+      const bNum = typeof bValue === 'number' ? bValue : parseFloat(bValue);
+      
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        const comparison = aNum - bNum;
+        return sortConfig.direction === 'asc' ? comparison : -comparison;
+      }
+      
+      // Handle string values
+      const comparison = String(aValue).localeCompare(String(bValue));
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
 
