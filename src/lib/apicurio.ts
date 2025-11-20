@@ -3,14 +3,53 @@
 const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
 
 // Cache for artifacts search results (avoid repeated API calls)
+// Using localStorage for persistent cache + in-memory cache for speed
+const CACHE_KEY = 'apicurio_artifacts_cache';
+const CACHE_TIMESTAMP_KEY = 'apicurio_artifacts_timestamp';
+const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes (was 5 minutes)
+
 let artifactsCache: ApicurioSearchResponse | null = null;
 let artifactsCacheTimestamp = 0;
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// Initialize cache from localStorage on module load
+function initializeCache() {
+  try {
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    
+    if (cachedData && cachedTimestamp) {
+      const timestamp = parseInt(cachedTimestamp, 10);
+      const now = Date.now();
+      
+      // Check if cache is still valid
+      if ((now - timestamp) < CACHE_DURATION_MS) {
+        artifactsCache = JSON.parse(cachedData);
+        artifactsCacheTimestamp = timestamp;
+        console.log('📦 Loaded Apicurio artifacts from localStorage (age:', Math.round((now - timestamp) / 1000), 'seconds)');
+      } else {
+        // Cache expired, clear it
+        localStorage.removeItem(CACHE_KEY);
+        localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to initialize Apicurio cache from localStorage:', error);
+  }
+}
+
+// Initialize cache on module load
+initializeCache();
 
 // Clear the artifacts cache (useful for force refresh)
 export function clearArtifactsCache() {
   artifactsCache = null;
   artifactsCacheTimestamp = 0;
+  try {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+  } catch (error) {
+    console.warn('Failed to clear localStorage cache:', error);
+  }
   console.log('📦 Apicurio artifacts cache cleared');
 }
 
@@ -32,9 +71,11 @@ export interface ApicurioSearchResponse {
 
 // Search Apicurio artifacts by name pattern
 export async function searchApicurioArtifacts(namePattern: string = 'Value'): Promise<ApicurioSearchResponse> {
+  // Define 'now' before try block so it's accessible in catch
+  const now = Date.now();
+  
   try {
     // Check cache first
-    const now = Date.now();
     if (artifactsCache && (now - artifactsCacheTimestamp) < CACHE_DURATION_MS) {
       console.log('📦 Using cached Apicurio artifacts (age:', Math.round((now - artifactsCacheTimestamp) / 1000), 'seconds)');
       return artifactsCache;
@@ -66,16 +107,32 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     artifactsCache = data;
     artifactsCacheTimestamp = now;
     
+    // Save to localStorage
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(CACHE_TIMESTAMP_KEY, now.toString());
+    } catch (error) {
+      console.warn('Failed to save Apicurio cache to localStorage:', error);
+    }
+    
     return data;
   } catch (error: any) {
     // Return mock data for development (CORS or network issues)
+    // Silently handle CORS - this is expected in some environments
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.log('📦 Using local Apicurio templates (12 available)');
-      return getMockApicurioArtifacts();
+      console.log('📦 Using local Apicurio templates (7 available) - CORS blocked');
+      const mockData = getMockApicurioArtifacts();
+      
+      // Cache mock data so subsequent opens are instant
+      artifactsCache = mockData;
+      artifactsCacheTimestamp = now;
+      
+      return mockData;
     }
     
-    console.error('❌ Error searching Apicurio artifacts:', error);
-    throw error;
+    // Only log unexpected errors
+    console.warn('⚠️ Apicurio Registry unavailable, using local templates');
+    return getMockApicurioArtifacts();
   }
 }
 

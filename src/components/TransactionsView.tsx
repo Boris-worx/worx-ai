@@ -593,9 +593,13 @@ export function TransactionsView({
               undefined,
               activeTenantId,
             );
+            // Use TxnTotalCount from API if available, otherwise fallback to transactions.length
+            const count = response.totalCount !== undefined 
+              ? response.totalCount 
+              : response.transactions.length;
             return {
               type,
-              count: response.transactions.length,
+              count,
               supported: true,
             };
           } catch (error: any) {
@@ -624,7 +628,7 @@ export function TransactionsView({
       });
 
       console.log(
-        `Loaded ${supportedCount} supported type(s) with data`,
+        `✅ Loaded ${supportedCount} supported type(s) with data (using TxnTotalCount from API)`,
       );
       console.log("Type counts:", counts);
       setTypeCounts(counts);

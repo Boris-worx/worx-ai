@@ -767,6 +767,7 @@ export interface PaginatedTransactionsResponse {
   transactions: Transaction[];
   continuationToken: string | null;
   hasMore: boolean;
+  totalCount?: number; // Total count from API (TxnTotalCount)
 }
 
 // User Story 4: Get transactions by type (API requires TxnType parameter)
@@ -860,12 +861,16 @@ export async function getTransactionsByType(
     const responseText = await response.text();
     const responseData = JSON.parse(responseText);
     
+    // Extract TxnTotalCount from API response
+    const totalCount = responseData.data?.TxnTotalCount;
+    
     // Log API response structure
     console.log(`📦 API Response [${txnType}]:`, {
       status: response.status,
       hasData: !!responseData.data,
       hasTxns: !!responseData.data?.Txns,
       txnsCount: responseData.data?.Txns?.length || 0,
+      totalCount: totalCount,
     });
     
     // Extract continuation token from response (check various possible locations)
@@ -967,7 +972,8 @@ export async function getTransactionsByType(
     return {
       transactions: txns,
       continuationToken: nextToken,
-      hasMore: nextToken !== null
+      hasMore: nextToken !== null,
+      totalCount: totalCount
     };
   } catch (error: any) {
     // Silently handle CORS errors
