@@ -73,7 +73,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                     className="w-full justify-start"
                   >
                     <GridIcon className="h-4 w-4 mr-3" />
-                    Transaction Onboarding
+                    Transactions
                   </Button>
                 )}
                 {hasAccessTo('Transactions') && (
@@ -83,7 +83,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                     className="w-full justify-start"
                   >
                     <Receipt className="h-4 w-4 mr-3" />
-                    Data Source Onboarding
+                    Data Sources
                   </Button>
                 )}
                 {hasAccessTo('Transactions') && (

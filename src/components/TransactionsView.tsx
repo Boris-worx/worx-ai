@@ -1357,17 +1357,9 @@ export function TransactionsView({
 
   return (
     <div className="w-full max-w-[1440px] mx-auto">
-      <Card className="overflow-hidden">
-        <CardHeader>
-          <CardTitle className="font-bold text-[20px]\ text-[20px]">
-            Data Plane
-          </CardTitle>
-          <CardDescription>
-            View and manage ERP transactions across all
-            suppliers
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="overflow-x-hidden">
+      <Card className="shadow-sm">
+     
+        <CardContent className="overflow-x-hidden pt-6">
           {/* Top Bar - Headers */}
           <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[260px_1fr] gap-6 mb-3">
             {/* Left: Transaction Types Header - Hidden on mobile */}

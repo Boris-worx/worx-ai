@@ -396,7 +396,7 @@ export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultT
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="flex w-full justify-between">
           <Button
             variant="outline"
             onClick={handleCancel}
@@ -406,7 +406,7 @@ export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultT
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !!jsonError}
+            disabled={!txnType || !jsonText.trim() || !!jsonError || isSubmitting}
             className="bg-[#1D6BCD] hover:bg-[#1557A8]"
           >
             {isSubmitting ? 'Creating...' : 'Create Transaction'}

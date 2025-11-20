@@ -68,6 +68,48 @@ const getDataSourceId = (ds: DataSource) =>
 const getDataSourceName = (ds: DataSource) =>
   ds.DatasourceName || ds.DataSourceName || "";
 
+// Helper to convert PascalCase to camelCase
+const toCamelCase = (str: string): string => {
+  // Don't convert special fields that should stay as-is
+  if (["id", "partitionKey", "metaData", "createTime", "updateTime"].includes(str)) {
+    return str;
+  }
+  return str.charAt(0).toLowerCase() + str.slice(1);
+};
+
+// Helper to convert all property names in schema to camelCase
+const convertSchemaPropertiesToCamelCase = (schema: any): any => {
+  if (!schema || typeof schema !== "object") return schema;
+
+  if (schema.properties && typeof schema.properties === "object") {
+    const newProperties: any = {};
+    const oldToNewMapping: Record<string, string> = {};
+
+    // Convert property names to camelCase
+    for (const [key, value] of Object.entries(schema.properties)) {
+      const newKey = toCamelCase(key);
+      newProperties[newKey] = value;
+      oldToNewMapping[key] = newKey;
+    }
+
+    // Update required fields to use camelCase names
+    let newRequired = schema.required;
+    if (Array.isArray(schema.required)) {
+      newRequired = schema.required.map((field: string) =>
+        oldToNewMapping[field] || toCamelCase(field)
+      );
+    }
+
+    return {
+      ...schema,
+      properties: newProperties,
+      required: newRequired,
+    };
+  }
+
+  return schema;
+};
+
 export function DataCaptureSpecCreateDialog({
   isOpen,
   onClose,
@@ -171,19 +213,21 @@ export function DataCaptureSpecCreateDialog({
         specNameSingular = specNameSingular.slice(0, -1);
       }
 
-      // Container Name: IMPORTANT - BFS API uses singular form for TxnType
-      // API expects TxnType=ReasonCode (not ReasonCodes), TxnType=Quote (not Quotes)
-      // So containerName must be singular to match TxnType
-      const containerName = specNameSingular; // Use singular form for API compatibility
+      // Container Name: plural form (QuotePack -> QuotePacks, ReasonCode -> ReasonCodes)
+      // Add "s" to the end of singular spec name to create plural container name
+      const containerName = specNameSingular + "s";
 
-      // Generate Primary Key Field: QuotePack -> quotePackId, ReasonCode -> reasonCodeId
+      // Generate Primary Key Field: WorkflowCustomer -> workflowCustomerId (camelCase for Cosmos DB)
+      // Convert first letter to lowercase for camelCase format
       const primaryKeyField = specNameSingular.charAt(0).toLowerCase() + specNameSingular.slice(1) + "Id";
 
       // Get all property names for allowed filters
+      // IMPORTANT: Property names from Apicurio come in PascalCase (e.g., QuoteDetailId, QuoteId)
+      // We must preserve them exactly as they come from the schema for containerSchema properties
       const propertyNames = Object.keys(
         jsonSchema.properties || {},
       );
-      console.log('📦 All property names from jsonSchema.properties:', propertyNames);
+      console.log('📦 All property names from jsonSchema.properties (PascalCase preserved):', propertyNames);
       
       const allowedFilters = propertyNames
         .filter(
@@ -202,7 +246,7 @@ export function DataCaptureSpecCreateDialog({
         ...prev,
         dataCaptureSpecName: specNameSingular,
         containerName: containerName,
-        sourcePrimaryKeyField: primaryKeyField, // Auto-generated: quotePackId
+        sourcePrimaryKeyField: primaryKeyField, // Auto-generated: QuotePackId (PascalCase)
         partitionKeyField: "id", // Changed from "partitionKey" to "id"
         allowedFilters: allowedFilters.split(", ").map((f) => f.trim()),
         requiredFields: Array.isArray(jsonSchema.required)
@@ -294,7 +338,7 @@ export function DataCaptureSpecCreateDialog({
         sourcePrimaryKeyField: "id",
         partitionKeyField: "id", // Changed from "partitionKey" to "id"
         partitionKeyValue: "",
-        allowedFilters: ["id", "customerId", "quoteStatus"],
+        allowedFilters: [], // Empty by default - user should select from available fields
         requiredFields: ["id"],
         containerSchemaText: JSON.stringify(
           ircContainerSchema,
@@ -448,6 +492,17 @@ export function DataCaptureSpecCreateDialog({
       return;
     }
 
+    // Convert property names to camelCase
+    containerSchema = convertSchemaPropertiesToCamelCase(containerSchema);
+    
+    // Convert allowedFilters and requiredFields to camelCase
+    const allowedFiltersCamelCase = formData.allowedFilters.map(toCamelCase);
+    const requiredFieldsCamelCase = formData.requiredFields.map(toCamelCase);
+    
+    console.log('📦 Converting to camelCase:');
+    console.log('  allowedFilters:', formData.allowedFilters, '→', allowedFiltersCamelCase);
+    console.log('  requiredFields:', formData.requiredFields, '→', requiredFieldsCamelCase);
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -461,8 +516,8 @@ export function DataCaptureSpecCreateDialog({
         sourcePrimaryKeyField: formData.sourcePrimaryKeyField,
         partitionKeyField: formData.partitionKeyField,
         partitionKeyValue: formData.partitionKeyValue,
-        allowedFilters: formData.allowedFilters,
-        requiredFields: formData.requiredFields,
+        allowedFilters: allowedFiltersCamelCase,
+        requiredFields: requiredFieldsCamelCase,
         containerSchema: containerSchema,
       };
 
@@ -669,7 +724,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="sourcePrimaryKeyField"
-                        placeholder="e.g., quoteId"
+                        placeholder="e.g., QuoteId"
                         value={formData.sourcePrimaryKeyField}
                         onChange={(e) =>
                           setFormData({
@@ -1104,7 +1159,7 @@ export function DataCaptureSpecCreateDialog({
           </div>
         </div>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 flex w-full items-center justify-between">
           <Button
             variant="outline"
             onClick={onClose}

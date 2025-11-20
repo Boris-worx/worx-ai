@@ -433,18 +433,10 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
     <div className="w-full max-w-[1440px] mx-auto space-y-6">
       <Card>
         <CardHeader>
-          {/* Mobile Layout: Stack vertically */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
-            {/* Title Section */}
-            <div className="flex-1 min-w-0">
-              <CardTitle className="font-bold text-lg md:text-xl pt-[0px] pr-[0px] pb-[5px] pl-[0px]">Tenants</CardTitle>
-              <CardDescription className="text-sm text-[16px]">
-                View and manage tenants on the BFS platform
-              </CardDescription>
-            </div>
-            
-            {/* Desktop View - All buttons visible */}
-            <div className="hidden md:flex gap-2 flex-shrink-0">
+          {/* Action Buttons Row */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            {/* Left: Tenant + Filter */}
+            <div className="flex items-center gap-2">
               <TenantSelector
                 tenants={tenants}
                 activeTenantId={activeTenantId}
@@ -457,58 +449,15 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
                 availableFields={availableFields}
                 onReset={handleResetColumns}
               />
-              {canCreate && (
-                <Button onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Tenant
-                </Button>
-              )}
             </div>
 
-            {/* Mobile View - Dropdown Menu */}
-            <div className="flex md:hidden items-center gap-2 justify-end">
-              {/* Tenant Selector */}
-              <TenantSelector
-                tenants={tenants}
-                activeTenantId={activeTenantId}
-                onTenantChange={onTenantChange}
-                isSuperUser={userRole === 'superuser'}
-              />
-              
-              {/* Dropdown Menu with other actions */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {canCreate && (
-                    <>
-                      <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Tenant
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onSelect={(e) => {
-                      e.preventDefault();
-                    }}
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    <span className="flex-1">Columns</span>
-                    <ColumnSelector
-                      columns={enrichedColumnConfigs}
-                      onColumnsChange={setColumnConfigs}
-                      availableFields={availableFields}
-                      onReset={handleResetColumns}
-                    />
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {/* Right: Add Button */}
+            {canCreate && (
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tenant
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -651,7 +600,7 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button
               variant="outline"
               onClick={() => {

@@ -118,7 +118,7 @@ Content-Type: application/json
           )}
         </div>
 
-        <DialogFooter className="flex-shrink-0">
+        <DialogFooter className="flex w-full justify-between flex-shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancel
           </Button>

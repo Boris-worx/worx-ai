@@ -616,20 +616,10 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
   return (
     <Card className="w-full max-w-[1440px] mx-auto">
       <CardHeader>
-        {/* Mobile Layout: Stack vertically */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
-          {/* Title Section */}
-          <div className="flex-1 min-w-0">
-            <CardTitle className="flex items-center gap-2 text-[20px] font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">
-              Applications
-            </CardTitle>
-            <CardDescription>
-              Manage applications and their transaction specifications
-            </CardDescription>
-          </div>
-          
-          {/* Desktop View - All buttons visible */}
-          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+        {/* Action Buttons Row */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Left: Tenant + Filter */}
+          <div className="flex items-center gap-2">
             <TenantSelector
               tenants={tenants}
               activeTenantId={activeTenantId}
@@ -640,58 +630,17 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
             />
-            {canCreate && (
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Application
-              </Button>
-            )}
           </div>
 
-          {/* Mobile View - Dropdown Menu */}
-          <div className="flex md:hidden items-center gap-2 justify-end">
-            {/* Tenant Selector */}
-            <TenantSelector
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={onTenantChange}
-              isSuperUser={userRole === 'superuser'}
-            />
-            
-            {/* Dropdown Menu with other actions */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {canCreate && (
-                  <>
-                    <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Application
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onSelect={(e) => {
-                    e.preventDefault();
-                  }}
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Columns</span>
-                  <ColumnSelector
-                    columns={enrichedColumnConfigs}
-                    onColumnsChange={setColumnConfigs}
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Right: Add Button */}
+          {canCreate && (
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Application
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -1004,7 +953,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               </Select>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button
               variant="outline"
               onClick={() => {

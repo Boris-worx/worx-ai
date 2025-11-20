@@ -116,7 +116,7 @@ export function TenantEditForm({ tenant, open, onOpenChange, onSuccess }: Tenant
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex w-full justify-between">
           <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>

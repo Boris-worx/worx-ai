@@ -255,7 +255,7 @@ export function TransactionSpecificationDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex w-full justify-between">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

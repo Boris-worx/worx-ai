@@ -218,7 +218,7 @@ export function TransactionForm({ open, onOpenChange, onSuccess }: TransactionFo
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex w-full justify-between">
           <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
             Cancel
           </Button>

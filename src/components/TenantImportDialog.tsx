@@ -390,13 +390,13 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex w-full justify-between">
           <Button
             variant="outline"
             onClick={handleClose}
             disabled={isImporting}
           >
-            {importResult ? 'Close' : 'Cancel'}
+            Cancel
           </Button>
           <Button
             onClick={handleImport}

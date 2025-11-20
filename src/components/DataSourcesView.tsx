@@ -1304,20 +1304,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   return (
     <Card className="w-full max-w-[1440px] mx-auto">
       <CardHeader>
-        {/* Mobile Layout: Stack vertically */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
-          {/* Title Section */}
-          <div className="flex-1 min-w-0">
-            <CardTitle className="flex items-center gap-2 text-[20px] font-bold pt-[0px] pr-[0px] pb-[5px] pl-[0px]">
-              Data Sources
-            </CardTitle>
-            <CardDescription>
-              Manage data sources and their configurations
-            </CardDescription>
-          </div>
-          
-          {/* Desktop View - All buttons visible */}
-          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+        {/* Action Buttons Row */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* Left: Tenant + Filter */}
+          <div className="flex items-center gap-2">
             <TenantSelector
               tenants={tenants}
               activeTenantId={activeTenantId}
@@ -1328,56 +1318,17 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
             />
-            {canCreate && (
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Data Source
-              </Button>
-            )}
           </div>
 
-          {/* Mobile View - Dropdown Menu */}
-          <div className="flex md:hidden items-center gap-2 justify-end">
-            {/* Tenant Selector */}
-            <TenantSelector
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={onTenantChange}
-              isSuperUser={userRole === 'superuser'}
-            />
-            
-            {/* Dropdown Menu with other actions */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {canCreate && (
-                  <DropdownMenuItem onClick={() => setIsCreateDialogOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Data Source
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onSelect={(e) => {
-                    e.preventDefault();
-                  }}
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Columns</span>
-                  <ColumnSelector
-                    columns={enrichedColumnConfigs}
-                    onColumnsChange={setColumnConfigs}
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {/* Right: Add Button */}
+          {canCreate && (
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Data Source
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -1831,7 +1782,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button
               variant="outline"
               onClick={() => {
@@ -1905,7 +1856,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button
               variant="outline"
               onClick={() => {
@@ -1974,7 +1925,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 ))}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
               Close
             </Button>
@@ -2074,18 +2025,18 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 </div>
               )}
 
-              {/* Container Schema */}
+              {/* Container Schema - Show sample Cosmos DB document */}
               <div>
                 <div className="text-sm font-medium mb-2">Container Schema (Cosmos DB)</div>
                 <div className="rounded-md border bg-muted/30 p-3">
                   <pre className="text-xs overflow-x-auto max-h-[400px] overflow-y-auto">
-                    {JSON.stringify(selectedSpec.containerSchema || selectedSpec.schema, null, 2)}
+                    {JSON.stringify(selectedSpec, null, 2)}
                   </pre>
                 </div>
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button variant="outline" onClick={() => setIsSpecViewOpen(false)}>
               Close
             </Button>
@@ -2677,7 +2628,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               </Accordion>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex w-full justify-between">
             <Button
               variant="outline"
               onClick={() => setIsSpecEditOpen(false)}
