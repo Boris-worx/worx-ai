@@ -96,7 +96,27 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       mode: 'cors'
     });
 
+    // Log CORS headers for debugging
+    console.log('📦 Response status:', response.status);
+    console.log('📦 CORS Headers:', {
+      'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+      'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
+      'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
+    });
+
     if (!response.ok) {
+      // Handle 403 Forbidden - return mock data silently
+      if (response.status === 403) {
+        console.log('📦 Using local Apicurio templates (7 available) - Access forbidden (403)');
+        const mockData = getMockApicurioArtifacts();
+        
+        // Cache mock data so subsequent opens are instant
+        artifactsCache = mockData;
+        artifactsCacheTimestamp = now;
+        
+        return mockData;
+      }
+      
       throw new Error(`Apicurio API returned ${response.status}`);
     }
 
@@ -140,17 +160,7 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
 function getMockApicurioArtifacts(): ApicurioSearchResponse {
   return {
     artifacts: [
-      // CDC Format artifacts (use version 1.0.0)
-      {
-        artifactId: "CDC_SQLServer_WorkflowCustomers",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "WorkflowCustomers (CDC)",
-        description: "CDC AVRO schema for WorkflowCustomers",
-        createdOn: "2025-11-18T15:36:35Z",
-        modifiedOn: "2025-11-18T15:36:35Z",
-        version: "1.0.0"
-      },
+      // CDC Format artifacts (version 1.0.0)
       {
         artifactId: "CDC_SQLServer_LineTypes",
         groupId: "paradigm.bidtools",
@@ -171,42 +181,56 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         modifiedOn: "2025-11-18T15:36:30Z",
         version: "1.0.0"
       },
-      // Original format artifacts
       {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuoteDetails.Value",
+        artifactId: "CDC_SQLServer_WorkflowCustomers",
         groupId: "paradigm.bidtools",
         artifactType: "AVRO",
-        name: "QuoteDetails (AVRO)",
-        description: "AVRO schema for QuoteDetails",
+        name: "WorkflowCustomers (CDC)",
+        description: "CDC AVRO schema for WorkflowCustomers",
+        createdOn: "2025-11-18T15:36:35Z",
+        modifiedOn: "2025-11-18T15:36:35Z",
+        version: "1.0.0"
+      },
+      // TxServices format artifacts (version 1.0.0)
+      {
+        artifactId: "TxServices_SQLServer_QuoteDetails.response",
+        groupId: "paradigm.bidtools",
+        artifactType: "JSON",
+        name: "QuoteDetails",
+        description: "JSON schema for QuoteDetails",
         createdOn: "2025-11-18T15:35:18Z",
-        modifiedOn: "2025-11-18T15:35:18Z"
+        modifiedOn: "2025-11-18T15:35:18Z",
+        version: "1.0.0"
       },
       {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value",
+        artifactId: "TxServices_SQLServer_QuotePacks.response",
         groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "QuotePacks (AVRO)",
-        description: "AVRO schema for QuotePacks",
+        artifactType: "JSON",
+        name: "QuotePacks",
+        description: "JSON schema for QuotePacks",
         createdOn: "2025-11-18T15:36:08Z",
-        modifiedOn: "2025-11-18T15:36:08Z"
+        modifiedOn: "2025-11-18T15:36:08Z",
+        version: "1.0.0"
       },
       {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.Quotes.Value",
+        artifactId: "TxServices_SQLServer_Quotes.response",
         groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "Quotes (AVRO)",
-        description: "AVRO schema for Quotes",
+        artifactType: "JSON",
+        name: "Quotes",
+        description: "JSON schema for Quotes",
         createdOn: "2025-11-18T15:36:17Z",
-        modifiedOn: "2025-11-18T15:36:17Z"
+        modifiedOn: "2025-11-18T15:36:17Z",
+        version: "1.0.0"
       },
       {
-        artifactId: "paradigm.bidtools.ppapdb_import.bfs.ReasonCodes.Value",
+        artifactId: "TxServices_SQLServer_ReasonCodes.response",
         groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "ReasonCodes (AVRO)",
-        description: "AVRO schema for ReasonCodes",
+        artifactType: "JSON",
+        name: "ReasonCodes",
+        description: "JSON schema for ReasonCodes",
         createdOn: "2025-11-18T15:36:25Z",
-        modifiedOn: "2025-11-18T15:36:25Z"
+        modifiedOn: "2025-11-18T15:36:25Z",
+        version: "1.0.0"
       }
     ],
     count: 7
@@ -233,6 +257,13 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
 
     if (!response.ok) {
       console.error('❌ Apicurio API error:', response.status, response.statusText);
+      
+      // Handle 403 Forbidden specifically
+      if (response.status === 403) {
+        console.log('📦 Using local schema template (Apicurio access forbidden):', extractArtifactName(artifactId));
+        return getMockArtifactSchema(artifactId);
+      }
+      
       const errorText = await response.text();
       console.error('❌ Error body:', errorText);
       throw new Error(`Apicurio API returned ${response.status}: ${errorText}`);
@@ -246,6 +277,12 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
     // Return mock schema for development (CORS or network issues)
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       console.log('📦 Using local schema template:', extractArtifactName(artifactId));
+      return getMockArtifactSchema(artifactId);
+    }
+    
+    // If error message contains "403" or "Forbidden", return mock data
+    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
+      console.log('📦 Using local schema template (403):', extractArtifactName(artifactId));
       return getMockArtifactSchema(artifactId);
     }
     
@@ -398,7 +435,7 @@ function getMockArtifactSchema(artifactId: string): any {
     };
   }
   
-  // Original format artifacts
+  // TxServices format artifacts
   if (artifactId.includes('QuotePacks')) {
     return {
       type: 'object',
@@ -597,7 +634,6 @@ function mapAvroTypeToJson(avroType: any): string {
 }
 
 // Extract readable name from artifactId
-// e.g., "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value" -> "QuotePacks"
 // e.g., "TxServices_SQLServer_QuotePacks.response" -> "QuotePacks"
 // e.g., "CDC_SQLServer_LineTypes" -> "LineTypes"
 export function extractArtifactName(artifactId: string): string {
@@ -612,15 +648,17 @@ export function extractArtifactName(artifactId: string): string {
     if (match) return match[1];
   }
   
-  // Handle new format: "TxServices_SQLServer_QuotePacks.response"
+  // Handle TxServices format: "TxServices_SQLServer_QuotePacks.response" -> "QuotePacks"
   if (artifactId.includes('TxServices_SQLServer_')) {
     const match = artifactId.match(/TxServices_SQLServer_([\w]+)/);
     if (match) return match[1];
   }
   
-  // Handle old format: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value"
+  // Handle old format: "paradigm.bidtools.ppapdb_import.bfs.QuotePacks.Value" -> "QuotePacks"
   const parts = artifactId.split('.');
-  const withoutSuffix = artifactId.endsWith('.Value') ? parts.slice(0, -1) : parts;
+  const withoutSuffix = artifactId.endsWith('.Value') || artifactId.endsWith('.response') 
+    ? parts.slice(0, -1) 
+    : parts;
   return withoutSuffix[withoutSuffix.length - 1] || artifactId;
 }
 

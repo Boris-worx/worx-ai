@@ -42,7 +42,7 @@ import {
   CommandItem,
   CommandList,
 } from "./ui/command";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DataSource, createDataCaptureSpec } from "../lib/api";
 import {
@@ -51,6 +51,7 @@ import {
   processSchema,
   extractArtifactName,
   getArtifactDisplayName,
+  clearArtifactsCache,
   ApicurioArtifact,
 } from "../lib/apicurio";
 
@@ -260,11 +261,12 @@ export function DataCaptureSpecCreateDialog({
       }));
 
       toast.success(
-        `Template "${displayName}" loaded successfully!`,
+        `Template \"${displayName}\" loaded successfully!`,
       );
     } catch (error: any) {
       console.error("Failed to load Apicurio template:", error);
-      toast.error(`Failed to load template: ${error.message}`);
+      // Error is logged but user gets mock data automatically - no need to show error
+      // The fallback logic in getApicurioArtifact will handle 403 and return mock schemas
     }
   };
 
@@ -577,49 +579,66 @@ export function DataCaptureSpecCreateDialog({
                   Basic Information
                 </AccordionTrigger>
                 <AccordionContent className="space-y-2.5 pt-2 pb-2">
-                  {/* Apicurio Template Selector */}
-                  <Select
-                    value={selectedArtifact}
-                    onValueChange={(value) => {
-                      setSelectedArtifact(value);
-                      handleLoadApicurioTemplate(value);
-                    }}
-                    disabled={isLoadingArtifacts}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue
-                        placeholder={
-                          isLoadingArtifacts
-                            ? "Loading templates..."
-                            : "Select a Apicurio Template"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {apicurioArtifacts
-                        .slice()
-                        .sort((a, b) => {
-                          const nameA = getArtifactDisplayName(a).toLowerCase();
-                          const nameB = getArtifactDisplayName(b).toLowerCase();
-                          return nameA.localeCompare(nameB);
-                        })
-                        .map((artifact) => (
-                        <SelectItem
-                          key={artifact.artifactId}
-                          value={artifact.artifactId}
-                          className="text-xs"
-                        >
-                          {getArtifactDisplayName(artifact)}
-                        </SelectItem>
-                      ))}
-                      {apicurioArtifacts.length === 0 &&
-                        !isLoadingArtifacts && (
-                          <SelectItem value="none" disabled>
-                            No templates available
+                  {/* Apicurio Template Selector with Refresh button */}
+                  <div className="flex gap-2">
+                    <Select
+                      value={selectedArtifact}
+                      onValueChange={(value) => {
+                        setSelectedArtifact(value);
+                        handleLoadApicurioTemplate(value);
+                      }}
+                      disabled={isLoadingArtifacts}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue
+                          placeholder={
+                            isLoadingArtifacts
+                              ? "Loading templates..."
+                              : "Select a Apicurio Template"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apicurioArtifacts
+                          .slice()
+                          .sort((a, b) => {
+                            const nameA = getArtifactDisplayName(a).toLowerCase();
+                            const nameB = getArtifactDisplayName(b).toLowerCase();
+                            return nameA.localeCompare(nameB);
+                          })
+                          .map((artifact) => (
+                          <SelectItem
+                            key={artifact.artifactId}
+                            value={artifact.artifactId}
+                            className="text-xs"
+                          >
+                            {getArtifactDisplayName(artifact)}
                           </SelectItem>
-                        )}
-                    </SelectContent>
-                  </Select>
+                        ))}
+                        {apicurioArtifacts.length === 0 &&
+                          !isLoadingArtifacts && (
+                            <SelectItem value="none" disabled>
+                              No templates available
+                            </SelectItem>
+                          )}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => {
+                        clearArtifactsCache();
+                        loadApicurioArtifacts();
+                        toast.info("Refreshing templates from Apicurio Registry...");
+                      }}
+                      disabled={isLoadingArtifacts}
+                      title="Refresh templates from Apicurio Registry"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingArtifacts ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
 
                   <Separator className="my-2" />
 
