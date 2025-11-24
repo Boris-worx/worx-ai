@@ -286,6 +286,15 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
       }));
   }, [enrichedColumnConfigs, globalSchemas]);
 
+  // Enrich schemas with computed fields for sorting
+  const enrichedSchemas = useMemo(() => {
+    return globalSchemas.map(schema => ({
+      ...schema,
+      properties: countProperties(schema.jsonSchema),
+      requiredFields: getRequiredFields(schema.jsonSchema).length,
+    }));
+  }, [globalSchemas]);
+
   // Load schemas on mount
   useEffect(() => {
     loadGlobalSchemas();
@@ -510,13 +519,13 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             <Skeleton className="h-12 w-full" />
           </div>
         ) : schemaError ? (
-          /* Loading State - Show only spinner */
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          /* Empty State */
+          <div className="text-center py-12 text-muted-foreground">
+            No schemas available
           </div>
         ) : (
           <DataTable
-            data={globalSchemas}
+            data={enrichedSchemas}
             columns={columns}
             actions={(row) => {
               const isProtected = isProtectedType(row.model);

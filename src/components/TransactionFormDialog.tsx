@@ -139,7 +139,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
               <div className="flex flex-col items-center gap-2">
                 {isUploading ? (
                   <>
-                    <div className="h-8 w-8 border-4 border-[#1D6BCD] border-t-transparent rounded-full animate-spin" />
+                    <FileJson className="h-10 w-10 text-[#1D6BCD]" />
                     <span className="text-sm text-muted-foreground">Uploading...</span>
                   </>
                 ) : (

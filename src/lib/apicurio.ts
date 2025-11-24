@@ -81,47 +81,61 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       return artifactsCache;
     }
     
-    console.log('📦 Fetching fresh Apicurio artifacts...');
+    console.log('📦 Fetching fresh Apicurio artifacts from multiple groups...');
     
-    // Get all artifacts from paradigm.bidtools group
-    // Using group-specific endpoint to get all 12 artifacts
-    const url = `${APICURIO_REGISTRY_URL}/groups/paradigm.bidtools/artifacts?limit=100`;
+    // Fetch artifacts from multiple groups
+    const groups = ['paradigm.bidtools', 'bfs.online'];
+    const allArtifacts: ApicurioArtifact[] = [];
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      mode: 'cors'
-    });
-
-    // Log CORS headers for debugging
-    console.log('📦 Response status:', response.status);
-    console.log('📦 CORS Headers:', {
-      'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
-      'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
-      'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
-    });
-
-    if (!response.ok) {
-      // Handle 403 Forbidden - return mock data silently
-      if (response.status === 403) {
-        console.log('📦 Using local Apicurio templates (7 available) - Access forbidden (403)');
-        const mockData = getMockApicurioArtifacts();
+    for (const group of groups) {
+      try {
+        const url = `${APICURIO_REGISTRY_URL}/groups/${group}/artifacts?limit=100`;
+        console.log(`📦 Fetching from group: ${group}`);
         
-        // Cache mock data so subsequent opens are instant
-        artifactsCache = mockData;
-        artifactsCacheTimestamp = now;
-        
-        return mockData;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          mode: 'cors'
+        });
+
+        // Log CORS headers for debugging
+        console.log(`📦 Response status (${group}):`, response.status);
+
+        if (response.ok) {
+          const groupData: ApicurioSearchResponse = await response.json();
+          console.log(`📦 Loaded ${groupData.count} artifacts from ${group} group`);
+          allArtifacts.push(...groupData.artifacts);
+        } else if (response.status === 403) {
+          console.log(`📦 Access forbidden (403) for group: ${group}`);
+        } else {
+          console.log(`📦 Could not fetch from ${group} (status: ${response.status})`);
+        }
+      } catch (error) {
+        // Silent handling - CORS is expected in browser environments
+        // Just skip this group and continue
       }
-      
-      throw new Error(`Apicurio API returned ${response.status}`);
     }
 
-    const data: ApicurioSearchResponse = await response.json();
-    console.log(`📦 Loaded ${data.count} Apicurio artifacts from paradigm.bidtools group`);
+    // If we got no artifacts from any group, use mock data
+    if (allArtifacts.length === 0) {
+      console.log('📦 No artifacts loaded, using local Apicurio templates');
+      const mockData = getMockApicurioArtifacts();
+      
+      // Cache mock data so subsequent opens are instant
+      artifactsCache = mockData;
+      artifactsCacheTimestamp = now;
+      
+      return mockData;
+    }
+
+    const data: ApicurioSearchResponse = {
+      artifacts: allArtifacts,
+      count: allArtifacts.length
+    };
+    console.log(`📦 Total artifacts loaded: ${data.count}`);
     
     // Update cache
     artifactsCache = data;
@@ -231,9 +245,40 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         createdOn: "2025-11-18T15:36:25Z",
         modifiedOn: "2025-11-18T15:36:25Z",
         version: "1.0.0"
+      },
+      // bfs.online group artifacts (Informix schemas)
+      {
+        artifactId: "TxServices_Informix_loc1.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "loc1",
+        description: "Response schema for Informix TxServices loc1",
+        createdOn: "2025-11-24T16:31:35Z",
+        modifiedOn: "2025-11-24T16:31:35Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_loc.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "loc",
+        description: "Response schema for Informix TxServices loc",
+        createdOn: "2025-11-24T16:28:04Z",
+        modifiedOn: "2025-11-24T16:28:04Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_stcode.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "stcode",
+        description: "Response schema for Informix TxServices stcode",
+        createdOn: "2025-11-24T16:32:02Z",
+        modifiedOn: "2025-11-24T16:32:02Z",
+        version: "1.0.0"
       }
     ],
-    count: 7
+    count: 10
   };
 }
 
@@ -495,6 +540,172 @@ function getMockArtifactSchema(artifactId: string): any {
     };
   }
   
+  // Informix TxServices schemas (nested structure with TxnType + Txn.properties)
+  if (artifactId.includes('loc1')) {
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "loccd": { "type": ["string", "null"] },
+            "faxno": { "type": ["string", "null"] },
+            "phone": { "type": ["string", "null"] },
+            "defpt": { "type": ["string", "null"] },
+            "defso": { "type": ["string", "null"] },
+            "timezone": { "type": ["integer", "null"] },
+            "mfgsite": { "type": ["string", "null"] },
+            "labcst": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "comid": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "Loccd" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('loc.')) {
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "loccd": { "type": ["string", "null"] },
+            "lname": { "type": ["string", "null"] },
+            "addr": { "type": ["string", "null"] },
+            "city": { "type": ["string", "null"] },
+            "state": { "type": ["string", "null"] },
+            "zip": { "type": ["string", "null"] },
+            "phone": { "type": ["string", "null"] },
+            "faxno": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "Loccd" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('stcode')) {
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "st": { "type": ["string", "null"] },
+            "stn": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "St" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  }
+  
   // Default generic schema
   return {
     type: 'object',
@@ -651,6 +862,12 @@ export function extractArtifactName(artifactId: string): string {
   // Handle TxServices format: "TxServices_SQLServer_QuotePacks.response" -> "QuotePacks"
   if (artifactId.includes('TxServices_SQLServer_')) {
     const match = artifactId.match(/TxServices_SQLServer_([\w]+)/);
+    if (match) return match[1];
+  }
+  
+  // Handle TxServices Informix format: "TxServices_Informix_loc1.response" -> "loc1"
+  if (artifactId.includes('TxServices_Informix_')) {
+    const match = artifactId.match(/TxServices_Informix_([\w]+)/);
     if (match) return match[1];
   }
   

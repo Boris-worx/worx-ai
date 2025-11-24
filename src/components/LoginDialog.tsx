@@ -66,7 +66,6 @@ export const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center py-8">
-            <RefreshCw className="h-8 w-8 animate-spin text-[#1D6BCD] mb-4" />
             <p className="text-sm text-muted-foreground">Please wait...</p>
           </div>
         </DialogContent>

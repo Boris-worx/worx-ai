@@ -173,6 +173,15 @@ export function DataTable<T extends Record<string, any>>({
       
       if (aValue === bValue) return 0;
       
+      // Try to parse as dates first
+      const aDate = new Date(aValue);
+      const bDate = new Date(bValue);
+      
+      if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+        const comparison = aDate.getTime() - bDate.getTime();
+        return sortConfig.direction === 'asc' ? comparison : -comparison;
+      }
+      
       // Handle numeric values
       const aNum = typeof aValue === 'number' ? aValue : parseFloat(aValue);
       const bNum = typeof bValue === 'number' ? bValue : parseFloat(bValue);

@@ -960,12 +960,17 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     if (isSpecEditOpen && selectedSpec) {
       setEditSpecForm({
         dataCaptureSpecName: selectedSpec.dataCaptureSpecName || '',
+        containerName: selectedSpec.containerName || '',
+        tenantId: selectedSpec.tenantId || '',
+        dataSourceId: selectedSpec.dataSourceId || '',
         version: selectedSpec.version ? parseInt(String(selectedSpec.version)) : 1,
         isActive: selectedSpec.isActive !== undefined ? selectedSpec.isActive : true,
         profile: selectedSpec.profile || 'data-capture',
         sourcePrimaryKeyField: selectedSpec.sourcePrimaryKeyField || '',
         partitionKeyField: selectedSpec.partitionKeyField || 'partitionKey',
         partitionKeyValue: selectedSpec.partitionKeyValue || '',
+        allowedFilters: Array.isArray(selectedSpec.allowedFilters) ? selectedSpec.allowedFilters : [],
+        requiredFields: Array.isArray(selectedSpec.requiredFields) ? selectedSpec.requiredFields : [],
         allowedFiltersText: selectedSpec.allowedFilters ? selectedSpec.allowedFilters.join('\n') : '',
         requiredFieldsText: selectedSpec.requiredFields ? selectedSpec.requiredFields.join('\n') : '',
         containerSchemaText: selectedSpec.containerSchema ? JSON.stringify(selectedSpec.containerSchema, null, 2) : ''
@@ -1341,9 +1346,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             <Skeleton className="h-12 w-full" />
           </div>
         ) : dataSources.length === 0 ? (
-          /* Loading State - Show only spinner */
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          /* Empty State */
+          <div className="text-center py-12 text-muted-foreground">
+            No data sources available
           </div>
         ) : (
           <DataTable
@@ -2093,7 +2098,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         </Label>
                         <Input
                           id="editTenantId"
-                          value={editSpecForm.tenantId}
+                          value={editSpecForm.tenantId || ''}
                           disabled
                           className="bg-muted h-8 text-xs"
                         />
@@ -2105,7 +2110,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         </Label>
                         <Input
                           id="editDataSourceId"
-                          value={editSpecForm.dataSourceId}
+                          value={editSpecForm.dataSourceId || ''}
                           disabled
                           className="bg-muted h-8 text-xs"
                         />
@@ -2121,7 +2126,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         <Input
                           id="editSpecName"
                           placeholder="e.g., irc"
-                          value={editSpecForm.dataCaptureSpecName}
+                          value={editSpecForm.dataCaptureSpecName || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2139,7 +2144,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         <Input
                           id="editContainerName"
                           placeholder="e.g., ircs"
-                          value={editSpecForm.containerName}
+                          value={editSpecForm.containerName || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2171,7 +2176,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         <Input
                           id="editPrimaryKey"
                           placeholder="e.g., quoteId"
-                          value={editSpecForm.sourcePrimaryKeyField}
+                          value={editSpecForm.sourcePrimaryKeyField || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2189,7 +2194,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         <Input
                           id="editPartitionKey"
                           placeholder="e.g., partitionKey"
-                          value={editSpecForm.partitionKeyField}
+                          value={editSpecForm.partitionKeyField || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2207,7 +2212,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         <Input
                           id="editPartitionValue"
                           placeholder="Optional"
-                          value={editSpecForm.partitionKeyValue}
+                          value={editSpecForm.partitionKeyValue || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2254,13 +2259,13 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                 className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
                               >
                                 <div className="flex flex-wrap gap-1 flex-1">
-                                  {editSpecForm.allowedFilters.length === 0 ? (
+                                  {(!editSpecForm.allowedFilters || editSpecForm.allowedFilters.length === 0) ? (
                                     <span className="text-muted-foreground">
                                       Select filters...
                                     </span>
                                   ) : (
                                     <>
-                                      {editSpecForm.allowedFilters.slice(0, 3).map((filter) => (
+                                      {(editSpecForm.allowedFilters || []).slice(0, 3).map((filter) => (
                                         <Badge
                                           key={filter}
                                           variant="secondary"
@@ -2269,12 +2274,12 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                           {filter}
                                         </Badge>
                                       ))}
-                                      {editSpecForm.allowedFilters.length > 3 && (
+                                      {(editSpecForm.allowedFilters || []).length > 3 && (
                                         <Badge
                                           variant="secondary"
                                           className="text-[10px] px-1.5 py-0"
                                         >
-                                          +{editSpecForm.allowedFilters.length - 3} more
+                                          +{(editSpecForm.allowedFilters || []).length - 3} more
                                         </Badge>
                                       )}
                                     </>
@@ -2292,7 +2297,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                   </CommandEmpty>
                                   <CommandGroup>
                                     {availableFields.map((field) => {
-                                      const isSelected = editSpecForm.allowedFilters.includes(field);
+                                      const isSelected = (editSpecForm.allowedFilters || []).includes(field);
                                       return (
                                         <CommandItem
                                           key={field}
@@ -2301,7 +2306,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                             if (isSelected) {
                                               setEditSpecForm({
                                                 ...editSpecForm,
-                                                allowedFilters: editSpecForm.allowedFilters.filter(
+                                                allowedFilters: (editSpecForm.allowedFilters || []).filter(
                                                   (f) => f !== field,
                                                 ),
                                               });
@@ -2309,7 +2314,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                               setEditSpecForm({
                                                 ...editSpecForm,
                                                 allowedFilters: [
-                                                  ...editSpecForm.allowedFilters,
+                                                  ...(editSpecForm.allowedFilters || []),
                                                   field,
                                                 ],
                                               });
@@ -2336,8 +2341,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                 </CommandList>
                                 <div className="border-t p-2 bg-muted/50">
                                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                    <span>{editSpecForm.allowedFilters.length} of {availableFields.length} selected</span>
-                                    {editSpecForm.allowedFilters.length > 0 && (
+                                    <span>{(editSpecForm.allowedFilters || []).length} of {availableFields.length} selected</span>
+                                    {(editSpecForm.allowedFilters || []).length > 0 && (
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -2394,7 +2399,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                       className="bg-white rounded-[10px] border px-4 py-0"
                     >
                       <AccordionTrigger className="text-sm py-2 hover:no-underline">
-                        Required Fields ({editSpecForm.requiredFields.length} selected)
+                        Required Fields ({(editSpecForm.requiredFields || []).length} selected)
                       </AccordionTrigger>
                       <AccordionContent className="space-y-2 pt-2 pb-2">
                         <div className="space-y-1">
@@ -2407,13 +2412,13 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                 className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
                               >
                                 <div className="flex flex-wrap gap-1 flex-1">
-                                  {editSpecForm.requiredFields.length === 0 ? (
+                                  {(!editSpecForm.requiredFields || editSpecForm.requiredFields.length === 0) ? (
                                     <span className="text-muted-foreground">
                                       Select required fields...
                                     </span>
                                   ) : (
                                     <>
-                                      {editSpecForm.requiredFields.slice(0, 3).map((field) => (
+                                      {(editSpecForm.requiredFields || []).slice(0, 3).map((field) => (
                                         <Badge
                                           key={field}
                                           variant="secondary"
@@ -2422,12 +2427,12 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                           {field}
                                         </Badge>
                                       ))}
-                                      {editSpecForm.requiredFields.length > 3 && (
+                                      {(editSpecForm.requiredFields || []).length > 3 && (
                                         <Badge
                                           variant="secondary"
                                           className="text-[10px] px-1.5 py-0"
                                         >
-                                          +{editSpecForm.requiredFields.length - 3} more
+                                          +{(editSpecForm.requiredFields || []).length - 3} more
                                         </Badge>
                                       )}
                                     </>
@@ -2445,7 +2450,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                   </CommandEmpty>
                                   <CommandGroup>
                                     {availableFields.map((field) => {
-                                      const isSelected = editSpecForm.requiredFields.includes(field);
+                                      const isSelected = (editSpecForm.requiredFields || []).includes(field);
                                       return (
                                         <CommandItem
                                           key={field}
@@ -2454,7 +2459,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                             if (isSelected) {
                                               setEditSpecForm({
                                                 ...editSpecForm,
-                                                requiredFields: editSpecForm.requiredFields.filter(
+                                                requiredFields: (editSpecForm.requiredFields || []).filter(
                                                   (f) => f !== field,
                                                 ),
                                               });
@@ -2462,7 +2467,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                               setEditSpecForm({
                                                 ...editSpecForm,
                                                 requiredFields: [
-                                                  ...editSpecForm.requiredFields,
+                                                  ...(editSpecForm.requiredFields || []),
                                                   field,
                                                 ],
                                               });
@@ -2489,8 +2494,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                 </CommandList>
                                 <div className="border-t p-2 bg-muted/50">
                                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                    <span>{editSpecForm.requiredFields.length} of {availableFields.length} selected</span>
-                                    {editSpecForm.requiredFields.length > 0 && (
+                                    <span>{(editSpecForm.requiredFields || []).length} of {availableFields.length} selected</span>
+                                    {(editSpecForm.requiredFields || []).length > 0 && (
                                       <Button
                                         variant="ghost"
                                         size="sm"
@@ -2541,7 +2546,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                           id="editVersion"
                           type="number"
                           min="1"
-                          value={editSpecForm.version}
+                          value={editSpecForm.version || 1}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2558,7 +2563,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                         </Label>
                         <Input
                           id="editProfile"
-                          value={editSpecForm.profile}
+                          value={editSpecForm.profile || ''}
                           onChange={(e) =>
                             setEditSpecForm({
                               ...editSpecForm,
@@ -2613,7 +2618,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                     <div className="border rounded-md overflow-hidden">
                       <textarea
                         className="w-full h-[300px] font-mono text-[11px] p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring bg-muted/20"
-                        value={editSpecForm.containerSchemaText}
+                        value={editSpecForm.containerSchemaText || ''}
                         onChange={(e) =>
                           setEditSpecForm({
                             ...editSpecForm,
@@ -2645,8 +2650,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
                 // Validate required fields
                 if (!editSpecForm.dataCaptureSpecName || !editSpecForm.sourcePrimaryKeyField || 
-                    !editSpecForm.partitionKeyField || !editSpecForm.partitionKeyValue || 
-                    !editSpecForm.requiredFieldsText || !editSpecForm.containerSchemaText) {
+                    !editSpecForm.partitionKeyField || !editSpecForm.containerSchemaText) {
                   toast.error('Please fill in all required fields');
                   return;
                 }
@@ -2661,8 +2665,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 }
 
                 // Use filters and required fields from state (already arrays)
-                const allowedFilters = editSpecForm.allowedFilters;
-                const requiredFields = editSpecForm.requiredFields;
+                const allowedFilters = editSpecForm.allowedFilters || [];
+                const requiredFields = editSpecForm.requiredFields || [];
 
                 if (requiredFields.length === 0) {
                   toast.error('At least one required field must be specified');

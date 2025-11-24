@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { User, Mail, Shield, Loader2 } from 'lucide-react';
+import { User, Mail, Shield } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 interface ProfileDialogProps {
@@ -106,7 +106,7 @@ export const ProfileDialog = ({ open, onOpenChange }: ProfileDialogProps) => {
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-[#1D6BCD]" />
+            <p className="text-sm text-muted-foreground">Loading profile...</p>
           </div>
         ) : (
           <div className="space-y-6 mt-4">

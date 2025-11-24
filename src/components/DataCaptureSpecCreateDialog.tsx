@@ -136,7 +136,7 @@ export function DataCaptureSpecCreateDialog({
     version: 1,
     profile: "data-capture",
     sourcePrimaryKeyField: "",
-    partitionKeyField: "id", // Default to "id"
+    partitionKeyField: "",
     partitionKeyValue: "",
     allowedFilters: [] as string[], // Changed from allowedFiltersText to array
     requiredFields: [] as string[],
@@ -203,10 +203,17 @@ export function DataCaptureSpecCreateDialog({
         artifact.artifactType,
       );
 
+      console.log('🔍 Full jsonSchema structure:', JSON.stringify(jsonSchema, null, 2));
+      console.log('🔍 jsonSchema.properties:', jsonSchema.properties);
+      console.log('🔍 jsonSchema.properties.Txn:', jsonSchema.properties?.Txn);
+      console.log('🔍 jsonSchema.properties.Txn.properties:', jsonSchema.properties?.Txn?.properties);
+
       // Extract name for spec (e.g., "QuotePacks" -> "quotepack")
       let specName = extractArtifactName(artifactId)
         .replace(/^TxServices_SQLServer_/, "")
-        .replace(/\.response$/, "");
+        .replace(/^TxServices_Informix_/, "")
+        .replace(/\\.response$/, "")
+        .replace(/\\.request$/, "");
 
       // Spec Name: singular form (QuotePacks -> QuotePack, ReasonCodes -> ReasonCode)
       let specNameSingular = specName;
@@ -225,31 +232,38 @@ export function DataCaptureSpecCreateDialog({
       // Get all property names for allowed filters
       // IMPORTANT: Property names from Apicurio come in PascalCase (e.g., QuoteDetailId, QuoteId)
       // We must preserve them exactly as they come from the schema for containerSchema properties
-      const propertyNames = Object.keys(
-        jsonSchema.properties || {},
-      );
-      console.log('📦 All property names from jsonSchema.properties (PascalCase preserved):', propertyNames);
+      let propertyNames: string[] = [];
       
-      const allowedFilters = propertyNames
+      // Check if schema has nested structure (Informix schemas: TxnType + Txn.properties)
+      if (jsonSchema.properties?.Txn?.properties) {
+        // Nested structure - extract properties from Txn.properties
+        propertyNames = Object.keys(jsonSchema.properties.Txn.properties || {});
+        console.log('📦 Detected nested schema structure (Informix), extracting from Txn.properties:', propertyNames);
+      } else if (jsonSchema.properties) {
+        // Flat structure - extract properties from top level
+        propertyNames = Object.keys(jsonSchema.properties || {});
+        console.log('📦 Flat schema structure, extracting from jsonSchema.properties:', propertyNames);
+      }
+      
+      const allowedFiltersArray = propertyNames
         .filter(
           (name) =>
-            !["id", "partitionKey", "createTime", "updateTime", "metaData"].includes(
+            !["id", "partitionKey", "createTime", "updateTime", "metaData", "TxnType", "Txn"].includes(
               name,
             ),
-        )
-        .join(", ");
+        );
       
-      console.log('📦 Allowed filters (filtered):', allowedFilters);
+      console.log('📦 Allowed filters (filtered):', allowedFiltersArray);
       console.log('📦 Required fields from jsonSchema:', jsonSchema.required);
 
-      // Auto-populate form
+      // Auto-populate form - CLEAR OLD DATA FIRST
       setFormData((prev) => ({
         ...prev,
         dataCaptureSpecName: specNameSingular,
         containerName: containerName,
-        sourcePrimaryKeyField: primaryKeyField, // Auto-generated: QuotePackId (PascalCase)
-        partitionKeyField: "id", // Changed from "partitionKey" to "id"
-        allowedFilters: allowedFilters.split(", ").map((f) => f.trim()),
+        sourcePrimaryKeyField: primaryKeyField,
+        partitionKeyField: "id",
+        allowedFilters: allowedFiltersArray, // Use array directly instead of string split
         requiredFields: Array.isArray(jsonSchema.required)
           ? jsonSchema.required
           : ["id"],
@@ -332,21 +346,17 @@ export function DataCaptureSpecCreateDialog({
         ...prev,
         tenantId: selectedDataSource.TenantId || activeTenantId,
         dataSourceId: getDataSourceId(selectedDataSource),
-        dataCaptureSpecName: "irc",
-        containerName: "ircs",
+        dataCaptureSpecName: "",
+        containerName: "",
         version: 1,
         isActive: true,
         profile: "data-capture",
-        sourcePrimaryKeyField: "id",
-        partitionKeyField: "id", // Changed from "partitionKey" to "id"
+        sourcePrimaryKeyField: "",
+        partitionKeyField: "",
         partitionKeyValue: "",
         allowedFilters: [], // Empty by default - user should select from available fields
-        requiredFields: ["id"],
-        containerSchemaText: JSON.stringify(
-          ircContainerSchema,
-          null,
-          2,
-        ),
+        requiredFields: [],
+        containerSchemaText: "",
       }));
     }
   }, [isOpen, selectedDataSource, activeTenantId]);
@@ -363,7 +373,7 @@ export function DataCaptureSpecCreateDialog({
         version: 1,
         profile: "data-capture",
         sourcePrimaryKeyField: "",
-        partitionKeyField: "id", // Default to "id"
+        partitionKeyField: "",
         partitionKeyValue: "",
         allowedFilters: [],
         requiredFields: [],
@@ -599,22 +609,58 @@ export function DataCaptureSpecCreateDialog({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {apicurioArtifacts
-                          .slice()
-                          .sort((a, b) => {
-                            const nameA = getArtifactDisplayName(a).toLowerCase();
-                            const nameB = getArtifactDisplayName(b).toLowerCase();
-                            return nameA.localeCompare(nameB);
-                          })
-                          .map((artifact) => (
-                          <SelectItem
-                            key={artifact.artifactId}
-                            value={artifact.artifactId}
-                            className="text-xs"
-                          >
-                            {getArtifactDisplayName(artifact)}
-                          </SelectItem>
-                        ))}
+                        {/* Group artifacts by groupId */}
+                        {(() => {
+                          // Group artifacts by groupId
+                          const grouped = apicurioArtifacts.reduce((acc, artifact) => {
+                            const group = artifact.groupId || 'other';
+                            if (!acc[group]) acc[group] = [];
+                            acc[group].push(artifact);
+                            return acc;
+                          }, {} as Record<string, typeof apicurioArtifacts>);
+
+                          // Sort groups: paradigm.bidtools first, then bfs.online, then others
+                          const groupOrder = ['paradigm.bidtools', 'bfs.online'];
+                          const sortedGroups = Object.keys(grouped).sort((a, b) => {
+                            const indexA = groupOrder.indexOf(a);
+                            const indexB = groupOrder.indexOf(b);
+                            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                            if (indexA !== -1) return -1;
+                            if (indexB !== -1) return 1;
+                            return a.localeCompare(b);
+                          });
+
+                          return sortedGroups.map((groupId, groupIndex) => (
+                            <div key={groupId}>
+                              {/* Group header */}
+                              {groupIndex > 0 && <Separator className="my-1" />}
+                              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                {groupId === 'paradigm.bidtools' ? '📦 SQL Server Templates' : 
+                                 groupId === 'bfs.online' ? '🗄️ Informix Templates' : 
+                                 groupId}
+                              </div>
+                              
+                              {/* Artifacts in this group */}
+                              {grouped[groupId]
+                                .slice()
+                                .sort((a, b) => {
+                                  const nameA = getArtifactDisplayName(a).toLowerCase();
+                                  const nameB = getArtifactDisplayName(b).toLowerCase();
+                                  return nameA.localeCompare(nameB);
+                                })
+                                .map((artifact) => (
+                                  <SelectItem
+                                    key={artifact.artifactId}
+                                    value={artifact.artifactId}
+                                    className="text-xs pl-6"
+                                  >
+                                    {getArtifactDisplayName(artifact)}
+                                  </SelectItem>
+                                ))}
+                            </div>
+                          ));
+                        })()}
+                        
                         {apicurioArtifacts.length === 0 &&
                           !isLoadingArtifacts && (
                             <SelectItem value="none" disabled>
@@ -636,7 +682,7 @@ export function DataCaptureSpecCreateDialog({
                       disabled={isLoadingArtifacts}
                       title="Refresh templates from Apicurio Registry"
                     >
-                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingArtifacts ? 'animate-spin' : ''}`} />
+                      <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                   </div>
 
@@ -686,7 +732,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="specName"
-                        placeholder="e.g., irc"
+                        placeholder=""
                         value={formData.dataCaptureSpecName}
                         onChange={(e) => {
                           setFormData({
@@ -708,7 +754,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="containerName"
-                        placeholder="e.g., ircs"
+                        placeholder=""
                         value={formData.containerName}
                         onChange={(e) =>
                           setFormData({
@@ -743,7 +789,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="sourcePrimaryKeyField"
-                        placeholder="e.g., QuoteId"
+                        placeholder=""
                         value={formData.sourcePrimaryKeyField}
                         onChange={(e) =>
                           setFormData({
@@ -765,7 +811,7 @@ export function DataCaptureSpecCreateDialog({
                       </Label>
                       <Input
                         id="partitionKeyField"
-                        placeholder="e.g., id"
+                        placeholder=""
                         value={formData.partitionKeyField}
                         onChange={(e) =>
                           setFormData({

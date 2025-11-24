@@ -655,9 +655,9 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             <Skeleton className="h-12 w-full" />
           </div>
         ) : applications.length === 0 ? (
-          /* Loading State - Show only spinner */
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          /* Empty State */
+          <div className="text-center py-12 text-muted-foreground">
+            No applications available
           </div>
         ) : (
           <DataTable

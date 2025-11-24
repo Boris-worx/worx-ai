@@ -462,9 +462,9 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
         </CardHeader>
         <CardContent>
           {tenants.length === 0 ? (
-            /* Loading State - Show only spinner */
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            /* Empty State - No data yet */
+            <div className="text-center py-12 text-muted-foreground">
+              No tenants available
             </div>
           ) : (
             /* Full Functionality - Show after tenants are imported */

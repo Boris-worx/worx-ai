@@ -1725,6 +1725,8 @@ export async function updateDataCaptureSpec(
   try {
     // BFS API expects camelCase format (same as create operation)
     const apiPayload: any = {};
+    // IMPORTANT: dataCaptureSpecId must match the path parameter
+    apiPayload.dataCaptureSpecId = specId;
     if (spec.dataCaptureSpecName !== undefined) apiPayload.dataCaptureSpecName = spec.dataCaptureSpecName;
     if (spec.containerName !== undefined) apiPayload.containerName = spec.containerName;
     if (spec.tenantId !== undefined) apiPayload.tenantId = spec.tenantId;

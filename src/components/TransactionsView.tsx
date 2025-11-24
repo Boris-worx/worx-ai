@@ -1927,10 +1927,10 @@ export function TransactionsView({
                 </div>
               )}
 
-              {/* Empty State - Loading Spinner */}
+              {/* Empty State */}
               {transactions.length === 0 && !isLoadingType && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <div className="text-center py-12 text-muted-foreground">
+                  No transactions available
                 </div>
               )}
 
@@ -1955,17 +1955,8 @@ export function TransactionsView({
                         disabled={isLoadingMore}
                         className="min-w-[200px]"
                       >
-                        {isLoadingMore ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Load More (next 100)
-                          </>
-                        )}
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        {isLoadingMore ? 'Loading...' : 'Load More (next 100)'}
                       </Button>
                     </div>
                   )}

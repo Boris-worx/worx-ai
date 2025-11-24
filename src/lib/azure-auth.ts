@@ -156,6 +156,13 @@ export async function fetchAzureAuthData(): Promise<{
       return null;
     }
 
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.log('Azure AD endpoint returned non-JSON response (local development mode)');
+      return null;
+    }
+
     const data: AzureAuthResponse[] = await response.json();
     
     // The response is an array with one element containing user_claims
@@ -179,6 +186,9 @@ export async function fetchAzureAuthData(): Promise<{
     // Silently handle network errors in development
     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       console.log('Azure AD not configured (local development mode)');
+    } else if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      // Handle JSON parse errors (HTML response)
+      console.log('Azure AD endpoint returned HTML (local development mode)');
     } else {
       console.error('Error fetching Azure auth data:', error);
     }
