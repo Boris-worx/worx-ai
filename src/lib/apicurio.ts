@@ -86,6 +86,7 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     // Fetch artifacts from multiple groups
     const groups = ['paradigm.bidtools', 'bfs.online'];
     const allArtifacts: ApicurioArtifact[] = [];
+    let got403 = false;
     
     for (const group of groups) {
       try {
@@ -97,10 +98,7 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Headers': 'x-registry-name,x-registry-name-encoded,x-registry-description,x-registry-description-encoded,x-registry-version,x-registry-artifactid,x-registry-artifacttype,x-registry-hash-algorithm,x-registry-content-hash,access-control-request-method,access-control-allow-credentials,access-control-allow-origin,access-control-allow-headers,authorization,content-type,content-encoding,user-agent',
-            'Access-Control-Allow-Methods': 'GET,PUT,POST,PATCH,DELETE,OPTIONS'
           },
-          mode: 'cors'
         });
 
         // Log CORS headers for debugging
@@ -111,7 +109,9 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
           console.log(`📦 Loaded ${groupData.count} artifacts from ${group} group`);
           allArtifacts.push(...groupData.artifacts);
         } else if (response.status === 403) {
-          console.log(`📦 Access forbidden (403) for group: ${group}`);
+          console.log(`📦 Access forbidden (403) for group: ${group} - using local templates`);
+          got403 = true;
+          break; // Stop trying other groups on 403
         } else {
           console.log(`📦 Could not fetch from ${group} (status: ${response.status})`);
         }
@@ -121,8 +121,8 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       }
     }
 
-    // If we got no artifacts from any group, use mock data
-    if (allArtifacts.length === 0) {
+    // If we got 403 or no artifacts from any group, use mock data
+    if (got403 || allArtifacts.length === 0) {
       console.log('📦 No artifacts loaded, using local Apicurio templates');
       const mockData = getMockApicurioArtifacts();
       
@@ -378,10 +378,7 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': 'x-registry-name,x-registry-name-encoded,x-registry-description,x-registry-description-encoded,x-registry-version,x-registry-artifactid,x-registry-artifacttype,x-registry-hash-algorithm,x-registry-content-hash,access-control-request-method,access-control-allow-credentials,access-control-allow-origin,access-control-allow-headers,authorization,content-type,content-encoding,user-agent',
-        'Access-Control-Allow-Methods': 'GET,PUT,POST,PATCH,DELETE,OPTIONS'
       },
-      mode: 'cors'
     });
 
     if (!response.ok) {

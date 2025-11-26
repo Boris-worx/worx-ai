@@ -1978,7 +1978,7 @@ export function TransactionsView({
                       {groupedTypes['bfsonline'].length > 0 && (
                         <>
                           <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            BFS Online Templates
+                            BFS Online
                           </div>
                           {groupedTypes['bfsonline'].map((type) => {
                             const count = typeCounts[type] || 0;

@@ -147,6 +147,7 @@ export function DataCaptureSpecCreateDialog({
     useState(false);
   const [selectedArtifact, setSelectedArtifact] =
     useState<string>("");
+  const [templateSearchOpen, setTemplateSearchOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     dataCaptureSpecName: "",
@@ -720,120 +721,99 @@ export function DataCaptureSpecCreateDialog({
                 <AccordionContent className="space-y-2.5 pt-2 pb-2">
                   {/* Apicurio Template Selector with Refresh button */}
                   <div className="flex gap-2">
-                    <Select
-                      value={selectedArtifact}
-                      onValueChange={(value) => {
-                        setSelectedArtifact(value);
-                        handleLoadApicurioTemplate(value);
-                      }}
-                      disabled={isLoadingArtifacts}
-                    >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue
-                          placeholder={
-                            isLoadingArtifacts
+                    <Popover open={templateSearchOpen} onOpenChange={setTemplateSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={templateSearchOpen}
+                          className="h-8 text-xs justify-between flex-1"
+                          disabled={isLoadingArtifacts}
+                        >
+                          {selectedArtifact
+                            ? (() => {
+                                const artifact = apicurioArtifacts.find(
+                                  (a) => a.artifactId === selectedArtifact
+                                );
+                                return artifact
+                                  ? getArtifactDisplayName(artifact)
+                                  : "Select template...";
+                              })()
+                            : isLoadingArtifacts
                               ? "Loading templates..."
-                              : "Select a Apicurio Template"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Group artifacts by groupId */}
-                        {(() => {
-                          // Group artifacts by groupId
-                          const grouped =
-                            apicurioArtifacts.reduce(
-                              (acc, artifact) => {
-                                const group =
-                                  artifact.groupId || "other";
-                                if (!acc[group])
-                                  acc[group] = [];
-                                acc[group].push(artifact);
-                                return acc;
-                              },
-                              {} as Record<
-                                string,
-                                typeof apicurioArtifacts
-                              >,
-                            );
+                              : "Select a Apicurio Template"}
+                          <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[600px] p-0" align="start">
+                        <Command className="h-auto" shouldFilter={false}>
+                          <CommandInput placeholder="Search templates..." className="h-8 text-xs" />
+                          <CommandList className="max-h-none overflow-visible">
+                            <div className="max-h-[300px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                              <CommandEmpty>No templates found.</CommandEmpty>
+                              {(() => {
+                              // Group artifacts by groupId
+                              const grouped = apicurioArtifacts.reduce(
+                                (acc, artifact) => {
+                                  const group = artifact.groupId || "other";
+                                  if (!acc[group]) acc[group] = [];
+                                  acc[group].push(artifact);
+                                  return acc;
+                                },
+                                {} as Record<string, typeof apicurioArtifacts>,
+                              );
 
-                          // Sort groups: paradigm.bidtools first, then bfs.online, then others
-                          const groupOrder = [
-                            "paradigm.bidtools",
-                            "bfs.online",
-                          ];
-                          const sortedGroups = Object.keys(
-                            grouped,
-                          ).sort((a, b) => {
-                            const indexA =
-                              groupOrder.indexOf(a);
-                            const indexB =
-                              groupOrder.indexOf(b);
-                            if (indexA !== -1 && indexB !== -1)
-                              return indexA - indexB;
-                            if (indexA !== -1) return -1;
-                            if (indexB !== -1) return 1;
-                            return a.localeCompare(b);
-                          });
+                              // Sort groups: paradigm.bidtools first, then bfs.online, then others
+                              const groupOrder = ["paradigm.bidtools", "bfs.online"];
+                              const sortedGroups = Object.keys(grouped).sort((a, b) => {
+                                const indexA = groupOrder.indexOf(a);
+                                const indexB = groupOrder.indexOf(b);
+                                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                                if (indexA !== -1) return -1;
+                                if (indexB !== -1) return 1;
+                                return a.localeCompare(b);
+                              });
 
-                          return sortedGroups.map(
-                            (groupId, groupIndex) => (
-                              <div key={groupId}>
-                                {/* Group header */}
-                                {groupIndex > 0 && (
-                                  <Separator className="my-1" />
-                                )}
-                                <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                  {groupId ===
-                                  "paradigm.bidtools"
-                                    ? "📦 Bid Tools Templates"
-                                    : groupId === "bfs.online"
-                                      ? "🗄️ BFS Online Templates"
-                                      : groupId}
-                                </div>
-
-                                {/* Artifacts in this group */}
-                                {grouped[groupId]
-                                  .slice()
-                                  .sort((a, b) => {
-                                    const nameA =
-                                      getArtifactDisplayName(
-                                        a,
-                                      ).toLowerCase();
-                                    const nameB =
-                                      getArtifactDisplayName(
-                                        b,
-                                      ).toLowerCase();
-                                    return nameA.localeCompare(
-                                      nameB,
-                                    );
-                                  })
-                                  .map((artifact) => (
-                                    <SelectItem
-                                      key={artifact.artifactId}
-                                      value={
-                                        artifact.artifactId
-                                      }
-                                      className="text-xs pl-6"
-                                    >
-                                      {getArtifactDisplayName(
-                                        artifact,
-                                      )}
-                                    </SelectItem>
-                                  ))}
-                              </div>
-                            ),
-                          );
-                        })()}
-
-                        {apicurioArtifacts.length === 0 &&
-                          !isLoadingArtifacts && (
-                            <SelectItem value="none" disabled>
-                              No templates available
-                            </SelectItem>
-                          )}
-                      </SelectContent>
-                    </Select>
+                              return sortedGroups.map((groupId) => (
+                                <CommandGroup
+                                  key={groupId}
+                                  heading={
+                                    groupId === "paradigm.bidtools"
+                                      ? "Bid Tools Templates"
+                                      : groupId === "bfs.online"
+                                        ? "BFS Online Templates"
+                                        : groupId
+                                  }
+                                >
+                                  {grouped[groupId]
+                                    .slice()
+                                    .sort((a, b) => {
+                                      const nameA = getArtifactDisplayName(a).toLowerCase();
+                                      const nameB = getArtifactDisplayName(b).toLowerCase();
+                                      return nameA.localeCompare(nameB);
+                                    })
+                                    .map((artifact) => (
+                                      <CommandItem
+                                        key={artifact.artifactId}
+                                        value={getArtifactDisplayName(artifact)}
+                                        onSelect={() => {
+                                          setSelectedArtifact(artifact.artifactId);
+                                          handleLoadApicurioTemplate(artifact.artifactId);
+                                          setTemplateSearchOpen(false);
+                                        }}
+                                        className="text-xs pl-2"
+                                      >
+                                        {getArtifactDisplayName(artifact)}
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              ));
+                            })()}
+                            </div>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
 
                     <Button
                       variant="outline"
