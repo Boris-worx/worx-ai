@@ -1,5 +1,6 @@
 {
   "name": "bfs-tenant-management",
+  "proxy": "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io",
   "private": true,
   "version": "0.0.0",
   "type": "module",

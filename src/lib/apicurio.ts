@@ -96,7 +96,9 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
           method: 'GET',
           headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Headers': 'x-registry-name,x-registry-name-encoded,x-registry-description,x-registry-description-encoded,x-registry-version,x-registry-artifactid,x-registry-artifacttype,x-registry-hash-algorithm,x-registry-content-hash,access-control-request-method,access-control-allow-credentials,access-control-allow-origin,access-control-allow-headers,authorization,content-type,content-encoding,user-agent',
+            'Access-Control-Allow-Methods': 'GET,PUT,POST,PATCH,DELETE,OPTIONS'
           },
           mode: 'cors'
         });
@@ -375,7 +377,9 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Headers': 'x-registry-name,x-registry-name-encoded,x-registry-description,x-registry-description-encoded,x-registry-version,x-registry-artifactid,x-registry-artifacttype,x-registry-hash-algorithm,x-registry-content-hash,access-control-request-method,access-control-allow-credentials,access-control-allow-origin,access-control-allow-headers,authorization,content-type,content-encoding,user-agent',
+        'Access-Control-Allow-Methods': 'GET,PUT,POST,PATCH,DELETE,OPTIONS'
       },
       mode: 'cors'
     });

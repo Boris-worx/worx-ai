@@ -22,12 +22,16 @@ import {
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { ScrollArea } from "./ui/scroll-area";
+import { Separator } from "./ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectLabel,
+  SelectSeparator,
+  SelectGroup,
 } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
 import {
@@ -1318,6 +1322,29 @@ export function TransactionsView({
     });
   }, [filteredTypes, typeCounts, sortMode]);
 
+  // Helper function to determine transaction type group
+  const getTypeGroup = (type: string): 'bidtools' | 'bfsonline' => {
+    const bfsOnlineTypes = ['inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'keyi', 'loc', 'loc1', 'stocode'];
+    
+    if (bfsOnlineTypes.includes(type)) return 'bfsonline';
+    return 'bidtools';
+  };
+
+  // Group sorted types by database type (Bid Tools first, then BFS Online)
+  const groupedTypes = useMemo(() => {
+    const groups: Record<string, string[]> = {
+      'bidtools': [],
+      'bfsonline': []
+    };
+    
+    sortedFilteredTypes.forEach(type => {
+      const group = getTypeGroup(type);
+      groups[group].push(type);
+    });
+    
+    return groups;
+  }, [sortedFilteredTypes]);
+
   // Helper function to get nested value from object
   const getNestedValue = (obj: any, path: string): any => {
     if (path.includes(".")) {
@@ -1729,16 +1756,34 @@ export function TransactionsView({
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredTypes
-                      .filter(
-                        (type) => (typeCounts[type] || 0) > 0,
-                      )
-                      .map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {formatTransactionType(type)} (
-                          {typeCounts[type] || 0})
-                        </SelectItem>
-                      ))}
+                    {/* Bid Tools Group */}
+                    {groupedTypes['bidtools'].length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Bid Tools</SelectLabel>
+                        {groupedTypes['bidtools'].map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatTransactionType(type)} ({typeCounts[type] || 0})
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    
+                    {/* Separator */}
+                    {groupedTypes['bidtools'].length > 0 && groupedTypes['bfsonline'].length > 0 && (
+                      <SelectSeparator />
+                    )}
+                    
+                    {/* BFS Online Templates Group */}
+                    {groupedTypes['bfsonline'].length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>BFS Online Templates</SelectLabel>
+                        {groupedTypes['bfsonline'].map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatTransactionType(type)} ({typeCounts[type] || 0})
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1889,36 +1934,80 @@ export function TransactionsView({
                     </div>
                   ) : (
                     <div className="space-y-1 p-2">
-                      {sortedFilteredTypes
-                        .map((type) => {
-                          const count = typeCounts[type] || 0;
-
-                          return (
-                            <Button
-                              key={type}
-                              variant={
-                                selectedTxnType === type
-                                  ? "default"
-                                  : "ghost"
-                              }
-                              className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
-                              onClick={() =>
-                                handleTypeChange(type)
-                              }
-                              title={`${count} transaction(s)`}
-                            >
-                              <span className="text-sm truncate flex-1">
-                                {formatTransactionType(type)}
-                              </span>
-                              <Badge 
-                                variant={selectedTxnType === type ? "secondary" : "outline"}
-                                className="ml-auto flex-shrink-0 text-xs"
+                      {/* Bid Tools Group */}
+                      {groupedTypes['bidtools'].length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            Bid Tools
+                          </div>
+                          {groupedTypes['bidtools'].map((type) => {
+                            const count = typeCounts[type] || 0;
+                            return (
+                              <Button
+                                key={type}
+                                variant={
+                                  selectedTxnType === type
+                                    ? "default"
+                                    : "ghost"
+                                }
+                                className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
+                                onClick={() => handleTypeChange(type)}
+                                title={`${count} transaction(s)`}
                               >
-                                {count}
-                              </Badge>
-                            </Button>
-                          );
-                        })}
+                                <span className="text-sm truncate flex-1">
+                                  {formatTransactionType(type)}
+                                </span>
+                                <Badge 
+                                  variant={selectedTxnType === type ? "secondary" : "outline"}
+                                  className="ml-auto flex-shrink-0 text-xs"
+                                >
+                                  {count}
+                                </Badge>
+                              </Button>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      {/* Separator between groups */}
+                      {groupedTypes['bidtools'].length > 0 && groupedTypes['bfsonline'].length > 0 && (
+                        <Separator className="my-1" />
+                      )}
+
+                      {/* BFS Online Templates Group */}
+                      {groupedTypes['bfsonline'].length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            BFS Online Templates
+                          </div>
+                          {groupedTypes['bfsonline'].map((type) => {
+                            const count = typeCounts[type] || 0;
+                            return (
+                              <Button
+                                key={type}
+                                variant={
+                                  selectedTxnType === type
+                                    ? "default"
+                                    : "ghost"
+                                }
+                                className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
+                                onClick={() => handleTypeChange(type)}
+                                title={`${count} transaction(s)`}
+                              >
+                                <span className="text-sm truncate flex-1">
+                                  {formatTransactionType(type)}
+                                </span>
+                                <Badge 
+                                  variant={selectedTxnType === type ? "secondary" : "outline"}
+                                  className="ml-auto flex-shrink-0 text-xs"
+                                >
+                                  {count}
+                                </Badge>
+                              </Button>
+                            );
+                          })}
+                        </>
+                      )}
                     </div>
                   )}
                 </ScrollArea>
