@@ -715,12 +715,27 @@ async function getModelSchemasByTenantGlobal(tenantId: string): Promise<ModelSch
 export const TRANSACTION_TYPES = [
   'Customer',
   'Customer Aging',
+  'keyi',
+  'inv',
+  'inv1',
+  'inv2',
+  'inv3',
+  'invap',
+  'invdes',
+  'invloc',
+  'loc',
+  'loc1',
+  'stocode',
+  'LineType',
+  'LineTypes',
   'Location',
   'Quote',
   'QuoteDetails',
   'QuotePack',
   'QuotePackOrder',
   'ReasonCode',
+  'ServiceRequest',
+  'WorkflowCustomer',
   'Job',
   'Items',
   'Invoice',
@@ -740,26 +755,12 @@ export const TRANSACTION_TYPES = [
   'Quotes',
   'Publish Sales Order Quote',
   'Publish Bid Quote-Quote',
-  // Data Capture Specification types
-  'keyi',
-  'podt',
-  'invloc',
-  'invap',
-  'irc',
 ] as const;
 
 // Format transaction type display name
 export const formatTransactionType = (type: string): string => {
-  // Data Plane uses plural form (adds 's') for Transaction Types display
-  const typeMap: Record<string, string> = {
-    'keyi': 'keyis Items',
-    'podt': 'podts Items',
-    'invloc': 'invlocs Items',
-    'invap': 'invaps Items',
-    'irc': 'ircs Items',
-  };
-  
-  return typeMap[type] || type;
+  // Keep original names for display (no plural 's' suffix for BFS Online types)
+  return type;
 };
 
 // Pagination response interface
@@ -787,29 +788,56 @@ export async function getTransactionsByType(
   }
 
   try {
-    // Build filters object for v1.1 API
-    const filters: any = {
-      TxnType: txnType
-    };
+    // BFS Online types use v1.0 API with simple TxnType parameter (lowercase)
+    const bfsOnlineTypes = ['keyi', 'inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'loc', 'loc1', 'stocode'];
+    const txnTypeLower = txnType.toLowerCase();
+    const isBfsOnline = bfsOnlineTypes.includes(txnTypeLower);
     
-    // Add TenantId filter if provided and not global
-    if (tenantId && tenantId !== 'global') {
-      filters.TenantId = tenantId;
+    let url: string;
+    
+    if (isBfsOnline) {
+      // v1.0 API for BFS Online types
+      url = `${API_BASE_URL}/txns?TxnType=${txnTypeLower}`;
+      
+      // Add TenantId filter if provided and not global
+      if (tenantId && tenantId !== 'global') {
+        url += `&TenantId=${tenantId}`;
+      }
+      
+      // Add continuation token if provided
+      if (continuationToken) {
+        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
+      }
+      
+      console.log('🌐 Data Plane API Request (v1.0 - BFS Online):');
+      console.log('  URL:', url);
+      console.log('  TxnType:', txnTypeLower);
+      console.log('  TenantId:', tenantId || 'global');
+    } else {
+      // v1.1 API for Bid Tools types
+      const filters: any = {
+        TxnType: txnType
+      };
+      
+      // Add TenantId filter if provided and not global
+      if (tenantId && tenantId !== 'global') {
+        filters.TenantId = tenantId;
+      }
+      
+      // Build URL with filters parameter (v1.1 format)
+      const filtersJson = JSON.stringify(filters);
+      url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}`;
+      
+      // Add continuation token if provided (separate query parameter)
+      if (continuationToken) {
+        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
+      }
+      
+      console.log('🌐 Data Plane API Request (v1.1 - Bid Tools):');
+      console.log('  URL:', url);
+      console.log('  Filters:', filters);
+      console.log('  TenantId:', tenantId || 'global');
     }
-    
-    // Build URL with filters parameter (v1.1 format)
-    const filtersJson = JSON.stringify(filters);
-    let url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}`;
-    
-    // Add continuation token if provided (separate query parameter)
-    if (continuationToken) {
-      url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
-    }
-    
-    console.log('🌐 Data Plane API Request (v1.1):');
-    console.log('  URL:', url);
-    console.log('  Filters:', filters);
-    console.log('  TenantId:', tenantId || 'global');
     
     const headers = getHeaders();
     
@@ -927,7 +955,12 @@ export async function getTransactionsByType(
             else if (rawTxn.quoteId) entityId = rawTxn.quoteId;
             else if (rawTxn.reasonCodeId) entityId = rawTxn.reasonCodeId;
             else if (rawTxn.InvoiceId) entityId = rawTxn.InvoiceId;
+            // BFS Online Inventory types (inv, inv1, inv2, inv3, invap, invdes, invloc, keyi)
             else if (rawTxn.invid) entityId = rawTxn.invid;
+            // BFS Online Location types (loc, loc1)
+            else if (rawTxn.loccd || rawTxn.Loccd) entityId = rawTxn.loccd || rawTxn.Loccd;
+            // BFS Online Store Code type (stocode)
+            else if (rawTxn.st || rawTxn.St) entityId = rawTxn.st || rawTxn.St;
             // Use Cosmos DB Resource ID if available (always unique)
             else if (rawTxn._rid) entityId = rawTxn._rid;
             // Last resort: timestamp with index
@@ -1688,6 +1721,14 @@ export async function createDataCaptureSpec(
       } catch {
         throw new Error(`Failed to create data capture spec: ${response.status} ${response.statusText}`);
       }
+      
+      // Check if this is a conflict (409) - spec already exists
+      if (response.status === 409) {
+        const error = new Error(errorData.status?.message || "Data Capture Specification already exists");
+        (error as any).isConflict = true; // Mark as conflict for special handling
+        throw error;
+      }
+      
       throw new Error(errorData.status?.message || "Failed to create data capture spec");
     }
 

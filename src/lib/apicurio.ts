@@ -154,7 +154,7 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     // Return mock data for development (CORS or network issues)
     // Silently handle CORS - this is expected in some environments
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.log('📦 Using local Apicurio templates (7 available) - CORS blocked');
+      console.log('📦 Using local Apicurio templates (18 available) - CORS blocked');
       const mockData = getMockApicurioArtifacts();
       
       // Cache mock data so subsequent opens are instant
@@ -276,9 +276,89 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
         createdOn: "2025-11-24T16:32:02Z",
         modifiedOn: "2025-11-24T16:32:02Z",
         version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_inv.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "inv",
+        description: "Response schema for Informix TxServices inv (Inventory)",
+        createdOn: "2025-11-25T10:00:00Z",
+        modifiedOn: "2025-11-25T10:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_inv1.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "inv1",
+        description: "Response schema for Informix TxServices inv1 (Inventory variant 1)",
+        createdOn: "2025-11-25T12:00:00Z",
+        modifiedOn: "2025-11-25T12:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_inv2.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "inv2",
+        description: "Response schema for Informix TxServices inv2 (Inventory variant 2)",
+        createdOn: "2025-11-25T13:00:00Z",
+        modifiedOn: "2025-11-25T13:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_inv3.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "inv3",
+        description: "Response schema for Informix TxServices inv3 (Inventory variant 3)",
+        createdOn: "2025-11-25T14:00:00Z",
+        modifiedOn: "2025-11-25T14:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_invap.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "invap",
+        description: "Response schema for Informix TxServices invap (Inventory AP)",
+        createdOn: "2025-11-25T15:00:00Z",
+        modifiedOn: "2025-11-25T15:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_invdes.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "invdes",
+        description: "Response schema for Informix TxServices invdes (Inventory Descriptions)",
+        createdOn: "2025-11-25T16:00:00Z",
+        modifiedOn: "2025-11-25T16:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_invloc.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "invloc",
+        description: "Response schema for Informix TxServices invloc (Inventory Location)",
+        createdOn: "2025-11-25T17:00:00Z",
+        modifiedOn: "2025-11-25T17:00:00Z",
+        version: "1.0.0"
+      },
+      {
+        artifactId: "TxServices_Informix_keyi.response",
+        groupId: "bfs.online",
+        artifactType: "JSON",
+        name: "keyi",
+        description: "Response schema for Informix TxServices keyi (Keyword Inventory)",
+        createdOn: "2025-11-25T18:00:00Z",
+        modifiedOn: "2025-11-25T18:00:00Z",
+        version: "1.0.0"
       }
     ],
-    count: 10
+    count: 18
   };
 }
 
@@ -301,14 +381,13 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
     });
 
     if (!response.ok) {
-      console.error('❌ Apicurio API error:', response.status, response.statusText);
-      
-      // Handle 403 Forbidden specifically
+      // Handle 403 Forbidden specifically - this is expected in browser environments
       if (response.status === 403) {
-        console.log('📦 Using local schema template (Apicurio access forbidden):', extractArtifactName(artifactId));
+        console.log('📦 Access forbidden (using local template):', extractArtifactName(artifactId));
         return getMockArtifactSchema(artifactId);
       }
       
+      console.error('❌ Apicurio API error:', response.status, response.statusText);
       const errorText = await response.text();
       console.error('❌ Error body:', errorText);
       throw new Error(`Apicurio API returned ${response.status}: ${errorText}`);
@@ -683,6 +762,540 @@ function getMockArtifactSchema(artifactId: string): any {
                       "eventType": { "type": "string" },
                       "correlationId": { "type": "string" },
                       "sourcePrimaryKeyField": { "type": "string", "const": "St" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('keyi')) {
+    // keyi - Keyword Inventory schema with 2 fields (composite key: word + invid)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "word": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
+                      "sourcePrimaryKeyFields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["word", "invid"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('invloc')) {
+    // invloc - Inventory Location schema with 40 fields (composite key: loccd + invid + locstat + category)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "loccd": { "type": ["string", "null"] },
+            "category": { "type": ["string", "null"] },
+            "ustype": { "type": ["string", "null"] },
+            "uncst": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "rplmtd": { "type": ["string", "null"] },
+            "linept": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "orderpt": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "orderqty": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "mvclass": { "type": ["string", "null"] },
+            "cstmtdid": { "type": ["string", "null"] },
+            "subloccd": { "type": ["string", "null"] },
+            "commcd": { "type": ["string", "null"] },
+            "quhnd": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qucomm": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "quhold": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qupick": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "quwip": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "quord": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qualloc": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qutrfout": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qutrfin": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "qucost": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "estdt": { "type": ["integer", "null"] },
+            "lcycdt": { "type": ["integer", "null"] },
+            "lsaldt": { "type": ["integer", "null"] },
+            "lrecdt": { "type": ["integer", "null"] },
+            "frzstat": { "type": ["string", "null"] },
+            "frzexpdt": { "type": ["integer", "null"] },
+            "safety": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "oqtype": { "type": ["string", "null"] },
+            "buyerid": { "type": ["string", "null"] },
+            "saleusrt": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "trnsusrt": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "locstat": { "type": ["string", "null"] },
+            "stdcst": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "stdcstdt": { "type": ["integer", "null"] },
+            "nstdcst": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "routid": { "type": ["string", "null"] },
+            "reorder": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "Invid" },
+                      "sourcePrimaryKeyFields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["loccd", "invid", "locstat", "category"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('invdes')) {
+    // invdes - Inventory Descriptions schema with 6 fields (composite key: dsline + invid + prtpo)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "dsline": { "type": ["integer", "null"] },
+            "des": { "type": ["string", "null"] },
+            "prtso": { "type": ["string", "null"] },
+            "prtin": { "type": ["string", "null"] },
+            "prtpo": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
+                      "sourcePrimaryKeyFields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["dsline", "invid", "prtpo"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('invap')) {
+    // invap - Inventory AP schema with 13 fields (Accounts Payable/Vendor information)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "apnum": { "type": ["string", "null"] },
+            "apinid": { "type": ["string", "null"] },
+            "unms": { "type": ["string", "null"] },
+            "prunms": { "type": ["string", "null"] },
+            "ldays": { "type": ["integer", "null"] },
+            "apucst": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "defddpo": { "type": ["string", "null"] },
+            "upccode1": { "type": ["string", "null"] },
+            "upccode2": { "type": ["string", "null"] },
+            "cstclsscd": { "type": ["string", "null"] },
+            "rvcycle": { "type": ["integer", "null"] },
+            "rcunms": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
+                      "sourcePrimaryKeyFields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["invid", "apnum"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('inv3')) {
+    // inv3 - minimal schema with only 2 fields (invid and item_class)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "item_class": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('inv2')) {
+    // inv2 - schema with 13 fields (classification codes and values)
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "nclsscd1": { "type": ["string", "null"] },
+            "nclsscd2": { "type": ["string", "null"] },
+            "nclsscd5": { "type": ["string", "null"] },
+            "c8value1": { "type": ["string", "null"] },
+            "c8value2": { "type": ["string", "null"] },
+            "c8value3": { "type": ["string", "null"] },
+            "c16value1": { "type": ["string", "null"] },
+            "c16value2": { "type": ["string", "null"] },
+            "c16value3": { "type": ["string", "null"] },
+            "dec2value1": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "dec2value2": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "dec2value3": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('inv1')) {
+    // inv1 - simplified schema with only 4 fields
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "entby": { "type": ["string", "null"] },
+            "entdte": { "type": ["integer", "null"] },
+            "enttime": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
+                    }
+                  }
+                }
+              }
+            },
+            "createTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            },
+            "updateTime": {
+              "anyOf": [
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      }
+    };
+  } else if (artifactId.includes('inv')) {
+    // inv - full schema with 27 fields
+    return {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "TxnType": {
+          "type": "string"
+        },
+        "Txn": {
+          "type": "object",
+          "properties": {
+            "invid": { "type": ["string", "null"] },
+            "invdes": { "type": ["string", "null"] },
+            "ivstat": { "type": ["string", "null"] },
+            "clsscd1": { "type": ["string", "null"] },
+            "clsscd2": { "type": ["string", "null"] },
+            "clsscd3": { "type": ["string", "null"] },
+            "clsscd4": { "type": ["string", "null"] },
+            "clsscd5": { "type": ["string", "null"] },
+            "prclsscd": { "type": ["string", "null"] },
+            "unms": { "type": ["string", "null"] },
+            "factor": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "stdpkg": { "type": ["string", "null"] },
+            "disqty": { "type": ["string", "null"] },
+            "bomtype": { "type": ["string", "null"] },
+            "buyerid": { "type": ["string", "null"] },
+            "apnum": { "type": ["string", "null"] },
+            "loccd": { "type": ["string", "null"] },
+            "invwt": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "unprc": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "nunprc": { "type": ["string", "null"], "contentEncoding": "base64" },
+            "estdt": { "type": ["integer", "null"] },
+            "lactdt": { "type": ["integer", "null"] },
+            "upccode1": { "type": ["string", "null"] },
+            "upccode2": { "type": ["string", "null"] },
+            "gltabid": { "type": ["string", "null"] },
+            "cstunms": { "type": ["string", "null"] },
+            "prcunms": { "type": ["string", "null"] },
+            "metaData": {
+              "type": "object",
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sourceDatabase": { "type": "string" },
+                      "sourceTable": { "type": "string" },
+                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
+                      "sourceEtag": { "type": ["string", "null"] },
+                      "eventType": { "type": "string" },
+                      "correlationId": { "type": "string" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
+                      "sourcePrimaryKeyFields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["clsscd2", "invid", "ivstat"]
+                        }
+                      }
                     }
                   }
                 }

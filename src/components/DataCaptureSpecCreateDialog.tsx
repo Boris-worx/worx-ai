@@ -42,7 +42,12 @@ import {
   CommandItem,
   CommandList,
 } from "./ui/command";
-import { Check, ChevronsUpDown, X, RefreshCw } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  X,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DataSource, createDataCaptureSpec } from "../lib/api";
 import {
@@ -72,22 +77,37 @@ const getDataSourceName = (ds: DataSource) =>
 // Helper to convert PascalCase to camelCase
 const toCamelCase = (str: string): string => {
   // Don't convert special fields that should stay as-is
-  if (["id", "partitionKey", "metaData", "createTime", "updateTime"].includes(str)) {
+  if (
+    [
+      "id",
+      "partitionKey",
+      "metaData",
+      "createTime",
+      "updateTime",
+    ].includes(str)
+  ) {
     return str;
   }
   return str.charAt(0).toLowerCase() + str.slice(1);
 };
 
 // Helper to convert all property names in schema to camelCase
-const convertSchemaPropertiesToCamelCase = (schema: any): any => {
+const convertSchemaPropertiesToCamelCase = (
+  schema: any,
+): any => {
   if (!schema || typeof schema !== "object") return schema;
 
-  if (schema.properties && typeof schema.properties === "object") {
+  if (
+    schema.properties &&
+    typeof schema.properties === "object"
+  ) {
     const newProperties: any = {};
     const oldToNewMapping: Record<string, string> = {};
 
     // Convert property names to camelCase
-    for (const [key, value] of Object.entries(schema.properties)) {
+    for (const [key, value] of Object.entries(
+      schema.properties,
+    )) {
       const newKey = toCamelCase(key);
       newProperties[newKey] = value;
       oldToNewMapping[key] = newKey;
@@ -96,8 +116,9 @@ const convertSchemaPropertiesToCamelCase = (schema: any): any => {
     // Update required fields to use camelCase names
     let newRequired = schema.required;
     if (Array.isArray(schema.required)) {
-      newRequired = schema.required.map((field: string) =>
-        oldToNewMapping[field] || toCamelCase(field)
+      newRequired = schema.required.map(
+        (field: string) =>
+          oldToNewMapping[field] || toCamelCase(field),
       );
     }
 
@@ -161,7 +182,9 @@ export function DataCaptureSpecCreateDialog({
       );
       // Log each artifact for debugging
       response.artifacts.forEach((artifact, index) => {
-        console.log(`  ${index + 1}. ${artifact.artifactId} (${artifact.artifactType})`);
+        console.log(
+          `  ${index + 1}. ${artifact.artifactId} (${artifact.artifactType})`,
+        );
       });
     } catch (error) {
       console.error(
@@ -203,10 +226,66 @@ export function DataCaptureSpecCreateDialog({
         artifact.artifactType,
       );
 
-      console.log('🔍 Full jsonSchema structure:', JSON.stringify(jsonSchema, null, 2));
-      console.log('🔍 jsonSchema.properties:', jsonSchema.properties);
-      console.log('🔍 jsonSchema.properties.Txn:', jsonSchema.properties?.Txn);
-      console.log('🔍 jsonSchema.properties.Txn.properties:', jsonSchema.properties?.Txn?.properties);
+      console.log(
+        "🔍 Full jsonSchema structure:",
+        JSON.stringify(jsonSchema, null, 2),
+      );
+      console.log(
+        "🔍 jsonSchema.properties:",
+        jsonSchema.properties,
+      );
+      console.log(
+        "🔍 jsonSchema.properties.Txn:",
+        jsonSchema.properties?.Txn,
+      );
+      console.log(
+        "🔍 jsonSchema.properties.Txn.properties:",
+        jsonSchema.properties?.Txn?.properties,
+      );
+
+      // Extract sourcePrimaryKeyField from schema if it exists
+      const extractSourcePrimaryKeyField = (
+        schema: any,
+      ): string | null => {
+        try {
+          // Navigate to metaData.sources.items.properties.sourcePrimaryKeyField
+          const metaData =
+            schema.properties?.Txn?.properties?.metaData ||
+            schema.properties?.metaData;
+          if (!metaData) return null;
+
+          const sources = metaData.properties?.sources;
+          if (!sources || !sources.items) return null;
+
+          const sourcePrimaryKeyField =
+            sources.items.properties?.sourcePrimaryKeyField;
+          if (!sourcePrimaryKeyField) return null;
+
+          // Check if it has a const value
+          if (sourcePrimaryKeyField.const) {
+            console.log(
+              "✅ Found sourcePrimaryKeyField.const:",
+              sourcePrimaryKeyField.const,
+            );
+            return sourcePrimaryKeyField.const;
+          }
+
+          return null;
+        } catch (error) {
+          console.error(
+            "Error extracting sourcePrimaryKeyField:",
+            error,
+          );
+          return null;
+        }
+      };
+
+      const extractedPrimaryKeyField =
+        extractSourcePrimaryKeyField(jsonSchema);
+      console.log(
+        "🔍 Extracted sourcePrimaryKeyField:",
+        extractedPrimaryKeyField,
+      );
 
       // Extract name for spec (e.g., "QuotePacks" -> "quotepack")
       let specName = extractArtifactName(artifactId)
@@ -227,41 +306,66 @@ export function DataCaptureSpecCreateDialog({
 
       // Generate Primary Key Field: WorkflowCustomer -> workflowCustomerId (camelCase for Cosmos DB)
       // Convert first letter to lowercase for camelCase format
-      const primaryKeyField = specNameSingular.charAt(0).toLowerCase() + specNameSingular.slice(1) + "Id";
+      const primaryKeyField =
+        specNameSingular.charAt(0).toLowerCase() +
+        specNameSingular.slice(1) +
+        "Id";
 
       // Get all property names for allowed filters
       // IMPORTANT: Property names from Apicurio come in PascalCase (e.g., QuoteDetailId, QuoteId)
       // We must preserve them exactly as they come from the schema for containerSchema properties
       let propertyNames: string[] = [];
-      
-      // Check if schema has nested structure (Informix schemas: TxnType + Txn.properties)
+
+      // Check if schema has nested structure (BFS Online schemas: TxnType + Txn.properties)
       if (jsonSchema.properties?.Txn?.properties) {
         // Nested structure - extract properties from Txn.properties
-        propertyNames = Object.keys(jsonSchema.properties.Txn.properties || {});
-        console.log('📦 Detected nested schema structure (Informix), extracting from Txn.properties:', propertyNames);
+        propertyNames = Object.keys(
+          jsonSchema.properties.Txn.properties || {},
+        );
+        console.log(
+          "📦 Detected nested schema structure (BFS Online), extracting from Txn.properties:",
+          propertyNames,
+        );
       } else if (jsonSchema.properties) {
         // Flat structure - extract properties from top level
-        propertyNames = Object.keys(jsonSchema.properties || {});
-        console.log('📦 Flat schema structure, extracting from jsonSchema.properties:', propertyNames);
-      }
-      
-      const allowedFiltersArray = propertyNames
-        .filter(
-          (name) =>
-            !["id", "partitionKey", "createTime", "updateTime", "metaData", "TxnType", "Txn"].includes(
-              name,
-            ),
+        propertyNames = Object.keys(
+          jsonSchema.properties || {},
         );
-      
-      console.log('📦 Allowed filters (filtered):', allowedFiltersArray);
-      console.log('📦 Required fields from jsonSchema:', jsonSchema.required);
+        console.log(
+          "📦 Flat schema structure, extracting from jsonSchema.properties:",
+          propertyNames,
+        );
+      }
+
+      const allowedFiltersArray = propertyNames.filter(
+        (name) =>
+          ![
+            "id",
+            "partitionKey",
+            "createTime",
+            "updateTime",
+            "metaData",
+            "TxnType",
+            "Txn",
+          ].includes(name),
+      );
+
+      console.log(
+        "📦 Allowed filters (filtered):",
+        allowedFiltersArray,
+      );
+      console.log(
+        "📦 Required fields from jsonSchema:",
+        jsonSchema.required,
+      );
 
       // Auto-populate form - CLEAR OLD DATA FIRST
       setFormData((prev) => ({
         ...prev,
         dataCaptureSpecName: specNameSingular,
         containerName: containerName,
-        sourcePrimaryKeyField: primaryKeyField,
+        sourcePrimaryKeyField:
+          extractedPrimaryKeyField || primaryKeyField,
         partitionKeyField: "id",
         allowedFilters: allowedFiltersArray, // Use array directly instead of string split
         requiredFields: Array.isArray(jsonSchema.required)
@@ -505,15 +609,28 @@ export function DataCaptureSpecCreateDialog({
     }
 
     // Convert property names to camelCase
-    containerSchema = convertSchemaPropertiesToCamelCase(containerSchema);
-    
+    containerSchema =
+      convertSchemaPropertiesToCamelCase(containerSchema);
+
     // Convert allowedFilters and requiredFields to camelCase
-    const allowedFiltersCamelCase = formData.allowedFilters.map(toCamelCase);
-    const requiredFieldsCamelCase = formData.requiredFields.map(toCamelCase);
-    
-    console.log('📦 Converting to camelCase:');
-    console.log('  allowedFilters:', formData.allowedFilters, '→', allowedFiltersCamelCase);
-    console.log('  requiredFields:', formData.requiredFields, '→', requiredFieldsCamelCase);
+    const allowedFiltersCamelCase =
+      formData.allowedFilters.map(toCamelCase);
+    const requiredFieldsCamelCase =
+      formData.requiredFields.map(toCamelCase);
+
+    console.log("📦 Converting to camelCase:");
+    console.log(
+      "  allowedFilters:",
+      formData.allowedFilters,
+      "→",
+      allowedFiltersCamelCase,
+    );
+    console.log(
+      "  requiredFields:",
+      formData.requiredFields,
+      "→",
+      requiredFieldsCamelCase,
+    );
 
     setIsSubmitting(true);
     try {
@@ -544,6 +661,18 @@ export function DataCaptureSpecCreateDialog({
       onClose();
     } catch (error: any) {
       console.error("Failed to create spec:", error);
+
+      // Check if this is a conflict error (spec already exists)
+      if (error.isConflict) {
+        // Show info notification instead of error
+        toast.info(
+          `Data Capture Specification "${formData.dataCaptureSpecName}" already exists in the database.`,
+          { duration: 5000 },
+        );
+        onClose(); // Close dialog since spec exists
+        return;
+      }
+
       const errorMessage =
         error.message ||
         "Failed to create data capture specification";
@@ -572,7 +701,7 @@ export function DataCaptureSpecCreateDialog({
         </DialogHeader>
 
         {/* Single column layout */}
-        <div className="overflow-y-auto h-[calc(90vh-220px)]">
+        <div className="overflow-y-auto h-auto max-h-[60vh]">
           <div className="space-y-3 pb-4 pr-2">
             {/* Accordion for form sections */}
             <Accordion
@@ -612,55 +741,91 @@ export function DataCaptureSpecCreateDialog({
                         {/* Group artifacts by groupId */}
                         {(() => {
                           // Group artifacts by groupId
-                          const grouped = apicurioArtifacts.reduce((acc, artifact) => {
-                            const group = artifact.groupId || 'other';
-                            if (!acc[group]) acc[group] = [];
-                            acc[group].push(artifact);
-                            return acc;
-                          }, {} as Record<string, typeof apicurioArtifacts>);
+                          const grouped =
+                            apicurioArtifacts.reduce(
+                              (acc, artifact) => {
+                                const group =
+                                  artifact.groupId || "other";
+                                if (!acc[group])
+                                  acc[group] = [];
+                                acc[group].push(artifact);
+                                return acc;
+                              },
+                              {} as Record<
+                                string,
+                                typeof apicurioArtifacts
+                              >,
+                            );
 
                           // Sort groups: paradigm.bidtools first, then bfs.online, then others
-                          const groupOrder = ['paradigm.bidtools', 'bfs.online'];
-                          const sortedGroups = Object.keys(grouped).sort((a, b) => {
-                            const indexA = groupOrder.indexOf(a);
-                            const indexB = groupOrder.indexOf(b);
-                            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                          const groupOrder = [
+                            "paradigm.bidtools",
+                            "bfs.online",
+                          ];
+                          const sortedGroups = Object.keys(
+                            grouped,
+                          ).sort((a, b) => {
+                            const indexA =
+                              groupOrder.indexOf(a);
+                            const indexB =
+                              groupOrder.indexOf(b);
+                            if (indexA !== -1 && indexB !== -1)
+                              return indexA - indexB;
                             if (indexA !== -1) return -1;
                             if (indexB !== -1) return 1;
                             return a.localeCompare(b);
                           });
 
-                          return sortedGroups.map((groupId, groupIndex) => (
-                            <div key={groupId}>
-                              {/* Group header */}
-                              {groupIndex > 0 && <Separator className="my-1" />}
-                              <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                {groupId === 'paradigm.bidtools' ? '📦 SQL Server Templates' : 
-                                 groupId === 'bfs.online' ? '🗄️ Informix Templates' : 
-                                 groupId}
+                          return sortedGroups.map(
+                            (groupId, groupIndex) => (
+                              <div key={groupId}>
+                                {/* Group header */}
+                                {groupIndex > 0 && (
+                                  <Separator className="my-1" />
+                                )}
+                                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                  {groupId ===
+                                  "paradigm.bidtools"
+                                    ? "📦 Bid Tools Templates"
+                                    : groupId === "bfs.online"
+                                      ? "🗄️ BFS Online Templates"
+                                      : groupId}
+                                </div>
+
+                                {/* Artifacts in this group */}
+                                {grouped[groupId]
+                                  .slice()
+                                  .sort((a, b) => {
+                                    const nameA =
+                                      getArtifactDisplayName(
+                                        a,
+                                      ).toLowerCase();
+                                    const nameB =
+                                      getArtifactDisplayName(
+                                        b,
+                                      ).toLowerCase();
+                                    return nameA.localeCompare(
+                                      nameB,
+                                    );
+                                  })
+                                  .map((artifact) => (
+                                    <SelectItem
+                                      key={artifact.artifactId}
+                                      value={
+                                        artifact.artifactId
+                                      }
+                                      className="text-xs pl-6"
+                                    >
+                                      {getArtifactDisplayName(
+                                        artifact,
+                                      )}
+                                    </SelectItem>
+                                  ))}
                               </div>
-                              
-                              {/* Artifacts in this group */}
-                              {grouped[groupId]
-                                .slice()
-                                .sort((a, b) => {
-                                  const nameA = getArtifactDisplayName(a).toLowerCase();
-                                  const nameB = getArtifactDisplayName(b).toLowerCase();
-                                  return nameA.localeCompare(nameB);
-                                })
-                                .map((artifact) => (
-                                  <SelectItem
-                                    key={artifact.artifactId}
-                                    value={artifact.artifactId}
-                                    className="text-xs pl-6"
-                                  >
-                                    {getArtifactDisplayName(artifact)}
-                                  </SelectItem>
-                                ))}
-                            </div>
-                          ));
+                            ),
+                          );
                         })()}
-                        
+
                         {apicurioArtifacts.length === 0 &&
                           !isLoadingArtifacts && (
                             <SelectItem value="none" disabled>
@@ -669,7 +834,7 @@ export function DataCaptureSpecCreateDialog({
                           )}
                       </SelectContent>
                     </Select>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -677,7 +842,9 @@ export function DataCaptureSpecCreateDialog({
                       onClick={() => {
                         clearArtifactsCache();
                         loadApicurioArtifacts();
-                        toast.info("Refreshing templates from Apicurio Registry...");
+                        toast.info(
+                          "Refreshing templates from Apicurio Registry...",
+                        );
                       }}
                       disabled={isLoadingArtifacts}
                       title="Refresh templates from Apicurio Registry"
@@ -737,8 +904,7 @@ export function DataCaptureSpecCreateDialog({
                         onChange={(e) => {
                           setFormData({
                             ...formData,
-                            dataCaptureSpecName:
-                              e.target.value,
+                            dataCaptureSpecName: e.target.value,
                           });
                         }}
                         className="h-8 text-xs"
@@ -859,27 +1025,34 @@ export function DataCaptureSpecCreateDialog({
                             className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
                           >
                             <div className="flex flex-wrap gap-1 flex-1">
-                              {formData.allowedFilters.length === 0 ? (
+                              {formData.allowedFilters
+                                .length === 0 ? (
                                 <span className="text-muted-foreground">
                                   Select filters...
                                 </span>
                               ) : (
                                 <>
-                                  {formData.allowedFilters.slice(0, 3).map((filter) => (
+                                  {formData.allowedFilters
+                                    .slice(0, 3)
+                                    .map((filter) => (
+                                      <Badge
+                                        key={filter}
+                                        variant="secondary"
+                                        className="text-[10px] px-1.5 py-0"
+                                      >
+                                        {filter}
+                                      </Badge>
+                                    ))}
+                                  {formData.allowedFilters
+                                    .length > 3 && (
                                     <Badge
-                                      key={filter}
                                       variant="secondary"
                                       className="text-[10px] px-1.5 py-0"
                                     >
-                                      {filter}
-                                    </Badge>
-                                  ))}
-                                  {formData.allowedFilters.length > 3 && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      +{formData.allowedFilters.length - 3} more
+                                      +
+                                      {formData.allowedFilters
+                                        .length - 3}{" "}
+                                      more
                                     </Badge>
                                   )}
                                 </>
@@ -888,61 +1061,88 @@ export function DataCaptureSpecCreateDialog({
                             <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
+                        <PopoverContent
+                          className="w-[400px] p-0"
+                          align="start"
+                        >
                           <Command>
-                            <CommandInput placeholder="Search filters..." className="h-8 text-xs" />
+                            <CommandInput
+                              placeholder="Search filters..."
+                              className="h-8 text-xs"
+                            />
                             <CommandList>
                               <CommandEmpty className="text-xs py-2 text-center text-muted-foreground">
                                 No filters found.
                               </CommandEmpty>
                               <CommandGroup>
-                                {availableFields.map((field) => {
-                                  const isSelected = formData.allowedFilters.includes(field);
-                                  return (
-                                    <CommandItem
-                                      key={field}
-                                      value={field}
-                                      onSelect={() => {
-                                        if (isSelected) {
-                                          setFormData({
-                                            ...formData,
-                                            allowedFilters: formData.allowedFilters.filter(
-                                              (f) => f !== field,
-                                            ),
-                                          });
-                                        } else {
-                                          setFormData({
-                                            ...formData,
-                                            allowedFilters: [
-                                              ...formData.allowedFilters,
-                                              field,
-                                            ],
-                                          });
-                                        }
-                                      }}
-                                      className="text-xs"
-                                    >
-                                      <div className="flex items-center justify-between w-full">
-                                        <div className="flex items-center gap-2">
-                                          <div className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
-                                            isSelected ? "bg-primary border-primary" : "border-input"
-                                          }`}>
-                                            {isSelected && (
-                                              <Check className="h-3 w-3 text-primary-foreground" />
-                                            )}
+                                {availableFields.map(
+                                  (field) => {
+                                    const isSelected =
+                                      formData.allowedFilters.includes(
+                                        field,
+                                      );
+                                    return (
+                                      <CommandItem
+                                        key={field}
+                                        value={field}
+                                        onSelect={() => {
+                                          if (isSelected) {
+                                            setFormData({
+                                              ...formData,
+                                              allowedFilters:
+                                                formData.allowedFilters.filter(
+                                                  (f) =>
+                                                    f !== field,
+                                                ),
+                                            });
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              allowedFilters: [
+                                                ...formData.allowedFilters,
+                                                field,
+                                              ],
+                                            });
+                                          }
+                                        }}
+                                        className="text-xs"
+                                      >
+                                        <div className="flex items-center justify-between w-full">
+                                          <div className="flex items-center gap-2">
+                                            <div
+                                              className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
+                                                isSelected
+                                                  ? "bg-primary border-primary"
+                                                  : "border-input"
+                                              }`}
+                                            >
+                                              {isSelected && (
+                                                <Check className="h-3 w-3 text-primary-foreground" />
+                                              )}
+                                            </div>
+                                            <span className="font-mono">
+                                              {field}
+                                            </span>
                                           </div>
-                                          <span className="font-mono">{field}</span>
                                         </div>
-                                      </div>
-                                    </CommandItem>
-                                  );
-                                })}
+                                      </CommandItem>
+                                    );
+                                  },
+                                )}
                               </CommandGroup>
                             </CommandList>
                             <div className="border-t p-2 bg-muted/50">
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>{formData.allowedFilters.length} of {availableFields.length} selected</span>
-                                {formData.allowedFilters.length > 0 && (
+                                <span>
+                                  {
+                                    formData.allowedFilters
+                                      .length
+                                  }{" "}
+                                  of {availableFields.length}{" "}
+                                  selected
+                                </span>
+                                {formData.allowedFilters
+                                  .length > 0 && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -991,27 +1191,34 @@ export function DataCaptureSpecCreateDialog({
                             className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
                           >
                             <div className="flex flex-wrap gap-1 flex-1">
-                              {formData.requiredFields.length === 0 ? (
+                              {formData.requiredFields
+                                .length === 0 ? (
                                 <span className="text-muted-foreground">
                                   Select required fields...
                                 </span>
                               ) : (
                                 <>
-                                  {formData.requiredFields.slice(0, 3).map((field) => (
+                                  {formData.requiredFields
+                                    .slice(0, 3)
+                                    .map((field) => (
+                                      <Badge
+                                        key={field}
+                                        variant="secondary"
+                                        className="text-[10px] px-1.5 py-0"
+                                      >
+                                        {field}
+                                      </Badge>
+                                    ))}
+                                  {formData.requiredFields
+                                    .length > 3 && (
                                     <Badge
-                                      key={field}
                                       variant="secondary"
                                       className="text-[10px] px-1.5 py-0"
                                     >
-                                      {field}
-                                    </Badge>
-                                  ))}
-                                  {formData.requiredFields.length > 3 && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      +{formData.requiredFields.length - 3} more
+                                      +
+                                      {formData.requiredFields
+                                        .length - 3}{" "}
+                                      more
                                     </Badge>
                                   )}
                                 </>
@@ -1020,61 +1227,88 @@ export function DataCaptureSpecCreateDialog({
                             <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
+                        <PopoverContent
+                          className="w-[400px] p-0"
+                          align="start"
+                        >
                           <Command>
-                            <CommandInput placeholder="Search required fields..." className="h-8 text-xs" />
+                            <CommandInput
+                              placeholder="Search required fields..."
+                              className="h-8 text-xs"
+                            />
                             <CommandList>
                               <CommandEmpty className="text-xs py-2 text-center text-muted-foreground">
                                 No fields found.
                               </CommandEmpty>
                               <CommandGroup>
-                                {availableFields.map((field) => {
-                                  const isSelected = formData.requiredFields.includes(field);
-                                  return (
-                                    <CommandItem
-                                      key={field}
-                                      value={field}
-                                      onSelect={() => {
-                                        if (isSelected) {
-                                          setFormData({
-                                            ...formData,
-                                            requiredFields: formData.requiredFields.filter(
-                                              (f) => f !== field,
-                                            ),
-                                          });
-                                        } else {
-                                          setFormData({
-                                            ...formData,
-                                            requiredFields: [
-                                              ...formData.requiredFields,
-                                              field,
-                                            ],
-                                          });
-                                        }
-                                      }}
-                                      className="text-xs"
-                                    >
-                                      <div className="flex items-center justify-between w-full">
-                                        <div className="flex items-center gap-2">
-                                          <div className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
-                                            isSelected ? "bg-primary border-primary" : "border-input"
-                                          }`}>
-                                            {isSelected && (
-                                              <Check className="h-3 w-3 text-primary-foreground" />
-                                            )}
+                                {availableFields.map(
+                                  (field) => {
+                                    const isSelected =
+                                      formData.requiredFields.includes(
+                                        field,
+                                      );
+                                    return (
+                                      <CommandItem
+                                        key={field}
+                                        value={field}
+                                        onSelect={() => {
+                                          if (isSelected) {
+                                            setFormData({
+                                              ...formData,
+                                              requiredFields:
+                                                formData.requiredFields.filter(
+                                                  (f) =>
+                                                    f !== field,
+                                                ),
+                                            });
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              requiredFields: [
+                                                ...formData.requiredFields,
+                                                field,
+                                              ],
+                                            });
+                                          }
+                                        }}
+                                        className="text-xs"
+                                      >
+                                        <div className="flex items-center justify-between w-full">
+                                          <div className="flex items-center gap-2">
+                                            <div
+                                              className={`h-4 w-4 border rounded-sm flex items-center justify-center ${
+                                                isSelected
+                                                  ? "bg-primary border-primary"
+                                                  : "border-input"
+                                              }`}
+                                            >
+                                              {isSelected && (
+                                                <Check className="h-3 w-3 text-primary-foreground" />
+                                              )}
+                                            </div>
+                                            <span className="font-mono">
+                                              {field}
+                                            </span>
                                           </div>
-                                          <span className="font-mono">{field}</span>
                                         </div>
-                                      </div>
-                                    </CommandItem>
-                                  );
-                                })}
+                                      </CommandItem>
+                                    );
+                                  },
+                                )}
                               </CommandGroup>
                             </CommandList>
                             <div className="border-t p-2 bg-muted/50">
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>{formData.requiredFields.length} of {availableFields.length} selected</span>
-                                {formData.requiredFields.length > 0 && (
+                                <span>
+                                  {
+                                    formData.requiredFields
+                                      .length
+                                  }{" "}
+                                  of {availableFields.length}{" "}
+                                  selected
+                                </span>
+                                {formData.requiredFields
+                                  .length > 0 && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -1108,7 +1342,10 @@ export function DataCaptureSpecCreateDialog({
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   <div className="flex items-center justify-between w-full p-[0px]">
                     <span>Additional Fields</span>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px]"
+                    >
                       Optional
                     </Badge>
                   </div>
@@ -1199,7 +1436,10 @@ export function DataCaptureSpecCreateDialog({
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   <div className="flex items-center justify-between w-full p-[0px]">
                     <span>Container Schema (JSON)</span>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px]"
+                    >
                       JSON Schema
                     </Badge>
                   </div>
