@@ -51,12 +51,10 @@ import {
 import { toast } from "sonner@2.0.3";
 import { DataSource, createDataCaptureSpec } from "../lib/api";
 import {
-  searchApicurioArtifacts,
   getApicurioArtifact,
   processSchema,
   extractArtifactName,
   getArtifactDisplayName,
-  clearArtifactsCache,
   ApicurioArtifact,
 } from "../lib/apicurio";
 
@@ -66,6 +64,9 @@ interface DataCaptureSpecCreateDialogProps {
   selectedDataSource: DataSource | null;
   activeTenantId: string;
   onSuccess: () => void;
+  apicurioArtifacts: ApicurioArtifact[];
+  isLoadingArtifacts: boolean;
+  onRefreshArtifacts: () => void;
 }
 
 // Helper to get data source ID (handle both field name variations)
@@ -138,13 +139,11 @@ export function DataCaptureSpecCreateDialog({
   selectedDataSource,
   activeTenantId,
   onSuccess,
+  apicurioArtifacts,
+  isLoadingArtifacts,
+  onRefreshArtifacts,
 }: DataCaptureSpecCreateDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apicurioArtifacts, setApicurioArtifacts] = useState<
-    ApicurioArtifact[]
-  >([]);
-  const [isLoadingArtifacts, setIsLoadingArtifacts] =
-    useState(false);
   const [selectedArtifact, setSelectedArtifact] =
     useState<string>("");
   const [templateSearchOpen, setTemplateSearchOpen] = useState(false);
@@ -169,40 +168,6 @@ export function DataCaptureSpecCreateDialog({
     containerSchemaText: "",
   });
 
-  // Load Apicurio artifacts when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      loadApicurioArtifacts();
-    }
-  }, [isOpen]);
-
-  // Load available artifacts from Apicurio Registry
-  const loadApicurioArtifacts = async () => {
-    setIsLoadingArtifacts(true);
-    try {
-      const response = await searchApicurioArtifacts("Value");
-      setApicurioArtifacts(response.artifacts);
-      console.log(
-        `✅ Loaded ${response.count} Apicurio artifacts`,
-      );
-      // Log each artifact for debugging
-      response.artifacts.forEach((artifact, index) => {
-        console.log(
-          `  ${index + 1}. ${artifact.artifactId} (${artifact.artifactType})`,
-        );
-      });
-    } catch (error) {
-      console.error(
-        "Failed to load Apicurio artifacts:",
-        error,
-      );
-      // Don't show error toast - mock data will be used automatically on CORS error
-      setApicurioArtifacts([]);
-    } finally {
-      setIsLoadingArtifacts(false);
-    }
-  };
-
   // Load selected Apicurio artifact and populate form
   const handleLoadApicurioTemplate = async (
     artifactId: string,
@@ -218,6 +183,17 @@ export function DataCaptureSpecCreateDialog({
       const displayName = getArtifactDisplayName(artifact);
       toast.info(`Loading template: ${displayName}...`);
 
+      console.log("=".repeat(80));
+      console.log("🚀 LOADING APICURIO TEMPLATE");
+      console.log("=".repeat(80));
+      console.log("📋 Artifact Info:");
+      console.log("  - artifactId:", artifact.artifactId);
+      console.log("  - groupId:", artifact.groupId);
+      console.log("  - artifactType:", artifact.artifactType);
+      console.log("  - version:", artifact.version);
+      console.log("  - displayName:", displayName);
+      console.log("-".repeat(80));
+
       // Fetch the schema from Apicurio
       const schema = await getApicurioArtifact(
         artifact.groupId,
@@ -225,12 +201,17 @@ export function DataCaptureSpecCreateDialog({
         artifact.version, // Pass version (e.g., "1.0.0" for CDC artifacts, undefined for others)
       );
 
+      console.log("📥 Raw schema from Apicurio (first 1000 chars):");
+      console.log(JSON.stringify(schema, null, 2).substring(0, 1000));
+      console.log("-".repeat(80));
+
       // Process schema - handle both JSON Schema and AVRO formats
       const jsonSchema = processSchema(
         schema,
         artifact.artifactType,
       );
 
+      console.log("🔄 Processed jsonSchema:");
       console.log(
         "🔍 Full jsonSchema structure:",
         JSON.stringify(jsonSchema, null, 2),
@@ -253,17 +234,24 @@ export function DataCaptureSpecCreateDialog({
         schema: any,
       ): string | null => {
         try {
+          console.log("🔍 Extracting sourcePrimaryKeyField from schema...");
+          
           // Navigate to metaData.sources.items.properties.sourcePrimaryKeyField
           const metaData =
             schema.properties?.Txn?.properties?.metaData ||
             schema.properties?.metaData;
+          
+          console.log("🔍 metaData found:", !!metaData);
           if (!metaData) return null;
 
           const sources = metaData.properties?.sources;
+          console.log("🔍 sources found:", !!sources);
           if (!sources || !sources.items) return null;
 
           const sourcePrimaryKeyField =
             sources.items.properties?.sourcePrimaryKeyField;
+          console.log("🔍 sourcePrimaryKeyField found:", !!sourcePrimaryKeyField);
+          console.log("🔍 sourcePrimaryKeyField structure:", JSON.stringify(sourcePrimaryKeyField, null, 2));
           if (!sourcePrimaryKeyField) return null;
 
           // Check if it has a const value
@@ -363,6 +351,13 @@ export function DataCaptureSpecCreateDialog({
       // We must preserve them exactly as they come from the schema for containerSchema properties
       let propertyNames: string[] = [];
 
+      console.log("🔍 Extracting allowed filters...");
+      console.log("🔍 jsonSchema.properties:", Object.keys(jsonSchema.properties || {}));
+      console.log("🔍 jsonSchema.properties?.Txn exists:", !!jsonSchema.properties?.Txn);
+      if (jsonSchema.properties?.Txn) {
+        console.log("🔍 jsonSchema.properties.Txn.properties:", Object.keys(jsonSchema.properties.Txn.properties || {}));
+      }
+
       // Check if schema has nested structure (BFS Online schemas: TxnType + Txn.properties)
       if (jsonSchema.properties?.Txn?.properties) {
         // Nested structure - extract properties from Txn.properties
@@ -384,21 +379,26 @@ export function DataCaptureSpecCreateDialog({
         );
       }
 
+      // Filter out system fields to get allowed filters
+      const systemFields = [
+        "id",
+        "partitionKey",
+        "createTime",
+        "updateTime",
+        "metaData",
+        "TxnType",
+        "Txn",
+      ];
+      
+      console.log("🔍 Property names before filtering:", propertyNames);
+      console.log("🔍 System fields to filter out:", systemFields);
+      
       const allowedFiltersArray = propertyNames.filter(
-        (name) =>
-          ![
-            "id",
-            "partitionKey",
-            "createTime",
-            "updateTime",
-            "metaData",
-            "TxnType",
-            "Txn",
-          ].includes(name),
+        (name) => !systemFields.includes(name)
       );
 
       console.log(
-        "📦 Allowed filters (filtered):",
+        "📦 Allowed filters (after filtering):",
         allowedFiltersArray,
       );
       console.log(
@@ -990,8 +990,7 @@ export function DataCaptureSpecCreateDialog({
                       size="sm"
                       className="h-8 w-8 p-0 shrink-0"
                       onClick={() => {
-                        clearArtifactsCache();
-                        loadApicurioArtifacts();
+                        onRefreshArtifacts();
                         toast.info(
                           "Refreshing templates from Apicurio Registry...",
                         );

@@ -24,6 +24,7 @@ import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
+import { searchApicurioArtifacts, ApicurioArtifact, clearArtifactsCache } from './lib/apicurio';
 
 function AppContent() {
   const { user, isAuthenticated, hasAccessTo, isGlobalUser } = useAuth();
@@ -102,6 +103,10 @@ function AppContent() {
   // Shared state for data sources
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
+
+  // Shared state for Apicurio artifacts (loaded at app start)
+  const [apicurioArtifacts, setApicurioArtifacts] = useState<ApicurioArtifact[]>([]);
+  const [isLoadingArtifacts, setIsLoadingArtifacts] = useState(false);
 
   // Active tenant state
   const [activeTenantId, setActiveTenantId] = useState<string>('global');
@@ -189,6 +194,7 @@ function AppContent() {
   // Don't auto-load transactions - API requires TxnType parameter
   useEffect(() => {
     refreshTenants();
+    refreshApicurioArtifacts();
   }, []);
 
   // Reload data sources when active tenant changes OR when tenants are loaded
@@ -223,6 +229,28 @@ function AppContent() {
     } finally {
       setIsLoadingTenants(false);
     }
+  };
+
+  // Refresh Apicurio artifacts from Apicurio Registry
+  const refreshApicurioArtifacts = async () => {
+    setIsLoadingArtifacts(true);
+    try {
+      const response = await searchApicurioArtifacts('Value');
+      setApicurioArtifacts(response.artifacts);
+      console.log(`✅ Loaded ${response.count} Apicurio artifacts from registry`);
+    } catch (error) {
+      console.error('Failed to load Apicurio artifacts:', error);
+      // Don't show error toast - cache or mock data will be used automatically
+      setApicurioArtifacts([]);
+    } finally {
+      setIsLoadingArtifacts(false);
+    }
+  };
+
+  // Force refresh Apicurio artifacts (clears cache first)
+  const forceRefreshApicurioArtifacts = async () => {
+    clearArtifactsCache();
+    await refreshApicurioArtifacts();
   };
 
   // Refresh transactions - no-op since transactions are loaded per-type
@@ -425,6 +453,9 @@ function AppContent() {
               tenants={tenants}
               activeTenantId={activeTenantId}
               onTenantChange={handleTenantChange}
+              apicurioArtifacts={apicurioArtifacts}
+              isLoadingArtifacts={isLoadingArtifacts}
+              onRefreshArtifacts={forceRefreshApicurioArtifacts}
             />
           </TabsContent>
 

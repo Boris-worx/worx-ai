@@ -31,6 +31,7 @@ import { Switch } from './ui/switch';
 import { DataCaptureSpecCreateDialog } from './DataCaptureSpecCreateDialog';
 
 import { UserRole } from './AuthContext';
+import { ApicurioArtifact } from '../lib/apicurio';
 
 interface DataSourcesViewProps {
   dataSources: DataSource[];
@@ -41,6 +42,9 @@ interface DataSourcesViewProps {
   tenants: Tenant[];
   activeTenantId: string;
   onTenantChange: (tenantId: string) => void;
+  apicurioArtifacts: ApicurioArtifact[];
+  isLoadingArtifacts: boolean;
+  onRefreshArtifacts: () => void;
 }
 
 // Helper functions to handle both field name variations
@@ -550,7 +554,7 @@ const getSpecsByModel = (specs: DataCaptureSpecification[], model: string): Data
   return specs.filter(spec => spec.model === model);
 };
 
-export function DataSourcesView({ dataSources, setDataSources, isLoading, refreshData, userRole, tenants, activeTenantId, onTenantChange }: DataSourcesViewProps) {
+export function DataSourcesView({ dataSources, setDataSources, isLoading, refreshData, userRole, tenants, activeTenantId, onTenantChange, apicurioArtifacts, isLoadingArtifacts, onRefreshArtifacts }: DataSourcesViewProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [dataSourceToDelete, setDataSourceToDelete] = useState<DataSource | null>(null);
@@ -2058,6 +2062,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         onSuccess={async () => {
           await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
         }}
+        apicurioArtifacts={apicurioArtifacts}
+        isLoadingArtifacts={isLoadingArtifacts}
+        onRefreshArtifacts={onRefreshArtifacts}
       />
 
 

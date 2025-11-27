@@ -656,7 +656,7 @@ function getMockArtifactSchema(artifactId: string): any {
                       "sourceEtag": { "type": ["string", "null"] },
                       "eventType": { "type": "string" },
                       "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "Loccd" }
+                      "sourcePrimaryKeyField": { "type": "string", "const": "loccd" }
                     }
                   }
                 }
@@ -712,7 +712,7 @@ function getMockArtifactSchema(artifactId: string): any {
                       "sourceEtag": { "type": ["string", "null"] },
                       "eventType": { "type": "string" },
                       "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "Loccd" }
+                      "sourcePrimaryKeyField": { "type": "string", "const": "loccd" }
                     }
                   }
                 }
@@ -745,8 +745,8 @@ function getMockArtifactSchema(artifactId: string): any {
         "Txn": {
           "type": "object",
           "properties": {
-            "st": { "type": ["string", "null"] },
-            "stn": { "type": ["string", "null"] },
+            "stcode": { "type": ["string", "null"] },
+            "incode": { "type": ["string", "null"] },
             "metaData": {
               "type": "object",
               "properties": {
@@ -762,7 +762,7 @@ function getMockArtifactSchema(artifactId: string): any {
                       "sourceEtag": { "type": ["string", "null"] },
                       "eventType": { "type": "string" },
                       "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "St" }
+                      "sourcePrimaryKeyField": { "type": "string", "const": "incode" }
                     }
                   }
                 }
@@ -909,7 +909,7 @@ function getMockArtifactSchema(artifactId: string): any {
                       "sourceEtag": { "type": ["string", "null"] },
                       "eventType": { "type": "string" },
                       "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "Invid" },
+                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
                       "sourcePrimaryKeyFields": {
                         "type": "array",
                         "items": {
@@ -1587,11 +1587,21 @@ export function processSchema(schema: any, artifactType: string): any {
     return convertAvroToJsonSchema(schema);
   }
   
-  // If it's already a JSON Schema, enhance it with IRC metadata
+  // If it's already a JSON Schema, check if it needs enhancement
   if (schema.type === 'object' || schema.properties) {
-    console.log('📦 JSON Schema detected, enhancing with IRC metadata');
+    console.log('📦 JSON Schema detected');
     const fieldNames = Object.keys(schema.properties || {});
     console.log('📦 Found fields:', fieldNames);
+    
+    // If schema has TxnType and Txn structure (BFS Online CDC format), return as-is
+    // This format already includes metaData with const/enum values that we must preserve
+    if (schema.properties?.TxnType && schema.properties?.Txn) {
+      console.log('📦 Detected BFS Online CDC format (TxnType + Txn), preserving structure as-is');
+      return schema;
+    }
+    
+    // Otherwise, enhance with IRC metadata
+    console.log('📦 Enhancing with IRC metadata');
     return enhanceJsonSchemaWithIRCMetadata(schema);
   }
   
@@ -1633,6 +1643,8 @@ function enhanceJsonSchemaWithIRCMetadata(jsonSchema: any): any {
     };
   }
   
+  // Only add metaData if it doesn't exist
+  // If it exists, preserve it completely (don't overwrite const values, enum values, etc.)
   if (!enhanced.properties.metaData) {
     enhanced.properties.metaData = {
       type: 'object',
