@@ -10,6 +10,7 @@ import { ModelSchemaView } from './components/ModelSchemaView';
 import { DataSourcesView } from './components/DataSourcesView';
 import { ApplicationsView } from './components/ApplicationsView';
 import { BugReportDialog } from './components/BugReportDialog';
+import { ApicurioTestDialog } from './components/ApicurioTestDialog';
 import { MobileMenu } from './components/MobileMenu';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
 import { TenantsIcon } from './components/icons/TenantsIcon';
@@ -18,7 +19,7 @@ import { ListIcon } from './components/icons/ListIcon';
 import { BugIcon } from './components/icons/BugIcon';
 import { MoonIcon } from './components/icons/MoonIcon';
 import { SunIcon } from './components/icons/SunIcon';
-import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun, AppWindow } from 'lucide-react';
+import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun, AppWindow, Database } from 'lucide-react';
 import { getAllTenants, getAllTransactions, getAllDataSources, Tenant, Transaction, DataSource } from './lib/api';
 import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
@@ -113,6 +114,9 @@ function AppContent() {
 
   // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
+  
+  // Apicurio connection test dialog state
+  const [apicurioTestOpen, setApicurioTestOpen] = useState(false);
 
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -355,6 +359,17 @@ function AppContent() {
             <div className="flex items-center gap-2 md:w-[200px] justify-end">
               {/* Desktop Actions */}
               <div className="hidden md:flex items-center gap-2">
+                {/* API Connection Test Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setApicurioTestOpen(true)}
+                  className="shrink-0"
+                  title="Test API connections (Apicurio & BFS)"
+                >
+                  <Database className="h-5 w-5" />
+                </Button>
+
                 {/* Bug Report Button */}
                 <Button
                   variant="ghost"
@@ -392,6 +407,7 @@ function AppContent() {
                 theme={theme}
                 onThemeChange={setTheme}
                 onBugReportClick={() => setBugDialogOpen(true)}
+                onApicurioTestClick={() => setApicurioTestOpen(true)}
               />
             </div>
           </div>
@@ -509,6 +525,9 @@ function AppContent() {
 
       {/* Bug Report Dialog */}
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
+      
+      {/* Apicurio Connection Test Dialog */}
+      <ApicurioTestDialog open={apicurioTestOpen} onOpenChange={setApicurioTestOpen} />
 
       {/* Login Dialog */}
       <LoginDialog />

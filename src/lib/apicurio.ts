@@ -1698,3 +1698,12 @@ function enhanceJsonSchemaWithIRCMetadata(jsonSchema: any): any {
   
   return enhanced;
 }
+
+// Export Apicurio configuration for testing
+export function getApicurioConfig() {
+  return {
+    baseUrl: 'https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io',
+    apiUrl: APICURIO_REGISTRY_URL,
+    groups: ['bfs.online', 'paradigm.bidtools']
+  };
+}
