@@ -367,8 +367,8 @@ function getMockApicurioArtifacts(): ApicurioSearchResponse {
 // Get artifact content (schema) by groupId and artifactId
 export async function getApicurioArtifact(groupId: string, artifactId: string, version?: string): Promise<any> {
   try {
-    // Use version if provided (for CDC artifacts: 1.0.0), otherwise use 'latest'
-    const versionPath = version || 'latest';
+    // Use version if provided (for CDC artifacts: 1.0.0), otherwise use 'branch=latest'
+    const versionPath = version || 'branch=latest';
     const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionPath}/content`;
     
     console.log('📦 Fetching artifact from:', url);
