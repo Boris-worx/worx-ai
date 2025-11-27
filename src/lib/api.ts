@@ -98,7 +98,8 @@ export interface DataCaptureSpec {
   isActive: boolean;
   version: number;
   profile: string;
-  sourcePrimaryKeyField: string;
+  sourcePrimaryKeyField: string | null;
+  sourcePrimaryKeyFields?: string[] | null; // Composite primary keys (alternative to sourcePrimaryKeyField)
   partitionKeyField: string;
   partitionKeyValue: string;
   allowedFilters: string[];
@@ -1687,6 +1688,7 @@ export async function createDataCaptureSpec(
       version: spec.version,
       profile: spec.profile,
       sourcePrimaryKeyField: spec.sourcePrimaryKeyField,
+      sourcePrimaryKeyFields: spec.sourcePrimaryKeyFields, // Added for composite keys
       partitionKeyField: spec.partitionKeyField,
       partitionKeyValue: spec.partitionKeyValue,
       allowedFilters: spec.allowedFilters,
@@ -1701,6 +1703,7 @@ export async function createDataCaptureSpec(
     console.log('  tenantId:', apiPayload.tenantId);
     console.log('  dataSourceId:', apiPayload.dataSourceId);
     console.log('  sourcePrimaryKeyField:', apiPayload.sourcePrimaryKeyField);
+    console.log('  sourcePrimaryKeyFields:', apiPayload.sourcePrimaryKeyFields);
     console.log('  API Payload:', JSON.stringify(apiPayload, null, 2));
 
     const response = await fetch(`${API_BASE_URL}/data-capture-specs`, {
@@ -1776,6 +1779,7 @@ export async function updateDataCaptureSpec(
     if (spec.version !== undefined) apiPayload.version = spec.version;
     if (spec.profile !== undefined) apiPayload.profile = spec.profile;
     if (spec.sourcePrimaryKeyField !== undefined) apiPayload.sourcePrimaryKeyField = spec.sourcePrimaryKeyField;
+    if (spec.sourcePrimaryKeyFields !== undefined) apiPayload.sourcePrimaryKeyFields = spec.sourcePrimaryKeyFields; // Added for composite keys
     if (spec.partitionKeyField !== undefined) apiPayload.partitionKeyField = spec.partitionKeyField;
     if (spec.partitionKeyValue !== undefined) apiPayload.partitionKeyValue = spec.partitionKeyValue;
     if (spec.allowedFilters !== undefined) apiPayload.allowedFilters = spec.allowedFilters;

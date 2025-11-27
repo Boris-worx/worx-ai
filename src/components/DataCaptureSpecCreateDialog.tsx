@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -148,6 +148,9 @@ export function DataCaptureSpecCreateDialog({
   const [selectedArtifact, setSelectedArtifact] =
     useState<string>("");
   const [templateSearchOpen, setTemplateSearchOpen] = useState(false);
+  
+  // Track previous isOpen value to detect opening transition
+  const prevIsOpen = useRef(false);
 
   const [formData, setFormData] = useState({
     dataCaptureSpecName: "",
@@ -158,6 +161,7 @@ export function DataCaptureSpecCreateDialog({
     version: 1,
     profile: "data-capture",
     sourcePrimaryKeyField: "",
+    sourcePrimaryKeyFields: [] as string[], // Added for composite keys
     partitionKeyField: "",
     partitionKeyValue: "",
     allowedFilters: [] as string[], // Changed from allowedFiltersText to array
@@ -281,11 +285,53 @@ export function DataCaptureSpecCreateDialog({
         }
       };
 
+      const extractSourcePrimaryKeyFields = (
+        schema: any,
+      ): string[] => {
+        try {
+          // Navigate to metaData.sources.items.properties.sourcePrimaryKeyFields
+          const metaData =
+            schema.properties?.Txn?.properties?.metaData ||
+            schema.properties?.metaData;
+          if (!metaData) return [];
+
+          const sources = metaData.properties?.sources;
+          if (!sources || !sources.items) return [];
+
+          const sourcePrimaryKeyFields =
+            sources.items.properties?.sourcePrimaryKeyFields;
+          if (!sourcePrimaryKeyFields) return [];
+
+          // Check if it has enum values
+          if (sourcePrimaryKeyFields.items?.enum) {
+            console.log(
+              "✅ Found sourcePrimaryKeyFields.items.enum:",
+              sourcePrimaryKeyFields.items.enum,
+            );
+            return sourcePrimaryKeyFields.items.enum;
+          }
+
+          return [];
+        } catch (error) {
+          console.error(
+            "Error extracting sourcePrimaryKeyFields:",
+            error,
+          );
+          return [];
+        }
+      };
+
       const extractedPrimaryKeyField =
         extractSourcePrimaryKeyField(jsonSchema);
+      const extractedPrimaryKeyFields =
+        extractSourcePrimaryKeyFields(jsonSchema);
       console.log(
         "🔍 Extracted sourcePrimaryKeyField:",
         extractedPrimaryKeyField,
+      );
+      console.log(
+        "🔍 Extracted sourcePrimaryKeyFields:",
+        extractedPrimaryKeyFields,
       );
 
       // Extract name for spec (e.g., "QuotePacks" -> "quotepack")
@@ -360,20 +406,125 @@ export function DataCaptureSpecCreateDialog({
         jsonSchema.required,
       );
 
+      // Build proper containerSchema structure according to the correct template
+      let schemaProperties: any = {};
+      
+      // Extract properties from schema (nested or flat)
+      let extractedProperties: any = {};
+      if (jsonSchema.properties?.Txn?.properties) {
+        // Nested structure - use Txn.properties
+        extractedProperties = { ...jsonSchema.properties.Txn.properties };
+      } else if (jsonSchema.properties) {
+        // Flat structure - use top-level properties
+        extractedProperties = { ...jsonSchema.properties };
+      }
+
+      // Remove system fields from extracted properties
+      delete extractedProperties.id;
+      delete extractedProperties.partitionKey;
+      delete extractedProperties.metaData;
+      delete extractedProperties.createTime;
+      delete extractedProperties.updateTime;
+      delete extractedProperties.TxnType;
+      delete extractedProperties.Txn;
+
+      // Build required fields list: "id" + sourcePrimaryKeyFields (if composite key)
+      const requiredFieldsList = ["id"];
+      if (extractedPrimaryKeyFields.length > 0) {
+        // Add composite key fields to required
+        requiredFieldsList.push(...extractedPrimaryKeyFields);
+      }
+
+      console.log(
+        "📦 Building containerSchema with required fields:",
+        requiredFieldsList,
+      );
+
+      // Build containerSchema with proper structure and order
+      const containerSchema = {
+        schemaVersion: artifact.version || "1",
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Document ID. developer/integrator sets it from webapp. Source primary key value in case of one source or combination, also mapped to id if needed"
+          },
+          partitionKey: {
+            type: "string",
+            description: "container partition key. developer/integrator sets it from webapp. For data landing in common area empty"
+          },
+          ...extractedProperties, // Add extracted schema properties
+          metaData: {
+            type: "object",
+            properties: {
+              sources: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    sourceDatabase: {
+                      type: "string"
+                    },
+                    sourceTable: {
+                      type: "string"
+                    },
+                    sourcePrimaryKeyField: {
+                      type: "string"
+                    },
+                    sourcePrimaryKeyFields: {
+                      type: "array",
+                      items: {
+                        type: "string"
+                      }
+                    },
+                    sourceCreateTime: {
+                      type: ["string", "null"],
+                      format: "date-time"
+                    },
+                    sourceUpdateTime: {
+                      type: ["string", "null"],
+                      format: "date-time"
+                    },
+                    sourceEtag: {
+                      type: ["string", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          createTime: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "populated by txservices"
+          },
+          updateTime: {
+            type: ["string", "null"],
+            format: "date-time",
+            description: "populated by txservices"
+          }
+        },
+        required: requiredFieldsList,
+        unevaluatedProperties: true
+      };
+
       // Auto-populate form - CLEAR OLD DATA FIRST
+      console.log("🎯 Setting formData from template:");
+      console.log("  ├─ sourcePrimaryKeyField:", extractedPrimaryKeyFields.length > 0 ? null : (extractedPrimaryKeyField || primaryKeyField));
+      console.log("  └─ sourcePrimaryKeyFields:", extractedPrimaryKeyFields.length > 0 ? extractedPrimaryKeyFields : []);
+      
       setFormData((prev) => ({
         ...prev,
         dataCaptureSpecName: specNameSingular,
         containerName: containerName,
         sourcePrimaryKeyField:
-          extractedPrimaryKeyField || primaryKeyField,
+          extractedPrimaryKeyFields.length > 0 ? null : (extractedPrimaryKeyField || primaryKeyField),
+        sourcePrimaryKeyFields: extractedPrimaryKeyFields.length > 0 ? extractedPrimaryKeyFields : [],
         partitionKeyField: "id",
         allowedFilters: allowedFiltersArray, // Use array directly instead of string split
-        requiredFields: Array.isArray(jsonSchema.required)
-          ? jsonSchema.required
-          : ["id"],
+        requiredFields: requiredFieldsList, // ["id"] + composite key fields if present
         containerSchemaText: JSON.stringify(
-          jsonSchema,
+          containerSchema,
           null,
           2,
         ),
@@ -390,8 +541,14 @@ export function DataCaptureSpecCreateDialog({
   };
 
   // Pre-fill tenantId, dataSourceId, and load IRC template automatically
+  // IMPORTANT: Only reset form when dialog is OPENING (transition from closed to open)
+  // This prevents losing data when selectedDataSource or activeTenantId changes while dialog is open
   useEffect(() => {
-    if (isOpen && selectedDataSource) {
+    const isOpening = isOpen && !prevIsOpen.current;
+    
+    if (isOpening && selectedDataSource) {
+      console.log("🔄 Dialog opening - initializing form", new Date().toISOString());
+      
       // IRC Template schema
       const ircContainerSchema = {
         schemaVersion: 1,
@@ -457,6 +614,7 @@ export function DataCaptureSpecCreateDialog({
         isActive: true,
         profile: "data-capture",
         sourcePrimaryKeyField: "",
+        sourcePrimaryKeyFields: [],
         partitionKeyField: "",
         partitionKeyValue: "",
         allowedFilters: [], // Empty by default - user should select from available fields
@@ -464,7 +622,10 @@ export function DataCaptureSpecCreateDialog({
         containerSchemaText: "",
       }));
     }
-  }, [isOpen, selectedDataSource, activeTenantId]);
+    
+    // Update ref for next render
+    prevIsOpen.current = isOpen;
+  }, [isOpen, selectedDataSource, activeTenantId]); // Safe to include all deps now
 
   // Reset form on close
   useEffect(() => {
@@ -478,6 +639,7 @@ export function DataCaptureSpecCreateDialog({
         version: 1,
         profile: "data-capture",
         sourcePrimaryKeyField: "",
+        sourcePrimaryKeyFields: [],
         partitionKeyField: "",
         partitionKeyValue: "",
         allowedFilters: [],
@@ -588,8 +750,9 @@ export function DataCaptureSpecCreateDialog({
       return;
     }
 
-    if (!formData.sourcePrimaryKeyField.trim()) {
-      toast.error("Source Primary Key Field is required");
+    // At least one of sourcePrimaryKeyField or sourcePrimaryKeyFields must be set
+    if (!formData.sourcePrimaryKeyField && (!formData.sourcePrimaryKeyFields || formData.sourcePrimaryKeyFields.length === 0)) {
+      toast.error("Source Primary Key Field or Source Primary Key Fields is required");
       return;
     }
 
@@ -635,6 +798,10 @@ export function DataCaptureSpecCreateDialog({
 
     setIsSubmitting(true);
     try {
+      console.log("📋 FormData before creating payload:");
+      console.log("  sourcePrimaryKeyField:", formData.sourcePrimaryKeyField, `(type: ${typeof formData.sourcePrimaryKeyField})`);
+      console.log("  sourcePrimaryKeyFields:", formData.sourcePrimaryKeyFields, `(isArray: ${Array.isArray(formData.sourcePrimaryKeyFields)}, length: ${formData.sourcePrimaryKeyFields?.length || 0})`);
+
       const payload = {
         dataCaptureSpecName: formData.dataCaptureSpecName,
         containerName: formData.containerName,
@@ -643,7 +810,8 @@ export function DataCaptureSpecCreateDialog({
         isActive: formData.isActive,
         version: formData.version,
         profile: formData.profile,
-        sourcePrimaryKeyField: formData.sourcePrimaryKeyField,
+        sourcePrimaryKeyField: formData.sourcePrimaryKeyField || null,
+        sourcePrimaryKeyFields: (formData.sourcePrimaryKeyFields && formData.sourcePrimaryKeyFields.length > 0) ? formData.sourcePrimaryKeyFields : null,
         partitionKeyField: formData.partitionKeyField,
         partitionKeyValue: formData.partitionKeyValue,
         allowedFilters: allowedFiltersCamelCase,
@@ -651,7 +819,9 @@ export function DataCaptureSpecCreateDialog({
         containerSchema: containerSchema,
       };
 
-      console.log("Creating Data Capture Spec:", payload);
+      console.log("📤 Creating Data Capture Spec payload:", payload);
+      console.log("  ├─ sourcePrimaryKeyField:", payload.sourcePrimaryKeyField, `(type: ${typeof payload.sourcePrimaryKeyField})`);
+      console.log("  └─ sourcePrimaryKeyFields:", payload.sourcePrimaryKeyFields, `(type: ${typeof payload.sourcePrimaryKeyFields}, length: ${payload.sourcePrimaryKeyFields?.length || 0})`);
 
       await createDataCaptureSpec(payload);
 
@@ -924,72 +1094,115 @@ export function DataCaptureSpecCreateDialog({
                   Key Fields Configuration
                 </AccordionTrigger>
                 <AccordionContent className="space-y-2.5 pt-2 pb-2">
-                  {/* Source Primary Key Field + Partition Field + Partition Value in 3 columns */}
-                  <div className="grid grid-cols-3 gap-2.5">
+                  {/* Source Primary Key Fields - Two columns */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Single Primary Key Field */}
                     <div className="space-y-1">
                       <Label
                         htmlFor="sourcePrimaryKeyField"
                         className="text-xs"
                       >
-                        Source Primary Key Field *
+                        Source Primary Key Field
                       </Label>
                       <Input
                         id="sourcePrimaryKeyField"
-                        placeholder=""
-                        value={formData.sourcePrimaryKeyField}
+                        value={formData.sourcePrimaryKeyField || ""}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
                             sourcePrimaryKeyField:
-                              e.target.value,
+                              e.target.value || null,
                           })
                         }
                         className="h-8 text-xs"
                       />
+                      
                     </div>
 
+                    {/* Composite Primary Key Fields */}
                     <div className="space-y-1">
-                      <Label
-                        htmlFor="partitionKeyField"
-                        className="text-xs"
-                      >
-                        Partition Key Field *
+                      <Label className="text-xs">
+                        Source Primary Key Fields (Composite)
                       </Label>
-                      <Input
-                        id="partitionKeyField"
-                        placeholder=""
-                        value={formData.partitionKeyField}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            partitionKeyField: e.target.value,
-                          })
-                        }
-                        className="h-8 text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label
-                        htmlFor="partitionKeyValue"
-                        className="text-xs"
-                      >
-                        Partition Key Value
-                      </Label>
-                      <Input
-                        id="partitionKeyValue"
-                        placeholder="Optional"
-                        value={formData.partitionKeyValue}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            partitionKeyValue: e.target.value,
-                          })
-                        }
-                        className="h-8 text-xs"
-                      />
+                      <div className="flex flex-wrap gap-1 p-2 border rounded-md min-h-[32px] bg-white">
+                        {(formData.sourcePrimaryKeyFields || []).map((field, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="secondary"
+                            className="text-xs h-5 px-2"
+                          >
+                            {field}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  sourcePrimaryKeyFields:
+                                    (formData.sourcePrimaryKeyFields || []).filter(
+                                      (_, i) => i !== idx,
+                                    ),
+                                })
+                              }
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                        {(!formData.sourcePrimaryKeyFields || formData.sourcePrimaryKeyFields.length === 0) && (
+                          <span className="text-xs text-muted-foreground">
+                            
+                          </span>
+                        )}
+                      </div>
+                      
                     </div>
                   </div>
+
+                  {/* Partition Field + Partition Value in 2 columns */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="partitionKeyField"
+                          className="text-xs"
+                        >
+                          Partition Key Field *
+                        </Label>
+                        <Input
+                          id="partitionKeyField"
+                          placeholder=""
+                          value={formData.partitionKeyField}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              partitionKeyField: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="partitionKeyValue"
+                          className="text-xs"
+                        >
+                          Partition Key Value
+                        </Label>
+                        <Input
+                          id="partitionKeyValue"
+                          placeholder="Optional"
+                          value={formData.partitionKeyValue}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              partitionKeyValue: e.target.value,
+                            })
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
 
                   {/* Allowed Filters - Multi-Select Dropdown */}
                   {availableFields.length > 0 && (
