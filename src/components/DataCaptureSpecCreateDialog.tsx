@@ -355,11 +355,11 @@ export function DataCaptureSpecCreateDialog({
       const isBidTools = artifact.groupId === "paradigm.bidtools2";
       const isBfsOnline = artifact.groupId === "bfs.online";
 
-      // For BidTools templates (paradigm.bidtools2 group), remove TxServices_ prefix
-      if (isBidTools) {
+      // For BidTools and BFS Online templates, remove TxServices_ prefix
+      if (isBidTools || isBfsOnline) {
         const beforeTrim = specName;
         specName = specName.replace(/^TxServices_/, "");
-        console.log("  - BidTools detected - removing TxServices_ prefix");
+        console.log(`  - ${isBfsOnline ? 'BFS Online' : 'BidTools'} detected - removing TxServices_ prefix`);
         console.log("    Before:", beforeTrim);
         console.log("    After:", specName);
       }
@@ -1206,7 +1206,7 @@ export function DataCaptureSpecCreateDialog({
                         className="h-8 text-xs"
                       />
                       <p className="text-[10px] text-muted-foreground">
-                        Use camelCase (first letter lowercase)
+                        
                       </p>
                     </div>
 

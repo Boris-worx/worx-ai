@@ -651,7 +651,7 @@ export function ApicurioConnectionTest() {
               <div className="font-mono text-xs space-y-1">
                 <p><span className="text-slate-600">Base URL:</span> {APICURIO_BASE}</p>
                 <p><span className="text-slate-600">API Version:</span> v3</p>
-                <p><span className="text-slate-600">Groups:</span> bfs.online, paradigm.bidtools2</p>
+                <p><span className="text-slate-600">Groups:</span> bfs.online (15 artifacts), paradigm.bidtools2</p>
               </div>
             </div>
             

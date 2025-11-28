@@ -3,7 +3,7 @@
 
 const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
 
-// Only these two groups are used - hardcoded for fallback when 403
+// Only these groups are used - hardcoded for fallback when 403
 const KNOWN_GROUPS = [
   { id: 'paradigm.bidtools2', description: 'Bid Tools Templates' },
   { id: 'bfs.online', description: 'BFS Online Templates' },
