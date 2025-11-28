@@ -1,12 +1,19 @@
 // Apicurio Registry API Functions for Data Capture Specification templates
+// NO MOCK DATA - Only real data from Apicurio Registry
 
 const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
+
+// Only these two groups are used - hardcoded for fallback when 403
+const KNOWN_GROUPS = [
+  { id: 'paradigm.bidtools2', description: 'Bid Tools Templates' },
+  { id: 'bfs.online', description: 'BFS Online Templates' },
+];
 
 // Cache for artifacts search results (avoid repeated API calls)
 // Using localStorage for persistent cache + in-memory cache for speed
 const CACHE_KEY = 'apicurio_artifacts_cache';
 const CACHE_TIMESTAMP_KEY = 'apicurio_artifacts_timestamp';
-const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes (was 5 minutes)
+const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
 let artifactsCache: ApicurioSearchResponse | null = null;
 let artifactsCacheTimestamp = 0;
@@ -69,9 +76,177 @@ export interface ApicurioSearchResponse {
   count: number;
 }
 
-// Search Apicurio artifacts by name pattern
+export interface ApicurioGroup {
+  id: string;
+  description?: string;
+  createdOn?: string;
+  modifiedOn?: string;
+}
+
+export interface ApicurioVersion {
+  version: string;
+  createdOn?: string;
+  modifiedOn?: string;
+  state?: string;
+}
+
+// ==================== DYNAMIC API FUNCTIONS ====================
+
+// Get all groups from Apicurio Registry
+export async function getApicurioGroups(): Promise<ApicurioGroup[]> {
+  try {
+    const url = `${APICURIO_REGISTRY_URL}/groups`;
+    console.log('📦 Fetching all groups from:', url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.log('📦 Access forbidden to groups list (using hardcoded groups)');
+        // Return only known groups when API is blocked
+        return KNOWN_GROUPS;
+      }
+      throw new Error(`Failed to fetch groups: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('📦 Fetched groups:', data.groups?.length || 0);
+    
+    // Filter to only return our two known groups even if API returns more
+    const groups = data.groups || [];
+    const filteredGroups = groups.filter((g: ApicurioGroup) => 
+      KNOWN_GROUPS.some(kg => kg.id === g.id)
+    );
+    
+    console.log('📦 Filtered to known groups:', filteredGroups.length);
+    return filteredGroups.length > 0 ? filteredGroups : KNOWN_GROUPS;
+  } catch (error) {
+    console.error('❌ Error fetching Apicurio groups:', error);
+    // Return only known groups on error
+    return KNOWN_GROUPS;
+  }
+}
+
+// Get all artifacts from a specific group
+export async function getGroupArtifacts(groupId: string): Promise<ApicurioArtifact[]> {
+  try {
+    const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts?limit=100`;
+    console.log(`📦 Fetching artifacts from group ${groupId}:`, url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.warn(`📦 Access forbidden to group ${groupId}`);
+        return [];
+      }
+      if (response.status === 404) {
+        console.warn(`📦 Group ${groupId} not found`);
+        return [];
+      }
+      throw new Error(`Failed to fetch artifacts for group ${groupId}: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const artifacts = data.artifacts || [];
+    
+    // Add groupId to each artifact
+    const artifactsWithGroup = artifacts.map((artifact: any) => ({
+      ...artifact,
+      groupId: groupId,
+    }));
+    
+    console.log(`📦 Fetched ${artifactsWithGroup.length} artifacts from group ${groupId}`);
+    return artifactsWithGroup;
+  } catch (error) {
+    console.error(`❌ Error fetching artifacts for group ${groupId}:`, error);
+    return [];
+  }
+}
+
+// Get all versions of a specific artifact
+export async function getArtifactVersions(groupId: string, artifactId: string): Promise<ApicurioVersion[]> {
+  try {
+    const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}/versions`;
+    console.log(`📦 Fetching versions for ${artifactId}:`, url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.warn(`📦 Access forbidden to versions for ${artifactId}`);
+        return [];
+      }
+      if (response.status === 404) {
+        console.warn(`📦 Versions not found for ${artifactId}`);
+        return [];
+      }
+      throw new Error(`Failed to fetch versions: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`📦 Fetched ${data.versions?.length || 0} versions for ${artifactId}`);
+    return data.versions || [];
+  } catch (error) {
+    console.error(`❌ Error fetching versions for ${artifactId}:`, error);
+    return [];
+  }
+}
+
+// Get the latest version from a list of versions
+export function getLatestVersion(versions: ApicurioVersion[]): string | null {
+  if (!versions || versions.length === 0) {
+    return null;
+  }
+  
+  // Sort versions by creation date (most recent first)
+  const sorted = [...versions].sort((a, b) => {
+    if (!a.createdOn || !b.createdOn) return 0;
+    return new Date(b.createdOn).getTime() - new Date(a.createdOn).getTime();
+  });
+  
+  return sorted[0]?.version || null;
+}
+
+// Get friendly display name for a group ID
+export function getGroupDisplayName(groupId: string): string {
+  const group = KNOWN_GROUPS.find(g => g.id === groupId);
+  return group?.description || groupId;
+}
+
+// Get default version for a group (fallback when API doesn't return versions)
+export function getDefaultVersionForGroup(groupId: string): string {
+  // Known version patterns by group
+  const defaultVersions: Record<string, string> = {
+    'paradigm.bidtools2': '1',
+    'bfs.online': '1.0.0',
+  };
+  
+  return defaultVersions[groupId] || '1.0.0'; // Default to 1.0.0 for unknown groups
+}
+
+// ==================== END DYNAMIC API FUNCTIONS ====================
+
+// Search Apicurio artifacts - ONLY REAL DATA FROM API
 export async function searchApicurioArtifacts(namePattern: string = 'Value'): Promise<ApicurioSearchResponse> {
-  // Define 'now' before try block so it's accessible in catch
   const now = Date.now();
   
   try {
@@ -81,63 +256,41 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       return artifactsCache;
     }
     
-    console.log('📦 Fetching fresh Apicurio artifacts from multiple groups...');
+    console.log('📦 🎯 DYNAMIC: Fetching groups and artifacts from Apicurio Registry...');
     
-    // Fetch artifacts from multiple groups
-    const groups = ['paradigm.bidtools', 'bfs.online'];
+    // STEP 1: Get all groups dynamically (only our two known groups)
+    const groups = await getApicurioGroups();
+    console.log(`📦 🎯 Found ${groups.length} groups:`, groups.map(g => g.id).join(', '));
+    
+    // STEP 2: Fetch artifacts from all groups
     const allArtifacts: ApicurioArtifact[] = [];
-    let got403 = false;
     
     for (const group of groups) {
       try {
-        const url = `${APICURIO_REGISTRY_URL}/groups/${group}/artifacts?limit=100`;
-        console.log(`📦 Fetching from group: ${group}`);
+        const artifacts = await getGroupArtifacts(group.id);
         
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-        });
-
-        // Log CORS headers for debugging
-        console.log(`📦 Response status (${group}):`, response.status);
-
-        if (response.ok) {
-          const groupData: ApicurioSearchResponse = await response.json();
-          console.log(`📦 Loaded ${groupData.count} artifacts from ${group} group`);
-          allArtifacts.push(...groupData.artifacts);
-        } else if (response.status === 403) {
-          console.log(`📦 Access forbidden (403) for group: ${group} - using local templates`);
-          got403 = true;
-          break; // Stop trying other groups on 403
+        if (artifacts.length > 0) {
+          console.log(`📦 ✅ Loaded ${artifacts.length} artifacts from ${group.id}`);
+          allArtifacts.push(...artifacts);
         } else {
-          console.log(`📦 Could not fetch from ${group} (status: ${response.status})`);
+          console.log(`📦 ⚠️ No artifacts from ${group.id} (may be 403 or empty)`);
         }
       } catch (error) {
-        // Silent handling - CORS is expected in browser environments
-        // Just skip this group and continue
+        console.warn(`📦 ⚠️ Error fetching from ${group.id}:`, error);
+        // Continue with other groups
       }
     }
 
-    // If we got 403 or no artifacts from any group, use mock data
-    if (got403 || allArtifacts.length === 0) {
-      console.log('📦 No artifacts loaded, using local Apicurio templates');
-      const mockData = getMockApicurioArtifacts();
-      
-      // Cache mock data so subsequent opens are instant
-      artifactsCache = mockData;
-      artifactsCacheTimestamp = now;
-      
-      return mockData;
+    // If no artifacts from any group, throw error
+    if (allArtifacts.length === 0) {
+      throw new Error('No artifacts available from Apicurio Registry. Please check API access.');
     }
 
     const data: ApicurioSearchResponse = {
       artifacts: allArtifacts,
       count: allArtifacts.length
     };
-    console.log(`📦 Total artifacts loaded: ${data.count}`);
+    console.log(`📦 ✅ Total artifacts loaded: ${data.count} from ${groups.length} groups`);
     
     // Update cache
     artifactsCache = data;
@@ -153,225 +306,57 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     
     return data;
   } catch (error: any) {
-    // Return mock data for development (CORS or network issues)
-    // Silently handle CORS - this is expected in some environments
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.log('📦 Using local Apicurio templates (18 available) - CORS blocked');
-      const mockData = getMockApicurioArtifacts();
-      
-      // Cache mock data so subsequent opens are instant
-      artifactsCache = mockData;
-      artifactsCacheTimestamp = now;
-      
-      return mockData;
+    console.error('❌ Apicurio Registry error:', error);
+    
+    // If we have cached data, use it even if expired
+    if (artifactsCache) {
+      console.log('📦 Using expired cache data due to API error');
+      return artifactsCache;
     }
     
-    // Only log unexpected errors
-    console.warn('⚠️ Apicurio Registry unavailable, using local templates');
-    return getMockApicurioArtifacts();
+    // No cache available - return empty result
+    console.error('❌ No artifacts available and no cache. Apicurio Registry is unavailable.');
+    return {
+      artifacts: [],
+      count: 0
+    };
   }
 }
 
-// Mock data for development when CORS blocks the request
-function getMockApicurioArtifacts(): ApicurioSearchResponse {
-  return {
-    artifacts: [
-      // CDC Format artifacts (version 1.0.0)
-      {
-        artifactId: "CDC_SQLServer_LineTypes",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "LineTypes (CDC)",
-        description: "CDC AVRO schema for LineTypes",
-        createdOn: "2025-11-18T15:35:18Z",
-        modifiedOn: "2025-11-18T15:35:18Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "CDC_SQLServer_ServiceRequests",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "ServiceRequests (CDC)",
-        description: "CDC AVRO schema for ServiceRequests",
-        createdOn: "2025-11-18T15:36:30Z",
-        modifiedOn: "2025-11-18T15:36:30Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "CDC_SQLServer_WorkflowCustomers",
-        groupId: "paradigm.bidtools",
-        artifactType: "AVRO",
-        name: "WorkflowCustomers (CDC)",
-        description: "CDC AVRO schema for WorkflowCustomers",
-        createdOn: "2025-11-18T15:36:35Z",
-        modifiedOn: "2025-11-18T15:36:35Z",
-        version: "1.0.0"
-      },
-      // TxServices format artifacts (version 1.0.0)
-      {
-        artifactId: "TxServices_SQLServer_QuoteDetails.response",
-        groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "QuoteDetails",
-        description: "JSON schema for QuoteDetails",
-        createdOn: "2025-11-18T15:35:18Z",
-        modifiedOn: "2025-11-18T15:35:18Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_SQLServer_QuotePacks.response",
-        groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "QuotePacks",
-        description: "JSON schema for QuotePacks",
-        createdOn: "2025-11-18T15:36:08Z",
-        modifiedOn: "2025-11-18T15:36:08Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_SQLServer_Quotes.response",
-        groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "Quotes",
-        description: "JSON schema for Quotes",
-        createdOn: "2025-11-18T15:36:17Z",
-        modifiedOn: "2025-11-18T15:36:17Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_SQLServer_ReasonCodes.response",
-        groupId: "paradigm.bidtools",
-        artifactType: "JSON",
-        name: "ReasonCodes",
-        description: "JSON schema for ReasonCodes",
-        createdOn: "2025-11-18T15:36:25Z",
-        modifiedOn: "2025-11-18T15:36:25Z",
-        version: "1.0.0"
-      },
-      // bfs.online group artifacts (Informix schemas)
-      {
-        artifactId: "TxServices_Informix_loc1.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "loc1",
-        description: "Response schema for Informix TxServices loc1",
-        createdOn: "2025-11-24T16:31:35Z",
-        modifiedOn: "2025-11-24T16:31:35Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_loc.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "loc",
-        description: "Response schema for Informix TxServices loc",
-        createdOn: "2025-11-24T16:28:04Z",
-        modifiedOn: "2025-11-24T16:28:04Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_stcode.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "stcode",
-        description: "Response schema for Informix TxServices stcode",
-        createdOn: "2025-11-24T16:32:02Z",
-        modifiedOn: "2025-11-24T16:32:02Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_inv.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "inv",
-        description: "Response schema for Informix TxServices inv (Inventory)",
-        createdOn: "2025-11-25T10:00:00Z",
-        modifiedOn: "2025-11-25T10:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_inv1.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "inv1",
-        description: "Response schema for Informix TxServices inv1 (Inventory variant 1)",
-        createdOn: "2025-11-25T12:00:00Z",
-        modifiedOn: "2025-11-25T12:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_inv2.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "inv2",
-        description: "Response schema for Informix TxServices inv2 (Inventory variant 2)",
-        createdOn: "2025-11-25T13:00:00Z",
-        modifiedOn: "2025-11-25T13:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_inv3.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "inv3",
-        description: "Response schema for Informix TxServices inv3 (Inventory variant 3)",
-        createdOn: "2025-11-25T14:00:00Z",
-        modifiedOn: "2025-11-25T14:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_invap.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "invap",
-        description: "Response schema for Informix TxServices invap (Inventory AP)",
-        createdOn: "2025-11-25T15:00:00Z",
-        modifiedOn: "2025-11-25T15:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_invdes.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "invdes",
-        description: "Response schema for Informix TxServices invdes (Inventory Descriptions)",
-        createdOn: "2025-11-25T16:00:00Z",
-        modifiedOn: "2025-11-25T16:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_invloc.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "invloc",
-        description: "Response schema for Informix TxServices invloc (Inventory Location)",
-        createdOn: "2025-11-25T17:00:00Z",
-        modifiedOn: "2025-11-25T17:00:00Z",
-        version: "1.0.0"
-      },
-      {
-        artifactId: "TxServices_Informix_keyi.response",
-        groupId: "bfs.online",
-        artifactType: "JSON",
-        name: "keyi",
-        description: "Response schema for Informix TxServices keyi (Keyword Inventory)",
-        createdOn: "2025-11-25T18:00:00Z",
-        modifiedOn: "2025-11-25T18:00:00Z",
-        version: "1.0.0"
-      }
-    ],
-    count: 18
-  };
-}
-
-// Get artifact content (schema) by groupId and artifactId
+// Get artifact content (schema) by groupId and artifactId - ONLY REAL DATA
 export async function getApicurioArtifact(groupId: string, artifactId: string, version?: string): Promise<any> {
   try {
-    // Use version if provided (for CDC artifacts: 1.0.0), otherwise use 'branch=latest'
-    const versionPath = version || 'branch=latest';
+    let versionPath: string;
+    
+    // STEP 1: If version not provided, fetch it dynamically from API
+    if (!version) {
+      console.log(`📦 🎯 DYNAMIC: Fetching versions for ${artifactId}...`);
+      const versions = await getArtifactVersions(groupId, artifactId);
+      
+      if (versions.length > 0) {
+        const latestVersion = getLatestVersion(versions);
+        if (latestVersion) {
+          versionPath = latestVersion;
+          console.log(`📦 ✅ Using latest version from API: ${versionPath}`);
+        } else {
+          // No valid version found, use group-specific default
+          versionPath = getDefaultVersionForGroup(groupId);
+          console.log(`📦 ⚠️ No version in API response, using default for ${groupId}: ${versionPath}`);
+        }
+      } else {
+        // Versions API returned empty array - use group-specific default
+        versionPath = getDefaultVersionForGroup(groupId);
+        console.log(`📦 ⚠️ Versions API returned empty, using default for ${groupId}: ${versionPath}`);
+      }
+    } else {
+      versionPath = version;
+      console.log(`📦 ℹ️ Using provided version: ${versionPath}`);
+    }
+    
+    // STEP 2: Fetch artifact content with the determined version
     const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${versionPath}/content`;
     
-    console.log('📦 Fetching artifact from:', url);
+    console.log('📦 🎯 Fetching artifact from:', url);
     
     const response = await fetch(url, {
       method: 'GET',
@@ -382,955 +367,19 @@ export async function getApicurioArtifact(groupId: string, artifactId: string, v
     });
 
     if (!response.ok) {
-      // Handle 403 Forbidden specifically - this is expected in browser environments
-      if (response.status === 403) {
-        console.log('📦 Access forbidden (using local template):', extractArtifactName(artifactId));
-        return getMockArtifactSchema(artifactId);
-      }
-      
-      console.error('❌ Apicurio API error:', response.status, response.statusText);
       const errorText = await response.text();
-      console.error('❌ Error body:', errorText);
-      throw new Error(`Apicurio API returned ${response.status}: ${errorText}`);
+      console.error(`❌ Apicurio API error ${response.status}:`, errorText);
+      throw new Error(`Failed to fetch artifact ${artifactId}: ${response.status} - ${errorText}`);
     }
 
     const schema = await response.json();
-    console.log('📦 Loaded schema from Apicurio Registry:', artifactId);
+    console.log('📦 ✅ Loaded schema from Apicurio Registry:', artifactId);
     console.log('📦 Schema keys:', Object.keys(schema).join(', '));
     return schema;
   } catch (error: any) {
-    // Return mock schema for development (CORS or network issues)
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.log('📦 Using local schema template:', extractArtifactName(artifactId));
-      return getMockArtifactSchema(artifactId);
-    }
-    
-    // If error message contains "403" or "Forbidden", return mock data
-    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
-      console.log('📦 Using local schema template (403):', extractArtifactName(artifactId));
-      return getMockArtifactSchema(artifactId);
-    }
-    
     console.error('❌ Error fetching Apicurio artifact:', error);
     throw error;
   }
-}
-
-// Mock schema data for development
-function getMockArtifactSchema(artifactId: string): any {
-  // CDC Format schemas (Debezium Envelope)
-  if (artifactId === 'CDC_SQLServer_LineTypes') {
-    return {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ENVELOPE",
-      "type": "object",
-      "properties": {
-        "before": {
-          "anyOf": [null, { "type": "object", "properties": {} }]
-        },
-        "after": {
-          "anyOf": [
-            {
-              "title": "VALUE",
-              "type": "object",
-              "properties": {
-                "LineTypeId": { "type": "integer" },
-                "LineTypeCode": { "type": "string" },
-                "Description": { "type": "string" },
-                "ColorCode": { "type": ["string", "null"] },
-                "SortOrder": { "type": "integer" },
-                "SkuType": { "type": "integer" },
-                "CategoryRequired": { "type": "integer" },
-                "ManualCostRequired": { "type": "integer" },
-                "ManualPriceRequired": { "type": "integer" },
-                "IsNotesAllowed": { "type": "boolean" },
-                "DefaultSku": { "type": ["string", "null"] },
-                "DefaultDescription": { "type": ["string", "null"] },
-                "DefaultCategory": { "type": ["string", "null"] },
-                "DefaultQuantity": { "type": ["integer", "null"] },
-                "ErpOrderLineType": { "type": ["string", "null"] },
-                "ERP": { "type": "string" },
-                "IsActive": { "type": "boolean" },
-                "IsSkuTypeDefault": { "type": "boolean" },
-                "EnforceQuantityOfOne": { "type": "boolean" },
-                "IsInstallOnly": { "type": "boolean" }
-              },
-              "required": [
-                "LineTypeId",
-                "LineTypeCode",
-                "Description",
-                "SortOrder",
-                "SkuType",
-                "CategoryRequired",
-                "ManualCostRequired",
-                "ManualPriceRequired",
-                "ERP",
-                "IsActive"
-              ]
-            },
-            null
-          ]
-        }
-      }
-    };
-  } else if (artifactId === 'CDC_SQLServer_WorkflowCustomers') {
-    return {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ENVELOPE",
-      "type": "object",
-      "properties": {
-        "before": {
-          "anyOf": [null, { "type": "object", "properties": {} }]
-        },
-        "after": {
-          "anyOf": [
-            {
-              "title": "VALUE",
-              "type": "object",
-              "properties": {
-                "WorkflowCustomerId": { "type": "integer" },
-                "OnlineAlphaCode": { "type": "string" },
-                "CustomerName": { "type": "string" },
-                "CreatedBy": { "type": ["string", "null"] },
-                "CreatedDate": { "type": "string", "format": "date-time" },
-                "LastModifiedBy": { "type": ["string", "null"] },
-                "LastModifiedDate": { "type": ["string", "null"], "format": "date-time" },
-                "CustomerErpSystem": { "type": ["string", "null"] },
-                "DefaultWorkFlowMarketId": { "type": ["integer", "null"] },
-                "DefaultWorkflowLocationId": { "type": ["integer", "null"] },
-                "DefaultSalesRepResourceId": { "type": ["integer", "null"] },
-                "GeoOverrideDefaultWorkFlowMarketId": { "type": ["integer", "null"] },
-                "AccountType": { "type": ["string", "null"] }
-              },
-              "required": [
-                "WorkflowCustomerId",
-                "OnlineAlphaCode",
-                "CustomerName",
-                "CreatedDate"
-              ]
-            },
-            null
-          ]
-        }
-      }
-    };
-  } else if (artifactId === 'CDC_SQLServer_ServiceRequests') {
-    return {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ENVELOPE",
-      "type": "object",
-      "properties": {
-        "before": {
-          "anyOf": [null, { "type": "object", "properties": {} }]
-        },
-        "after": {
-          "anyOf": [
-            {
-              "title": "VALUE",
-              "type": "object",
-              "properties": {
-                "ServiceRequestId": { "type": "integer" },
-                "RequestNumber": { "type": "string" },
-                "CustomerId": { "type": "integer" },
-                "RequestDate": { "type": "string", "format": "date-time" },
-                "Status": { "type": "string" },
-                "Priority": { "type": ["string", "null"] },
-                "AssignedTo": { "type": ["string", "null"] },
-                "Description": { "type": ["string", "null"] },
-                "Resolution": { "type": ["string", "null"] },
-                "CreatedBy": { "type": "string" },
-                "CreatedDate": { "type": "string", "format": "date-time" },
-                "LastModifiedBy": { "type": ["string", "null"] },
-                "LastModifiedDate": { "type": ["string", "null"], "format": "date-time" }
-              },
-              "required": [
-                "ServiceRequestId",
-                "RequestNumber",
-                "CustomerId",
-                "RequestDate",
-                "Status",
-                "CreatedBy",
-                "CreatedDate"
-              ]
-            },
-            null
-          ]
-        }
-      }
-    };
-  }
-  
-  // TxServices format artifacts
-  if (artifactId.includes('QuotePacks')) {
-    return {
-      type: 'object',
-      properties: {
-        QuotePackId: { type: 'string', description: 'Quote Pack ID' },
-        QuoteId: { type: 'string', description: 'Quote ID' },
-        PackName: { type: 'string', description: 'Pack Name' },
-        PackDescription: { type: ['string', 'null'], description: 'Pack Description' },
-        TotalAmount: { type: 'number', description: 'Total Amount' },
-        Status: { type: 'string', description: 'Status' },
-        CreatedDate: { type: 'string', format: 'date-time', description: 'Created Date' },
-        ModifiedDate: { type: ['string', 'null'], format: 'date-time', description: 'Modified Date' }
-      },
-      required: ['QuotePackId', 'QuoteId', 'PackName']
-    };
-  } else if (artifactId.includes('QuoteDetails')) {
-    return {
-      type: 'object',
-      properties: {
-        QuoteDetailId: { type: 'string', description: 'Quote Detail ID' },
-        QuoteId: { type: 'string', description: 'Quote ID' },
-        LineNumber: { type: 'number', description: 'Line Number' },
-        ProductId: { type: 'string', description: 'Product ID' },
-        Quantity: { type: 'number', description: 'Quantity' },
-        UnitPrice: { type: 'number', description: 'Unit Price' },
-        TotalPrice: { type: 'number', description: 'Total Price' },
-        Description: { type: ['string', 'null'], description: 'Description' }
-      },
-      required: ['QuoteDetailId', 'QuoteId', 'LineNumber']
-    };
-  } else if (artifactId.includes('Quotes')) {
-    return {
-      type: 'object',
-      properties: {
-        QuoteId: { type: 'string', description: 'Quote ID' },
-        CustomerId: { type: 'string', description: 'Customer ID' },
-        QuoteNumber: { type: 'string', description: 'Quote Number' },
-        QuoteDate: { type: 'string', format: 'date-time', description: 'Quote Date' },
-        ExpirationDate: { type: ['string', 'null'], format: 'date-time', description: 'Expiration Date' },
-        Status: { type: 'string', description: 'Status' },
-        TotalAmount: { type: 'number', description: 'Total Amount' },
-        Notes: { type: ['string', 'null'], description: 'Notes' }
-      },
-      required: ['QuoteId', 'CustomerId', 'QuoteNumber']
-    };
-  } else if (artifactId.includes('ReasonCodes')) {
-    return {
-      type: 'object',
-      properties: {
-        ReasonCodeId: { type: 'string', description: 'Reason Code ID' },
-        Code: { type: 'string', description: 'Code' },
-        Description: { type: 'string', description: 'Description' },
-        Category: { type: ['string', 'null'], description: 'Category' },
-        IsActive: { type: 'boolean', description: 'Is Active' }
-      },
-      required: ['ReasonCodeId', 'Code', 'Description']
-    };
-  }
-  
-  // Informix TxServices schemas (nested structure with TxnType + Txn.properties)
-  if (artifactId.includes('loc1')) {
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "loccd": { "type": ["string", "null"] },
-            "faxno": { "type": ["string", "null"] },
-            "phone": { "type": ["string", "null"] },
-            "defpt": { "type": ["string", "null"] },
-            "defso": { "type": ["string", "null"] },
-            "timezone": { "type": ["integer", "null"] },
-            "mfgsite": { "type": ["string", "null"] },
-            "labcst": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "comid": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "loccd" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('loc.')) {
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "loccd": { "type": ["string", "null"] },
-            "lname": { "type": ["string", "null"] },
-            "addr": { "type": ["string", "null"] },
-            "city": { "type": ["string", "null"] },
-            "state": { "type": ["string", "null"] },
-            "zip": { "type": ["string", "null"] },
-            "phone": { "type": ["string", "null"] },
-            "faxno": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "loccd" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('stcode')) {
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "stcode": { "type": ["string", "null"] },
-            "incode": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "incode" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('keyi')) {
-    // keyi - Keyword Inventory schema with 2 fields (composite key: word + invid)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "word": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
-                      "sourcePrimaryKeyFields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["word", "invid"]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('invloc')) {
-    // invloc - Inventory Location schema with 40 fields (composite key: loccd + invid + locstat + category)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "loccd": { "type": ["string", "null"] },
-            "category": { "type": ["string", "null"] },
-            "ustype": { "type": ["string", "null"] },
-            "uncst": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "rplmtd": { "type": ["string", "null"] },
-            "linept": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "orderpt": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "orderqty": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "mvclass": { "type": ["string", "null"] },
-            "cstmtdid": { "type": ["string", "null"] },
-            "subloccd": { "type": ["string", "null"] },
-            "commcd": { "type": ["string", "null"] },
-            "quhnd": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qucomm": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "quhold": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qupick": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "quwip": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "quord": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qualloc": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qutrfout": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qutrfin": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "qucost": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "estdt": { "type": ["integer", "null"] },
-            "lcycdt": { "type": ["integer", "null"] },
-            "lsaldt": { "type": ["integer", "null"] },
-            "lrecdt": { "type": ["integer", "null"] },
-            "frzstat": { "type": ["string", "null"] },
-            "frzexpdt": { "type": ["integer", "null"] },
-            "safety": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "oqtype": { "type": ["string", "null"] },
-            "buyerid": { "type": ["string", "null"] },
-            "saleusrt": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "trnsusrt": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "locstat": { "type": ["string", "null"] },
-            "stdcst": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "stdcstdt": { "type": ["integer", "null"] },
-            "nstdcst": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "routid": { "type": ["string", "null"] },
-            "reorder": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
-                      "sourcePrimaryKeyFields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["loccd", "invid", "locstat", "category"]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('invdes')) {
-    // invdes - Inventory Descriptions schema with 6 fields (composite key: dsline + invid + prtpo)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "dsline": { "type": ["integer", "null"] },
-            "des": { "type": ["string", "null"] },
-            "prtso": { "type": ["string", "null"] },
-            "prtin": { "type": ["string", "null"] },
-            "prtpo": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
-                      "sourcePrimaryKeyFields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["dsline", "invid", "prtpo"]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('invap')) {
-    // invap - Inventory AP schema with 13 fields (Accounts Payable/Vendor information)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "apnum": { "type": ["string", "null"] },
-            "apinid": { "type": ["string", "null"] },
-            "unms": { "type": ["string", "null"] },
-            "prunms": { "type": ["string", "null"] },
-            "ldays": { "type": ["integer", "null"] },
-            "apucst": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "defddpo": { "type": ["string", "null"] },
-            "upccode1": { "type": ["string", "null"] },
-            "upccode2": { "type": ["string", "null"] },
-            "cstclsscd": { "type": ["string", "null"] },
-            "rvcycle": { "type": ["integer", "null"] },
-            "rcunms": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
-                      "sourcePrimaryKeyFields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["invid", "apnum"]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('inv3')) {
-    // inv3 - minimal schema with only 2 fields (invid and item_class)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "item_class": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('inv2')) {
-    // inv2 - schema with 13 fields (classification codes and values)
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "nclsscd1": { "type": ["string", "null"] },
-            "nclsscd2": { "type": ["string", "null"] },
-            "nclsscd5": { "type": ["string", "null"] },
-            "c8value1": { "type": ["string", "null"] },
-            "c8value2": { "type": ["string", "null"] },
-            "c8value3": { "type": ["string", "null"] },
-            "c16value1": { "type": ["string", "null"] },
-            "c16value2": { "type": ["string", "null"] },
-            "c16value3": { "type": ["string", "null"] },
-            "dec2value1": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "dec2value2": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "dec2value3": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('inv1')) {
-    // inv1 - simplified schema with only 4 fields
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "entby": { "type": ["string", "null"] },
-            "entdte": { "type": ["integer", "null"] },
-            "enttime": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  } else if (artifactId.includes('inv')) {
-    // inv - full schema with 27 fields
-    return {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "TxnType": {
-          "type": "string"
-        },
-        "Txn": {
-          "type": "object",
-          "properties": {
-            "invid": { "type": ["string", "null"] },
-            "invdes": { "type": ["string", "null"] },
-            "ivstat": { "type": ["string", "null"] },
-            "clsscd1": { "type": ["string", "null"] },
-            "clsscd2": { "type": ["string", "null"] },
-            "clsscd3": { "type": ["string", "null"] },
-            "clsscd4": { "type": ["string", "null"] },
-            "clsscd5": { "type": ["string", "null"] },
-            "prclsscd": { "type": ["string", "null"] },
-            "unms": { "type": ["string", "null"] },
-            "factor": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "stdpkg": { "type": ["string", "null"] },
-            "disqty": { "type": ["string", "null"] },
-            "bomtype": { "type": ["string", "null"] },
-            "buyerid": { "type": ["string", "null"] },
-            "apnum": { "type": ["string", "null"] },
-            "loccd": { "type": ["string", "null"] },
-            "invwt": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "unprc": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "nunprc": { "type": ["string", "null"], "contentEncoding": "base64" },
-            "estdt": { "type": ["integer", "null"] },
-            "lactdt": { "type": ["integer", "null"] },
-            "upccode1": { "type": ["string", "null"] },
-            "upccode2": { "type": ["string", "null"] },
-            "gltabid": { "type": ["string", "null"] },
-            "cstunms": { "type": ["string", "null"] },
-            "prcunms": { "type": ["string", "null"] },
-            "metaData": {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sourceDatabase": { "type": "string" },
-                      "sourceTable": { "type": "string" },
-                      "sourceCreateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceUpdateTime": { "type": ["string", "null"], "format": "date-time" },
-                      "sourceEtag": { "type": ["string", "null"] },
-                      "eventType": { "type": "string" },
-                      "correlationId": { "type": "string" },
-                      "sourcePrimaryKeyField": { "type": "string", "const": "invid" },
-                      "sourcePrimaryKeyFields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "enum": ["clsscd2", "invid", "ivstat"]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            "createTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            },
-            "updateTime": {
-              "anyOf": [
-                { "type": "string", "format": "date-time" },
-                { "type": "null" }
-              ]
-            }
-          }
-        }
-      }
-    };
-  }
-  
-  // Default generic schema
-  return {
-    type: 'object',
-    properties: {
-      id: { type: 'string', description: 'Record ID' },
-      name: { type: 'string', description: 'Name' },
-      description: { type: ['string', 'null'], description: 'Description' },
-      createdDate: { type: 'string', format: 'date-time', description: 'Created Date' }
-    },
-    required: ['id']
-  };
 }
 
 // Convert AVRO schema to JSON Schema format for Data Capture Spec
@@ -1432,7 +481,7 @@ export function convertAvroToJsonSchema(avroSchema: any): any {
 
     return jsonSchema;
   } catch (error) {
-    console.error(' Error converting AVRO to JSON Schema:', error);
+    console.error('❌ Error converting AVRO to JSON Schema:', error);
     throw error;
   }
 }
@@ -1704,6 +753,6 @@ export function getApicurioConfig() {
   return {
     baseUrl: 'https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io',
     apiUrl: APICURIO_REGISTRY_URL,
-    groups: ['bfs.online', 'paradigm.bidtools']
+    groups: KNOWN_GROUPS.map(g => g.id)
   };
 }

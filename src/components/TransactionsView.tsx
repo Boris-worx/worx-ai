@@ -142,29 +142,41 @@ export function TransactionsView({
   const transactionTypes = useMemo(() => {
     // All supported transaction types from BFS API
     const fallbackTypes = [
+      // Bid Tools
       'Customer',
       'Customer Aging',
-      'keyi',
-      'inv',
+      'LineType',
+      'LineTypes',
+      'Location',
+      'QuoteComponentType',
+      'QuoteDetail',
+      'QuotePackOrder',
+      'QuotePack',
+      'QuotePartitionTest',
+      'Quote',
+      'QuoteCanonical',
+      'QuoteTest',
+      'ReasonCode',
+      'ServiceRequestComponentType',
+      'ServiceRequest',
+      'WorkflowCustomer',
+      'WorkflowMarket',
+      'WorkflowUser',
+      // BFS Online
       'inv1',
       'inv2',
       'inv3',
       'invap',
       'invdes',
       'invloc',
+      'inv',
+      'irc',
+      'keyi',
       'loc',
       'loc1',
-      'stocode',
-      'LineType',
-      'LineTypes',
-      'Location',
-      'Quote',
-      'QuoteDetail',
-      'QuotePack',
-      'QuotePackOrder',
-      'ReasonCode',
-      'ServiceRequest',
-      'WorkflowCustomer',
+      'podt',
+      'stcode',
+      // Other
       'Job',
       'Items',
       'Invoice',
@@ -1324,7 +1336,7 @@ export function TransactionsView({
 
   // Helper function to determine transaction type group
   const getTypeGroup = (type: string): 'bidtools' | 'bfsonline' => {
-    const bfsOnlineTypes = ['inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'keyi', 'loc', 'loc1', 'stocode'];
+    const bfsOnlineTypes = ['inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'irc', 'keyi', 'loc', 'loc1', 'podt', 'stcode'];
     
     if (bfsOnlineTypes.includes(type)) return 'bfsonline';
     return 'bidtools';
@@ -1729,7 +1741,7 @@ export function TransactionsView({
      
         <CardContent className="overflow-x-hidden pt-6">
           {/* Top Bar - Headers */}
-          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[260px_1fr] gap-6 mb-3">
+          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-[320px_1fr] gap-6 mb-3">
             {/* Left: Transaction Types Header - Hidden on mobile */}
             <div className="hidden md:flex items-center gap-2">
               <h3 className="text-base md:text-lg">
@@ -1873,7 +1885,7 @@ export function TransactionsView({
           </div>
 
           {/* Main Layout: Sidebar + Content */}
-          <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
             {/* Left Sidebar - Transaction Types List */}
             <div className="space-y-3 md:block hidden">
               {/* Search Types and Sort */}

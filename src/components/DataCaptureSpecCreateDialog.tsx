@@ -55,6 +55,7 @@ import {
   processSchema,
   extractArtifactName,
   getArtifactDisplayName,
+  getGroupDisplayName,
   ApicurioArtifact,
 } from "../lib/apicurio";
 
@@ -309,42 +310,104 @@ export function DataCaptureSpecCreateDialog({
         }
       };
 
-      const extractedPrimaryKeyField =
+      let extractedPrimaryKeyField =
         extractSourcePrimaryKeyField(jsonSchema);
-      const extractedPrimaryKeyFields =
+      let extractedPrimaryKeyFields =
         extractSourcePrimaryKeyFields(jsonSchema);
+      
+      // ✅ IMPORTANT: Convert extracted primary key fields to camelCase (first letter lowercase)
+      // Schemas may have PascalCase field names (e.g., QuoteComponentTypeId)
+      // But Cosmos DB requires camelCase (e.g., quoteComponentTypeId)
+      if (extractedPrimaryKeyField) {
+        extractedPrimaryKeyField = 
+          extractedPrimaryKeyField.charAt(0).toLowerCase() + 
+          extractedPrimaryKeyField.slice(1);
+      }
+      
+      if (extractedPrimaryKeyFields.length > 0) {
+        extractedPrimaryKeyFields = extractedPrimaryKeyFields.map(field => 
+          field.charAt(0).toLowerCase() + field.slice(1)
+        );
+      }
+      
       console.log(
-        "🔍 Extracted sourcePrimaryKeyField:",
+        "🔍 Extracted sourcePrimaryKeyField (camelCase):",
         extractedPrimaryKeyField,
       );
       console.log(
-        "🔍 Extracted sourcePrimaryKeyFields:",
+        "🔍 Extracted sourcePrimaryKeyFields (camelCase):",
         extractedPrimaryKeyFields,
       );
 
-      // Extract name for spec (e.g., "QuotePacks" -> "quotepack")
+      // Extract name from artifact (e.g., "TxServices_QuoteComponentTypes" -> "QuoteComponentTypes")
       let specName = extractArtifactName(artifactId)
         .replace(/^TxServices_SQLServer_/, "")
         .replace(/^TxServices_Informix_/, "")
         .replace(/\\.response$/, "")
         .replace(/\\.request$/, "");
 
-      // Spec Name: singular form (QuotePacks -> QuotePack, ReasonCodes -> ReasonCode)
-      let specNameSingular = specName;
-      if (specNameSingular.endsWith("s")) {
-        specNameSingular = specNameSingular.slice(0, -1);
+      console.log("🔧 Processing artifact name:");
+      console.log("  - artifactId:", artifactId);
+      console.log("  - groupId:", artifact.groupId);
+      console.log("  - specName (after initial processing):", specName);
+
+      // Detect template type by groupId
+      const isBidTools = artifact.groupId === "paradigm.bidtools2";
+      const isBfsOnline = artifact.groupId === "bfs.online";
+
+      // For BidTools templates (paradigm.bidtools2 group), remove TxServices_ prefix
+      if (isBidTools) {
+        const beforeTrim = specName;
+        specName = specName.replace(/^TxServices_/, "");
+        console.log("  - BidTools detected - removing TxServices_ prefix");
+        console.log("    Before:", beforeTrim);
+        console.log("    After:", specName);
       }
 
-      // Container Name: plural form (QuotePack -> QuotePacks, ReasonCode -> ReasonCodes)
-      // Add "s" to the end of singular spec name to create plural container name
-      const containerName = specNameSingular + "s";
+      // Process names based on template type
+      let specNameSingular: string;
+      let containerName: string;
 
-      // Generate Primary Key Field: WorkflowCustomer -> workflowCustomerId (camelCase for Cosmos DB)
+      if (isBfsOnline) {
+        // BFS Online: specName is already processed (e.g., "inv", "stcode", "loc1")
+        // Examples: 
+        //   - inv.response → inv (Spec Name: inv, Container Name: invs)
+        //   - TxServices_Informix_stcode.response → stcode (Spec Name: stcode, Container Name: stcodes)
+        //   - loc1.response → loc1 (Spec Name: loc1, Container Name: loc1s)
+        
+        // Spec Name: use as-is (inv, stcode, loc1)
+        specNameSingular = specName;
+        
+        // Container Name: add 's' to make plural (inv -> invs, stcode -> stcodes, loc1 -> loc1s)
+        containerName = specName + "s";
+        
+        console.log("  - BFS Online detected - keeping spec name as-is, adding 's' for container");
+      } else {
+        // BidTools and other templates: assume plural in artifact name
+        // Spec Name: singular form (QuoteComponentTypes -> QuoteComponentType)
+        specNameSingular = specName;
+        if (specNameSingular.endsWith("s")) {
+          specNameSingular = specNameSingular.slice(0, -1);
+        }
+
+        // Container Name: keep plural form as-is from artifact (QuoteComponentTypes)
+        containerName = specName;
+        
+        console.log("  - BidTools/Other template - converting to singular/plural");
+      }
+
+      console.log("📝 Final names:");
+      console.log("  - Spec Name (singular):", specNameSingular);
+      console.log("  - Container Name (plural):", containerName);
+
+      // Generate Primary Key Field: QuoteComponentType -> quoteComponentTypeId (camelCase for Cosmos DB)
       // Convert first letter to lowercase for camelCase format
       const primaryKeyField =
         specNameSingular.charAt(0).toLowerCase() +
         specNameSingular.slice(1) +
         "Id";
+      
+      console.log("  - Primary Key Field:", primaryKeyField);
 
       // Get all property names for allowed filters
       // IMPORTANT: Property names from Apicurio come in PascalCase (e.g., QuoteDetailId, QuoteId)
@@ -428,15 +491,31 @@ export function DataCaptureSpecCreateDialog({
       delete extractedProperties.TxnType;
       delete extractedProperties.Txn;
 
-      // Build required fields list: "id" + sourcePrimaryKeyFields (if composite key)
-      const requiredFieldsList = ["id"];
+      // Build required fields list: ONLY sourcePrimaryKeyField(s) in camelCase
+      // Required Fields must always match sourcePrimaryKeyField (no "id" prefix)
+      const requiredFieldsList: string[] = [];
+      
+      console.log("📝 Building required fields list:");
+      console.log("  - extractedPrimaryKeyFields:", extractedPrimaryKeyFields);
+      console.log("  - extractedPrimaryKeyField:", extractedPrimaryKeyField);
+      console.log("  - primaryKeyField (generated):", primaryKeyField);
+      
       if (extractedPrimaryKeyFields.length > 0) {
-        // Add composite key fields to required
+        // Composite key: use all fields from schema
         requiredFieldsList.push(...extractedPrimaryKeyFields);
+        console.log("  ✅ Using composite keys from schema");
+      } else if (extractedPrimaryKeyField) {
+        // Single key from schema
+        requiredFieldsList.push(extractedPrimaryKeyField);
+        console.log("  ✅ Using single key from schema");
+      } else if (primaryKeyField) {
+        // No keys in schema at all - use generated primaryKeyField
+        requiredFieldsList.push(primaryKeyField);
+        console.log("  ✅ Using generated key (no keys in schema)");
       }
 
       console.log(
-        "📦 Building containerSchema with required fields:",
+        "📦 Final required fields:",
         requiredFieldsList,
       );
 
@@ -511,7 +590,8 @@ export function DataCaptureSpecCreateDialog({
       // Auto-populate form - CLEAR OLD DATA FIRST
       console.log("🎯 Setting formData from template:");
       console.log("  ├─ sourcePrimaryKeyField:", extractedPrimaryKeyFields.length > 0 ? null : (extractedPrimaryKeyField || primaryKeyField));
-      console.log("  └─ sourcePrimaryKeyFields:", extractedPrimaryKeyFields.length > 0 ? extractedPrimaryKeyFields : []);
+      console.log("  ├─ sourcePrimaryKeyFields:", extractedPrimaryKeyFields.length > 0 ? extractedPrimaryKeyFields : []);
+      console.log("  └─ requiredFields:", requiredFieldsList);
       
       setFormData((prev) => ({
         ...prev,
@@ -522,7 +602,7 @@ export function DataCaptureSpecCreateDialog({
         sourcePrimaryKeyFields: extractedPrimaryKeyFields.length > 0 ? extractedPrimaryKeyFields : [],
         partitionKeyField: "id",
         allowedFilters: allowedFiltersArray, // Use array directly instead of string split
-        requiredFields: requiredFieldsList, // ["id"] + composite key fields if present
+        requiredFields: requiredFieldsList, // ONLY sourcePrimaryKeyField(s) in camelCase - always matches primary key
         containerSchemaText: JSON.stringify(
           containerSchema,
           null,
@@ -535,8 +615,8 @@ export function DataCaptureSpecCreateDialog({
       );
     } catch (error: any) {
       console.error("Failed to load Apicurio template:", error);
-      // Error is logged but user gets mock data automatically - no need to show error
-      // The fallback logic in getApicurioArtifact will handle 403 and return mock schemas
+      // Error will be shown to user - no fallback to mock data
+      toast.error(`Failed to load template: ${error.message}`);
     }
   };
 
@@ -802,6 +882,21 @@ export function DataCaptureSpecCreateDialog({
       console.log("  sourcePrimaryKeyField:", formData.sourcePrimaryKeyField, `(type: ${typeof formData.sourcePrimaryKeyField})`);
       console.log("  sourcePrimaryKeyFields:", formData.sourcePrimaryKeyFields, `(isArray: ${Array.isArray(formData.sourcePrimaryKeyFields)}, length: ${formData.sourcePrimaryKeyFields?.length || 0})`);
 
+      // ✅ Convert sourcePrimaryKeyField and sourcePrimaryKeyFields to camelCase
+      const sourcePrimaryKeyFieldCamelCase = formData.sourcePrimaryKeyField 
+        ? formData.sourcePrimaryKeyField.charAt(0).toLowerCase() + formData.sourcePrimaryKeyField.slice(1)
+        : null;
+      
+      const sourcePrimaryKeyFieldsCamelCase = (formData.sourcePrimaryKeyFields && formData.sourcePrimaryKeyFields.length > 0)
+        ? formData.sourcePrimaryKeyFields.map(field => 
+            field.charAt(0).toLowerCase() + field.slice(1)
+          )
+        : null;
+
+      console.log("🔄 Converting to camelCase:");
+      console.log("  sourcePrimaryKeyField:", formData.sourcePrimaryKeyField, "→", sourcePrimaryKeyFieldCamelCase);
+      console.log("  sourcePrimaryKeyFields:", formData.sourcePrimaryKeyFields, "→", sourcePrimaryKeyFieldsCamelCase);
+
       const payload = {
         dataCaptureSpecName: formData.dataCaptureSpecName,
         containerName: formData.containerName,
@@ -810,8 +905,8 @@ export function DataCaptureSpecCreateDialog({
         isActive: formData.isActive,
         version: formData.version,
         profile: formData.profile,
-        sourcePrimaryKeyField: formData.sourcePrimaryKeyField || null,
-        sourcePrimaryKeyFields: (formData.sourcePrimaryKeyFields && formData.sourcePrimaryKeyFields.length > 0) ? formData.sourcePrimaryKeyFields : null,
+        sourcePrimaryKeyField: sourcePrimaryKeyFieldCamelCase,
+        sourcePrimaryKeyFields: sourcePrimaryKeyFieldsCamelCase,
         partitionKeyField: formData.partitionKeyField,
         partitionKeyValue: formData.partitionKeyValue,
         allowedFilters: allowedFiltersCamelCase,
@@ -933,8 +1028,8 @@ export function DataCaptureSpecCreateDialog({
                                 {} as Record<string, typeof apicurioArtifacts>,
                               );
 
-                              // Sort groups: paradigm.bidtools first, then bfs.online, then others
-                              const groupOrder = ["paradigm.bidtools", "bfs.online"];
+                              // Sort groups: paradigm.bidtools2 first, then bfs.online, then others
+                              const groupOrder = ["paradigm.bidtools2", "bfs.online"];
                               const sortedGroups = Object.keys(grouped).sort((a, b) => {
                                 const indexA = groupOrder.indexOf(a);
                                 const indexB = groupOrder.indexOf(b);
@@ -947,13 +1042,7 @@ export function DataCaptureSpecCreateDialog({
                               return sortedGroups.map((groupId) => (
                                 <CommandGroup
                                   key={groupId}
-                                  heading={
-                                    groupId === "paradigm.bidtools"
-                                      ? "Bid Tools Templates"
-                                      : groupId === "bfs.online"
-                                        ? "BFS Online Templates"
-                                        : groupId
-                                  }
+                                  heading={getGroupDisplayName(groupId)}
                                 >
                                   {grouped[groupId]
                                     .slice()
@@ -1113,9 +1202,12 @@ export function DataCaptureSpecCreateDialog({
                               e.target.value || null,
                           })
                         }
+                        placeholder="e.g., quoteComponentTypeId"
                         className="h-8 text-xs"
                       />
-                      
+                      <p className="text-[10px] text-muted-foreground">
+                        Use camelCase (first letter lowercase)
+                      </p>
                     </div>
 
                     {/* Composite Primary Key Fields */}

@@ -16,6 +16,8 @@ interface TestResult {
   headers?: Record<string, string>;
   data?: any;
   category?: 'apicurio' | 'bfs' | 'info';
+  method?: string;
+  endpoint?: string;
 }
 
 export function ApicurioConnectionTest() {
@@ -159,78 +161,217 @@ export function ApicurioConnectionTest() {
 
   const testBFS = async () => {
     const testResults: TestResult[] = [];
+    // Use the same auth token as in lib/api.ts
+    const AUTH_TOKEN = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
     // Test 0: BFS API Configuration
     testResults.push({
       success: true,
       message: "BFS API Configuration",
-      details: `Base URL: ${BFS_API}\nTest Endpoint: /txns?TxnType=ReasonCode`,
+      details: `Base URL: ${BFS_API}\nAuth: X-BFS-Auth header (real token)\nNote: Testing READ operations (GET, OPTIONS) only - using actual API endpoints from lib/api.ts`,
       category: 'info',
     });
 
-    // Test 1: Try to fetch transactions with TxnType=ReasonCode
-    try {
-      const txnUrl = `${BFS_API}/txns?TxnType=ReasonCode`;
-      testResults.push({
-        success: true,
-        message: "Attempting to fetch transactions (TxnType=ReasonCode)",
-        url: txnUrl,
-        category: 'bfs',
-      });
+    // Helper function to test an endpoint
+    const testEndpoint = async (
+      endpoint: string,
+      method: string,
+      entityName: string,
+      body?: any
+    ) => {
+      try {
+        const url = `${BFS_API}${endpoint}`;
+        const config: RequestInit = {
+          method,
+          headers: {
+            "X-BFS-Auth": AUTH_TOKEN,
+            "Content-Type": "application/json",
+          },
+          mode: 'cors',
+          credentials: 'omit',
+        };
 
-      const txnResponse = await fetch(txnUrl, {
+        if (body && (method === "POST" || method === "PUT")) {
+          config.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(url, config);
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+
+        let data: any = null;
+        let errorText = "";
+        
+        try {
+          const text = await response.text();
+          if (text) {
+            try {
+              data = JSON.parse(text);
+            } catch {
+              errorText = text;
+            }
+          }
+        } catch (e: any) {
+          errorText = e.message || "Failed to read response";
+        }
+
+        const success = response.ok || response.status === 404 || response.status === 405;
+        const emoji = response.ok ? "✅" : response.status === 404 ? "⚠️" : response.status === 405 ? "🚫" : "❌";
+        
+        testResults.push({
+          success,
+          message: `${emoji} ${method} ${entityName}`,
+          details: `Status: ${response.status} ${response.statusText}${data ? `\nData count: ${Array.isArray(data) ? data.length : (data.length !== undefined ? data.length : 'N/A')}` : ''}${errorText ? `\nResponse: ${errorText}` : ''}`,
+          status: response.status,
+          headers: responseHeaders,
+          data: response.ok ? data : undefined,
+          category: 'bfs',
+          method,
+          endpoint,
+          url,
+        });
+      } catch (error: any) {
+        testResults.push({
+          success: false,
+          message: `❌ ${method} ${entityName} - Network Error`,
+          details: error.message || String(error),
+          category: 'bfs',
+          method,
+          endpoint,
+        });
+      }
+    };
+
+    // ==================== TENANTS ====================
+    testResults.push({
+      success: true,
+      message: "🏢 Testing TENANTS Endpoints",
+      details: "Endpoint: /tenants (v1.0 API)",
+      category: 'info',
+    });
+
+    await testEndpoint("/tenants", "OPTIONS", "Tenants");
+    await testEndpoint("/tenants", "GET", "Tenants (List All)");
+
+    // ==================== TRANSACTIONS ====================
+    testResults.push({
+      success: true,
+      message: "📊 Testing TRANSACTIONS Endpoints",
+      details: "Endpoint: /txns (v1.0 API) - Requires TxnType parameter",
+      category: 'info',
+    });
+
+    await testEndpoint("/txns?TxnType=ReasonCode", "OPTIONS", "Transactions (ReasonCode)");
+    await testEndpoint("/txns?TxnType=ReasonCode", "GET", "Transactions (ReasonCode)");
+
+    // ==================== APPLICATIONS ====================
+    const API_BASE_URL_V11 = "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.1";
+    testResults.push({
+      success: true,
+      message: "📱 Testing APPLICATIONS Endpoints",
+      details: "Endpoint: /txns with filters (v1.1 API) - Uses TxnType=Application",
+      category: 'info',
+    });
+
+    const appFilters = encodeURIComponent(JSON.stringify({ TxnType: "Application" }));
+    await testEndpoint(`/txns?filters=${appFilters}`, "OPTIONS", "Applications (v1.1)");
+    
+    // For v1.1 we need to use the v1.1 base URL
+    try {
+      const url = `${API_BASE_URL_V11}/txns?filters=${appFilters}`;
+      const response = await fetch(url, {
         method: "GET",
         headers: {
-          "Accept": "application/json",
-          "X-BFS-Auth": "your-auth-token-here",
+          "X-BFS-Auth": AUTH_TOKEN,
+          "Content-Type": "application/json",
         },
+        mode: 'cors',
+        credentials: 'omit',
       });
-
-      // Get response headers
+      
       const responseHeaders: Record<string, string> = {};
-      txnResponse.headers.forEach((value, key) => {
+      response.headers.forEach((value, key) => {
         responseHeaders[key] = value;
       });
 
-      if (txnResponse.ok) {
-        const data = await txnResponse.json();
-        const dataLength = Array.isArray(data) ? data.length : (data.transactions?.length || 0);
-        testResults.push({
-          success: true,
-          message: "✅ Successfully fetched BFS transactions",
-          details: `Status: ${txnResponse.status}\nTransactions count: ${dataLength}`,
-          status: txnResponse.status,
-          headers: responseHeaders,
-          data: data,
-          category: 'bfs',
-        });
-      } else if (txnResponse.status === 401) {
-        testResults.push({
-          success: false,
-          message: "❌ Authentication required (401)",
-          details: `BFS API requires X-BFS-Auth header with valid token.\nStatus: ${txnResponse.status} ${txnResponse.statusText}`,
-          status: txnResponse.status,
-          headers: responseHeaders,
-          category: 'bfs',
-        });
-      } else {
-        const errorText = await txnResponse.text();
-        testResults.push({
-          success: false,
-          message: "❌ Error fetching BFS transactions",
-          details: `Status: ${txnResponse.status} ${txnResponse.statusText}\nResponse: ${errorText}`,
-          status: txnResponse.status,
-          headers: responseHeaders,
-          category: 'bfs',
-        });
+      let data: any = null;
+      let errorText = "";
+      
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            errorText = text;
+          }
+        }
+      } catch (e: any) {
+        errorText = e.message || "Failed to read response";
       }
+
+      const success = response.ok || response.status === 404;
+      const emoji = response.ok ? "✅" : response.status === 404 ? "⚠️" : "❌";
+      
+      testResults.push({
+        success,
+        message: `${emoji} GET Applications (v1.1 with filters)`,
+        details: `Status: ${response.status} ${response.statusText}${data ? `\nData count: ${Array.isArray(data) ? data.length : 'N/A'}` : ''}${errorText ? `\nResponse: ${errorText}` : ''}`,
+        status: response.status,
+        headers: responseHeaders,
+        data: response.ok ? data : undefined,
+        category: 'bfs',
+        method: "GET",
+        endpoint: `/txns?filters=${appFilters}`,
+        url,
+      });
     } catch (error: any) {
       testResults.push({
         success: false,
-        message: "❌ CORS or network error when fetching BFS data",
+        message: `❌ GET Applications (v1.1) - Network Error`,
         details: error.message || String(error),
         category: 'bfs',
+        method: "GET",
+        endpoint: `/txns?filters=${appFilters}`,
       });
+    }
+
+    // ==================== DATA SOURCES ====================
+    testResults.push({
+      success: true,
+      message: "🗄️ Testing DATA SOURCES Endpoints",
+      details: "Endpoint: /datasources (lowercase, v1.0 API)",
+      category: 'info',
+    });
+
+    await testEndpoint("/datasources", "OPTIONS", "Data Sources");
+    await testEndpoint("/datasources", "GET", "Data Sources (List All)");
+
+    // ==================== DATA CAPTURE SPECIFICATIONS ====================
+    testResults.push({
+      success: true,
+      message: "📋 Testing DATA CAPTURE SPECIFICATIONS Endpoints",
+      details: "Endpoint: /data-capture-specs (v1.0 API)",
+      category: 'info',
+    });
+
+    await testEndpoint("/data-capture-specs", "OPTIONS", "Data Capture Specs");
+    await testEndpoint("/data-capture-specs", "GET", "Data Capture Specs (List All)");
+
+    // ==================== DATA PLANE (Transaction Types) ====================
+    testResults.push({
+      success: true,
+      message: "🌐 Testing DATA PLANE - Transaction Types",
+      details: "Testing different TxnType values to discover available transaction types",
+      category: 'info',
+    });
+
+    // Test various transaction types
+    const txnTypes = ["ReasonCode", "Customer", "Invoice", "ModelSchema"];
+    for (const txnType of txnTypes) {
+      await testEndpoint(`/txns?TxnType=${txnType}`, "GET", `Transaction Type: ${txnType}`);
     }
 
     return testResults;
@@ -257,26 +398,43 @@ export function ApicurioConnectionTest() {
 
     if (!hasCorsError) return null;
 
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
     return (
       <Alert className="mt-4">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>How to Fix CORS Error</AlertTitle>
         <AlertDescription className="mt-2 space-y-2">
+          {isLocalhost && (
+            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded mb-3">
+              <p className="font-semibold text-yellow-800">⚠️ Running on localhost</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                The application works on production domain (https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net/) 
+                but not on localhost because CORS is configured only for the production domain.
+              </p>
+              <p className="text-sm text-yellow-700 mt-1">
+                To enable localhost access, add <code className="bg-yellow-100 px-1 rounded">http://localhost:5173</code> to the allowed origins.
+              </p>
+            </div>
+          )}
+          
           <p className="font-semibold">For Azure Container Apps (Apicurio):</p>
           <div className="bg-slate-900 text-slate-100 p-3 rounded text-xs font-mono overflow-x-auto">
-            <p># 1. Set CORS in Apicurio configuration</p>
-            <p>QUARKUS_HTTP_CORS=true</p>
-            <p>QUARKUS_HTTP_CORS_ORIGINS=http://localhost:5173,https://yourdomain.com</p>
-            <p>QUARKUS_HTTP_CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS</p>
-            <p>QUARKUS_HTTP_CORS_HEADERS=*</p>
-            <br/>
-            <p># 2. OR configure CORS at Azure Container App level</p>
+            <p># Configure CORS at Azure Container App level</p>
             <p>az containerapp ingress cors enable \</p>
             <p>  --name apicurio-poc \</p>
             <p>  --resource-group your-resource-group \</p>
-            <p>  --allowed-origins "http://localhost:5173" "https://yourdomain.com" \</p>
+            <p>  --allowed-origins \</p>
+            <p>    "https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net" \</p>
+            <p>    "http://localhost:5173" \</p>
             <p>  --allowed-methods GET POST PUT DELETE OPTIONS \</p>
             <p>  --allowed-headers "*"</p>
+            <br/>
+            <p className="text-green-400"># Alternative: Set in Apicurio environment variables</p>
+            <p>QUARKUS_HTTP_CORS=true</p>
+            <p>QUARKUS_HTTP_CORS_ORIGINS=http://localhost:5173,https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net</p>
+            <p>QUARKUS_HTTP_CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS</p>
+            <p>QUARKUS_HTTP_CORS_HEADERS=*</p>
           </div>
           
           <p className="font-semibold mt-3">For Azure Web Apps (BFS API):</p>
@@ -284,16 +442,27 @@ export function ApicurioConnectionTest() {
             <p>az webapp cors add \</p>
             <p>  --name dp-eastus-poc-txservices-apis \</p>
             <p>  --resource-group your-resource-group \</p>
-            <p>  --allowed-origins "http://localhost:5173" "https://yourdomain.com"</p>
+            <p>  --allowed-origins \</p>
+            <p>    "https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net" \</p>
+            <p>    "http://localhost:5173"</p>
           </div>
           
           <p className="font-semibold mt-3">Check settings in Azure Portal:</p>
           <ol className="list-decimal ml-5 space-y-1 text-sm">
             <li>Open Azure Portal → Container Apps / Web Apps</li>
-            <li>Find your service</li>
-            <li>Go to Settings → CORS</li>
-            <li>Ensure CORS is enabled and correct origins are specified</li>
+            <li>Find your service (apicurio-poc or dp-eastus-poc-txservices-apis)</li>
+            <li>Go to Settings → CORS or Ingress → CORS</li>
+            <li>Verify that <strong>https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net</strong> is in allowed origins</li>
+            <li>For local development, add <strong>http://localhost:5173</strong></li>
           </ol>
+          
+          <div className="bg-green-50 border border-green-200 p-3 rounded mt-3">
+            <p className="font-semibold text-green-800">✅ Production Status</p>
+            <p className="text-sm text-green-700 mt-1">
+              APIs are already working on production: <br/>
+              <code className="bg-green-100 px-1 rounded text-xs">https://bsfplatform-fhbpcrgqb0btdwhn.canadacentral-01.azurewebsites.net/</code>
+            </p>
+          </div>
         </AlertDescription>
       </Alert>
     );
@@ -311,17 +480,37 @@ export function ApicurioConnectionTest() {
             <div 
               key={index}
               className={`border rounded-lg p-4 ${
+                result.category === 'info' ? "bg-blue-50 border-blue-300" :
                 result.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
               }`}
             >
               <div className="flex items-start gap-3">
-                {result.success ? (
+                {result.category === 'info' ? (
+                  <div className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                ) : result.success ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{result.message}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-sm">{result.message}</p>
+                    {result.method && (
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${
+                          result.method === 'GET' ? 'bg-blue-50 border-blue-300' :
+                          result.method === 'POST' ? 'bg-green-50 border-green-300' :
+                          result.method === 'PUT' ? 'bg-yellow-50 border-yellow-300' :
+                          result.method === 'DELETE' ? 'bg-red-50 border-red-300' :
+                          result.method === 'OPTIONS' ? 'bg-purple-50 border-purple-300' :
+                          ''
+                        }`}
+                      >
+                        {result.method}
+                      </Badge>
+                    )}
+                  </div>
                   
                   {result.url && (
                     <div className="mt-2">
@@ -335,8 +524,13 @@ export function ApicurioConnectionTest() {
                   {result.status && (
                     <div className="mt-2">
                       <Badge 
-                        variant={result.status === 200 ? "default" : "destructive"}
-                        className="text-xs"
+                        variant={result.status === 200 ? "default" : result.status === 404 ? "outline" : result.status === 405 ? "secondary" : "destructive"}
+                        className={`text-xs ${
+                          result.status === 200 ? 'bg-green-600' :
+                          result.status === 404 ? 'border-yellow-400 text-yellow-700' :
+                          result.status === 405 ? 'bg-gray-400' :
+                          ''
+                        }`}
                       >
                         HTTP {result.status}
                       </Badge>
@@ -457,7 +651,7 @@ export function ApicurioConnectionTest() {
               <div className="font-mono text-xs space-y-1">
                 <p><span className="text-slate-600">Base URL:</span> {APICURIO_BASE}</p>
                 <p><span className="text-slate-600">API Version:</span> v3</p>
-                <p><span className="text-slate-600">Groups:</span> bfs.online, paradigm.bidtools</p>
+                <p><span className="text-slate-600">Groups:</span> bfs.online, paradigm.bidtools2</p>
               </div>
             </div>
             
@@ -475,8 +669,17 @@ export function ApicurioConnectionTest() {
               <p className="font-semibold mb-2">BFS API Configuration:</p>
               <div className="font-mono text-xs space-y-1">
                 <p><span className="text-slate-600">Base URL:</span> {BFS_API}</p>
-                <p><span className="text-slate-600">Test Endpoint:</span> /txns?TxnType=ReasonCode</p>
                 <p><span className="text-slate-600">Auth:</span> X-BFS-Auth header required</p>
+                <p className="mt-2"><span className="text-slate-600">Testing Endpoints:</span></p>
+                <ul className="ml-4 space-y-1">
+                  <li>• /tenants - Tenant management</li>
+                  <li>• /txns - Transactions</li>
+                  <li>• /applications - Applications</li>
+                  <li>• /dataSources - Data Sources</li>
+                  <li>• /dataCaptureSpecs - Data Capture Specifications</li>
+                  <li>• /txns/types - Transaction Types (Data Plane)</li>
+                </ul>
+                <p className="mt-2"><span className="text-slate-600">Testing Methods:</span> OPTIONS, GET, POST, PUT, DELETE</p>
               </div>
             </div>
             

@@ -2248,10 +2248,6 @@ export interface ApicurioSchemaContent {
   [key: string]: any; // JSON Schema content
 }
 
-// Feature flag: Use mock data to avoid CORS errors
-// Set to true to skip real Apicurio API calls and use mock data immediately
-const USE_MOCK_APICURIO = false; // v3 API should work without CORS issues
-
 // Get all artifacts from Apicurio Registry (v3 API - no groups concept)
 export async function getApicurioGroups(): Promise<ApicurioGroupsList> {
   // Note: v3 API doesn't have groups, but we return empty to maintain compatibility
@@ -2265,26 +2261,6 @@ export async function getApicurioGroups(): Promise<ApicurioGroupsList> {
 
 // Get all artifacts from Apicurio Registry v3 API (no groups - returns all artifacts)
 export async function getApicurioArtifacts(searchQuery: string = "Value"): Promise<ApicurioArtifactsList> {
-  // Use mock data if feature flag is enabled (for testing)
-  if (USE_MOCK_APICURIO) {
-    console.log(`📋 Using mock Apicurio artifacts (CORS avoidance mode)`);
-    return {
-      count: 10,
-      artifacts: [
-        { artifactId: 'bfs.online.inv', artifactType: 'AVRO', id: 'bfs.online.inv', type: 'AVRO' },
-        { artifactId: 'bfs.online.quote', artifactType: 'AVRO', id: 'bfs.online.quote', type: 'AVRO' },
-        { artifactId: 'bfs.QuoteDetails.json', artifactType: 'JSON', id: 'bfs.QuoteDetails.json', type: 'JSON' },
-        { artifactId: 'bfs.ServiceRequests', artifactType: 'AVRO', id: 'bfs.ServiceRequests', type: 'AVRO' },
-        { artifactId: 'bfs.WorkflowCustomers', artifactType: 'AVRO', id: 'bfs.WorkflowCustomers', type: 'AVRO' },
-        { artifactId: 'bfs.LineTypes', artifactType: 'AVRO', id: 'bfs.LineTypes', type: 'AVRO' },
-        { artifactId: 'bfs.Quotes', artifactType: 'AVRO', id: 'bfs.Quotes', type: 'AVRO' },
-        { artifactId: 'bfs.ReasonCodes', artifactType: 'AVRO', id: 'bfs.ReasonCodes', type: 'AVRO' },
-        { artifactId: 'bidtools.Quotes-key', artifactType: 'AVRO', id: 'bidtools.Quotes-key', type: 'AVRO' },
-        { artifactId: 'bidtools.QuoteDetails-key', artifactType: 'AVRO', id: 'bidtools.QuoteDetails-key', type: 'AVRO' }
-      ]
-    };
-  }
-  
   try {
     console.log(`📡 Fetching all Apicurio artifacts (v3 API) with search query: "${searchQuery}"...`);
     
@@ -2308,13 +2284,26 @@ export async function getApicurioArtifacts(searchQuery: string = "Value"): Promi
     const data = await response.json();
     console.log(`✅ Found ${data.count} artifacts in Apicurio Registry`);
     
+    // Helper function to check if artifactId looks like a UUID or hash
+    const isHashedName = (artifactId: string): boolean => {
+      // Match UUID pattern (8-4-4-4-12 hex digits)
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      // Match hash-like patterns (long strings of hex digits with dashes)
+      const hashPattern = /^[0-9a-f]{8,}-[0-9a-f]{4,}-[0-9a-f]{4,}-/i;
+      
+      return uuidPattern.test(artifactId) || hashPattern.test(artifactId);
+    };
+    
     // Transform v3 response to match our interface
     // Add legacy "id" and "type" fields for backward compatibility
-    const artifacts = (data.artifacts || []).map((artifact: any) => ({
-      ...artifact,
-      id: artifact.artifactId, // Legacy field
-      type: artifact.artifactType, // Legacy field
-    }));
+    // Filter out artifacts with hashed/UUID names
+    const artifacts = (data.artifacts || [])
+      .filter((artifact: any) => !isHashedName(artifact.artifactId))
+      .map((artifact: any) => ({
+        ...artifact,
+        id: artifact.artifactId, // Legacy field
+        type: artifact.artifactType, // Legacy field
+      }));
     
     // Log first few artifacts for debugging
     if (artifacts.length > 0) {
@@ -2329,25 +2318,8 @@ export async function getApicurioArtifacts(searchQuery: string = "Value"): Promi
       artifacts
     };
   } catch (error) {
-    console.error("⚠️ Error fetching Apicurio artifacts:", error);
-    
-    // Fallback to mock data
-    console.log('🔄 Using fallback mock data for Apicurio artifacts');
-    return {
-      count: 10,
-      artifacts: [
-        { artifactId: 'bfs.online.inv', artifactType: 'AVRO', id: 'bfs.online.inv', type: 'AVRO' },
-        { artifactId: 'bfs.online.quote', artifactType: 'AVRO', id: 'bfs.online.quote', type: 'AVRO' },
-        { artifactId: 'bfs.QuoteDetails.json', artifactType: 'JSON', id: 'bfs.QuoteDetails.json', type: 'JSON' },
-        { artifactId: 'bfs.ServiceRequests', artifactType: 'AVRO', id: 'bfs.ServiceRequests', type: 'AVRO' },
-        { artifactId: 'bfs.WorkflowCustomers', artifactType: 'AVRO', id: 'bfs.WorkflowCustomers', type: 'AVRO' },
-        { artifactId: 'bfs.LineTypes', artifactType: 'AVRO', id: 'bfs.LineTypes', type: 'AVRO' },
-        { artifactId: 'bfs.Quotes', artifactType: 'AVRO', id: 'bfs.Quotes', type: 'AVRO' },
-        { artifactId: 'bfs.ReasonCodes', artifactType: 'AVRO', id: 'bfs.ReasonCodes', type: 'AVRO' },
-        { artifactId: 'bidtools.Quotes-key', artifactType: 'AVRO', id: 'bidtools.Quotes-key', type: 'AVRO' },
-        { artifactId: 'bidtools.QuoteDetails-key', artifactType: 'AVRO', id: 'bidtools.QuoteDetails-key', type: 'AVRO' }
-      ]
-    };
+    console.error("❌ Error fetching Apicurio artifacts:", error);
+    throw error;
   }
 }
 
@@ -2356,422 +2328,6 @@ export async function getApicurioArtifactContent(
   groupId: string, 
   artifactId: string
 ): Promise<ApicurioSchemaContent> {
-  // Use mock data if feature flag is enabled (avoids CORS errors completely)
-  if (USE_MOCK_APICURIO) {
-    if (artifactId === 'bfs.QuoteDetails.json') {
-      console.log(`📋 Using mock schema for: ${artifactId} (CORS avoidance mode)`);
-      return {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "QuoteDetails",
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique identifier for the quote detail"
-          },
-          "quoteId": {
-            "type": "string",
-            "description": "Reference to parent quote"
-          },
-          "partitionKey": {
-            "type": "string",
-            "description": "Partition key for Cosmos DB"
-          },
-          "lineNumber": {
-            "type": "integer",
-            "description": "Line number in the quote"
-          },
-          "productId": {
-            "type": "string",
-            "description": "Product identifier"
-          },
-          "productName": {
-            "type": "string",
-            "description": "Product name"
-          },
-          "quantity": {
-            "type": "number",
-            "description": "Quantity ordered"
-          },
-          "unitPrice": {
-            "type": "number",
-            "description": "Price per unit"
-          },
-          "totalPrice": {
-            "type": "number",
-            "description": "Total price for this line"
-          },
-          "description": {
-            "type": "string",
-            "description": "Line item description"
-          },
-          "createdDate": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "modifiedDate": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last modification timestamp"
-          }
-        },
-        "required": ["id", "quoteId", "partitionKey", "lineNumber"]
-      };
-    }
-    
-    // Mock AVRO schemas for bfs.online group
-    if (groupId === 'bfs.online') {
-      console.log(`📋 Using mock AVRO schema for: ${artifactId} (CORS avoidance mode)`);
-      
-      if (artifactId === 'bfs.online.quotedetail') {
-        return {
-          "type": "record",
-          "name": "QuoteDetail",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique identifier for the quote detail"},
-            {"name": "quoteId", "type": "string", "doc": "Reference to parent quote"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "lineNumber", "type": "int", "doc": "Line number in the quote"},
-            {"name": "productId", "type": ["null", "string"], "default": null, "doc": "Product identifier"},
-            {"name": "productName", "type": ["null", "string"], "default": null, "doc": "Product name"},
-            {"name": "quantity", "type": ["null", "double"], "default": null, "doc": "Quantity ordered"},
-            {"name": "unitPrice", "type": ["null", "double"], "default": null, "doc": "Price per unit"},
-            {"name": "totalPrice", "type": ["null", "double"], "default": null, "doc": "Total price for this line"},
-            {"name": "description", "type": ["null", "string"], "default": null, "doc": "Line item description"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.quote') {
-        return {
-          "type": "record",
-          "name": "Quote",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique quote identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "customerId", "type": ["null", "string"], "default": null, "doc": "Customer identifier"},
-            {"name": "quoteNumber", "type": ["null", "string"], "default": null, "doc": "Quote number"},
-            {"name": "status", "type": ["null", "string"], "default": null, "doc": "Quote status"},
-            {"name": "totalAmount", "type": ["null", "double"], "default": null, "doc": "Total quote amount"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.customer') {
-        return {
-          "type": "record",
-          "name": "Customer",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique customer identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "customerName", "type": ["null", "string"], "default": null, "doc": "Customer name"},
-            {"name": "email", "type": ["null", "string"], "default": null, "doc": "Customer email"},
-            {"name": "phone", "type": ["null", "string"], "default": null, "doc": "Customer phone"},
-            {"name": "address", "type": ["null", "string"], "default": null, "doc": "Customer address"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.servicerequest') {
-        return {
-          "type": "record",
-          "name": "ServiceRequest",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique service request identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "customerId", "type": ["null", "string"], "default": null, "doc": "Customer identifier"},
-            {"name": "requestType", "type": ["null", "string"], "default": null, "doc": "Type of service request"},
-            {"name": "status", "type": ["null", "string"], "default": null, "doc": "Request status"},
-            {"name": "description", "type": ["null", "string"], "default": null, "doc": "Request description"},
-            {"name": "priority", "type": ["null", "string"], "default": null, "doc": "Request priority"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.inv' || artifactId === 'bfs.online.inv1' || artifactId === 'bfs.online.inv2') {
-        return {
-          "type": "record",
-          "name": "Invoice",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique invoice identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "invoiceNumber", "type": ["null", "string"], "default": null, "doc": "Invoice number"},
-            {"name": "customerId", "type": ["null", "string"], "default": null, "doc": "Customer identifier"},
-            {"name": "amount", "type": ["null", "double"], "default": null, "doc": "Invoice amount"},
-            {"name": "status", "type": ["null", "string"], "default": null, "doc": "Invoice status"},
-            {"name": "dueDate", "type": ["null", "string"], "default": null, "doc": "Payment due date"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.prod') {
-        return {
-          "type": "record",
-          "name": "Product",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique product identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "productName", "type": ["null", "string"], "default": null, "doc": "Product name"},
-            {"name": "description", "type": ["null", "string"], "default": null, "doc": "Product description"},
-            {"name": "price", "type": ["null", "double"], "default": null, "doc": "Product price"},
-            {"name": "category", "type": ["null", "string"], "default": null, "doc": "Product category"},
-            {"name": "sku", "type": ["null", "string"], "default": null, "doc": "Stock keeping unit"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.linetype') {
-        return {
-          "type": "record",
-          "name": "LineType",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique line type identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "typeName", "type": ["null", "string"], "default": null, "doc": "Line type name"},
-            {"name": "description", "type": ["null", "string"], "default": null, "doc": "Line type description"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.online.reasoncode') {
-        return {
-          "type": "record",
-          "name": "ReasonCode",
-          "namespace": "bfs.online",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique reason code identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-            {"name": "code", "type": ["null", "string"], "default": null, "doc": "Reason code"},
-            {"name": "description", "type": ["null", "string"], "default": null, "doc": "Reason code description"},
-            {"name": "category", "type": ["null", "string"], "default": null, "doc": "Reason code category"},
-            {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-            {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-          ]
-        };
-      }
-    }
-    
-    // Mock AVRO schemas for paradigm.mybldr.bidtools group
-    if (groupId === 'paradigm.mybldr.bidtools') {
-      console.log(`📋 Using mock AVRO schema for: ${artifactId} (CORS avoidance mode)`);
-      
-      // AVRO Value Schemas
-      if (artifactId === 'bfs.QuoteDetails') {
-        return {
-          "type": "record",
-          "name": "QuoteDetails",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique identifier"},
-            {"name": "quoteId", "type": "string", "doc": "Reference to parent quote"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "lineNumber", "type": "int", "doc": "Line number"},
-            {"name": "productId", "type": ["null", "string"], "default": null},
-            {"name": "quantity", "type": ["null", "double"], "default": null},
-            {"name": "unitPrice", "type": ["null", "double"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.ServiceRequests') {
-        return {
-          "type": "record",
-          "name": "ServiceRequests",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique service request identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "customerId", "type": ["null", "string"], "default": null},
-            {"name": "requestType", "type": ["null", "string"], "default": null},
-            {"name": "status", "type": ["null", "string"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.WorkflowCustomers') {
-        return {
-          "type": "record",
-          "name": "WorkflowCustomers",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique customer identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "customerName", "type": ["null", "string"], "default": null},
-            {"name": "email", "type": ["null", "string"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.LineTypes') {
-        return {
-          "type": "record",
-          "name": "LineTypes",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique line type identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "typeName", "type": ["null", "string"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.QuotePackOrder') {
-        return {
-          "type": "record",
-          "name": "QuotePackOrder",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "orderNumber", "type": ["null", "int"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.QuotePacks') {
-        return {
-          "type": "record",
-          "name": "QuotePacks",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique pack identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "packName", "type": ["null", "string"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.Quotes') {
-        return {
-          "type": "record",
-          "name": "Quotes",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique quote identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "quoteNumber", "type": ["null", "string"], "default": null},
-            {"name": "totalAmount", "type": ["null", "double"], "default": null}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bfs.ReasonCodes') {
-        return {
-          "type": "record",
-          "name": "ReasonCodes",
-          "namespace": "bfs",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Unique reason code identifier"},
-            {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-            {"name": "code", "type": ["null", "string"], "default": null}
-          ]
-        };
-      }
-      
-      // AVRO Key Schemas
-      if (artifactId === 'bidtools.LineTypes-key') {
-        return {
-          "type": "record",
-          "name": "LineTypesKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.QuoteDetails-key') {
-        return {
-          "type": "record",
-          "name": "QuoteDetailsKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.QuotePackOrder-key') {
-        return {
-          "type": "record",
-          "name": "QuotePackOrderKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.QuotePacks-key') {
-        return {
-          "type": "record",
-          "name": "QuotePacksKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.Quotes-key') {
-        return {
-          "type": "record",
-          "name": "QuotesKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.ReasonCodes-key') {
-        return {
-          "type": "record",
-          "name": "ReasonCodesKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-      
-      if (artifactId === 'bidtools.ServiceRequests-key') {
-        return {
-          "type": "record",
-          "name": "ServiceRequestsKey",
-          "namespace": "bidtools",
-          "fields": [
-            {"name": "id", "type": "string", "doc": "Key identifier"}
-          ]
-        };
-      }
-    }
-    
-    throw new Error(`No mock data available for artifact: ${artifactId}`);
-  }
-  
   try {
     console.log(`📡 Fetching Apicurio artifact content (v3 API): ${artifactId}`);
     
@@ -2799,116 +2355,8 @@ export async function getApicurioArtifactContent(
     
     return data;
   } catch (error) {
-    console.error("⚠️ Error fetching Apicurio artifact content (CORS issue?):", error);
-    
-    // Fallback to mock schema for bfs.QuoteDetails.json
-    if (artifactId === 'bfs.QuoteDetails.json') {
-      console.log('🔄 Using fallback mock schema for bfs.QuoteDetails.json');
-      return {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "QuoteDetails",
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique identifier for the quote detail"
-          },
-          "quoteId": {
-            "type": "string",
-            "description": "Reference to parent quote"
-          },
-          "partitionKey": {
-            "type": "string",
-            "description": "Partition key for Cosmos DB"
-          },
-          "lineNumber": {
-            "type": "integer",
-            "description": "Line number in the quote"
-          },
-          "productId": {
-            "type": "string",
-            "description": "Product identifier"
-          },
-          "productName": {
-            "type": "string",
-            "description": "Product name"
-          },
-          "quantity": {
-            "type": "number",
-            "description": "Quantity ordered"
-          },
-          "unitPrice": {
-            "type": "number",
-            "description": "Price per unit"
-          },
-          "totalPrice": {
-            "type": "number",
-            "description": "Total price for this line"
-          },
-          "description": {
-            "type": "string",
-            "description": "Line item description"
-          },
-          "createdDate": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Creation timestamp"
-          },
-          "modifiedDate": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Last modification timestamp"
-          }
-        },
-        "required": ["id", "quoteId", "partitionKey", "lineNumber"]
-      };
-    }
-    
-    // Fallback for bfs.online AVRO schemas
-    if (groupId === 'bfs.online' && artifactId === 'bfs.online.quotedetail') {
-      console.log('🔄 Using fallback AVRO schema for bfs.online.quotedetail');
-      return {
-        "type": "record",
-        "name": "QuoteDetail",
-        "namespace": "bfs.online",
-        "fields": [
-          {"name": "id", "type": "string", "doc": "Unique identifier for the quote detail"},
-          {"name": "quoteId", "type": "string", "doc": "Reference to parent quote"},
-          {"name": "partitionKey", "type": "string", "doc": "Partition key for Cosmos DB"},
-          {"name": "lineNumber", "type": "int", "doc": "Line number in the quote"},
-          {"name": "productId", "type": ["null", "string"], "default": null, "doc": "Product identifier"},
-          {"name": "productName", "type": ["null", "string"], "default": null, "doc": "Product name"},
-          {"name": "quantity", "type": ["null", "double"], "default": null, "doc": "Quantity ordered"},
-          {"name": "unitPrice", "type": ["null", "double"], "default": null, "doc": "Price per unit"},
-          {"name": "totalPrice", "type": ["null", "double"], "default": null, "doc": "Total price for this line"},
-          {"name": "description", "type": ["null", "string"], "default": null, "doc": "Line item description"},
-          {"name": "createdDate", "type": ["null", "string"], "default": null, "doc": "Creation timestamp"},
-          {"name": "modifiedDate", "type": ["null", "string"], "default": null, "doc": "Last modification timestamp"}
-        ]
-      };
-    }
-    
-    // Fallback for paradigm.mybldr.bidtools AVRO schemas
-    if (groupId === 'paradigm.mybldr.bidtools' && artifactId === 'bfs.QuoteDetails') {
-      console.log('🔄 Using fallback AVRO schema for bfs.QuoteDetails');
-      return {
-        "type": "record",
-        "name": "QuoteDetails",
-        "namespace": "bfs",
-        "fields": [
-          {"name": "id", "type": "string", "doc": "Unique identifier"},
-          {"name": "quoteId", "type": "string", "doc": "Reference to parent quote"},
-          {"name": "partitionKey", "type": "string", "doc": "Partition key"},
-          {"name": "lineNumber", "type": "int", "doc": "Line number"},
-          {"name": "productId", "type": ["null", "string"], "default": null},
-          {"name": "quantity", "type": ["null", "double"], "default": null},
-          {"name": "unitPrice", "type": ["null", "double"], "default": null}
-        ]
-      };
-    }
-    
-    // For other artifacts, throw error
-    throw new Error(`No fallback data available for artifact: ${artifactId}`);
+    console.error("❌ Error fetching Apicurio artifact content:", error);
+    throw error;
   }
 }
 
