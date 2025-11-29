@@ -262,24 +262,29 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     const groups = await getApicurioGroups();
     console.log(`📦 🎯 Found ${groups.length} groups:`, groups.map(g => g.id).join(', '));
     
-    // STEP 2: Fetch artifacts from all groups
+    // STEP 2: Fetch artifacts from all groups IN PARALLEL for speed
     const allArtifacts: ApicurioArtifact[] = [];
     
-    for (const group of groups) {
+    const artifactPromises = groups.map(async (group) => {
       try {
         const artifacts = await getGroupArtifacts(group.id);
         
         if (artifacts.length > 0) {
           console.log(`📦 ✅ Loaded ${artifacts.length} artifacts from ${group.id}`);
-          allArtifacts.push(...artifacts);
+          return artifacts;
         } else {
           console.log(`📦 ⚠️ No artifacts from ${group.id} (may be 403 or empty)`);
+          return [];
         }
       } catch (error) {
         console.warn(`📦 ⚠️ Error fetching from ${group.id}:`, error);
-        // Continue with other groups
+        return [];
       }
-    }
+    });
+    
+    // Wait for all groups to load in parallel
+    const results = await Promise.all(artifactPromises);
+    allArtifacts.push(...results.flat());
 
     // If no artifacts from any group, throw error
     if (allArtifacts.length === 0) {

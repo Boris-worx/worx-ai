@@ -16,12 +16,6 @@ export interface PreloadedData {
   transactionTypes: string[];
 }
 
-const PRELOAD_TASKS = [
-  { id: 'tenants', label: 'Loading tenants...', weight: 30 },
-  { id: 'transactionTypes', label: 'Loading transaction types...', weight: 30 },
-  { id: 'apicurio', label: 'Loading Apicurio schemas...', weight: 40 },
-];
-
 export function useDataPreloader() {
   const [state, setState] = useState<PreloadState>({
     isPreloading: true,
@@ -38,62 +32,51 @@ export function useDataPreloader() {
   });
 
   const preloadData = useCallback(async () => {
-    let accumulatedProgress = 0;
-
     try {
-      // Task 1: Load tenants
       setState(prev => ({
         ...prev,
-        currentTask: PRELOAD_TASKS[0].label,
-        progress: 0,
+        currentTask: 'Loading essential data...',
+        progress: 10,
       }));
 
-      const tenants = await getAllTenants();
-      
-      // Sort by CreateTime descending (newest first)
-      const sortedTenants = [...tenants].sort((a, b) => {
-        const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
-        const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
-        return dateB - dateA;
-      });
+      // Load all data in PARALLEL instead of sequentially
+      const [tenantsResult, transactionTypesResult, apicurioResult] = await Promise.allSettled([
+        getAllTenants(),
+        loadTransactionTypes(),
+        searchApicurioArtifacts('Value').catch(err => {
+          console.warn('⚠️ Failed to preload Apicurio artifacts:', err);
+          return { artifacts: [], count: 0 };
+        }),
+      ]);
 
-      accumulatedProgress += PRELOAD_TASKS[0].weight;
-      setState(prev => ({
-        ...prev,
-        progress: accumulatedProgress,
-      }));
-
-      // Task 2: Load transaction types
-      setState(prev => ({
-        ...prev,
-        currentTask: PRELOAD_TASKS[1].label,
-      }));
-
-      const transactionTypes = await loadTransactionTypes();
-      
-      accumulatedProgress += PRELOAD_TASKS[1].weight;
-      setState(prev => ({
-        ...prev,
-        progress: accumulatedProgress,
-      }));
-
-      // Task 3: Load Apicurio artifacts
-      setState(prev => ({
-        ...prev,
-        currentTask: PRELOAD_TASKS[2].label,
-      }));
-
-      let apicurioArtifacts: ApicurioArtifact[] = [];
-      try {
-        const response = await searchApicurioArtifacts('Value');
-        apicurioArtifacts = response.artifacts;
-        console.log(`✅ Preloaded ${response.count} Apicurio artifacts`);
-      } catch (error) {
-        console.warn('⚠️ Failed to preload Apicurio artifacts, will use fallback:', error);
-        // Don't fail the entire preload if Apicurio fails
+      // Process tenants
+      let sortedTenants: Tenant[] = [];
+      if (tenantsResult.status === 'fulfilled') {
+        sortedTenants = [...tenantsResult.value].sort((a, b) => {
+          const dateA = a.CreateTime ? new Date(a.CreateTime).getTime() : 0;
+          const dateB = b.CreateTime ? new Date(b.CreateTime).getTime() : 0;
+          return dateB - dateA;
+        });
       }
 
-      accumulatedProgress += PRELOAD_TASKS[2].weight;
+      setState(prev => ({
+        ...prev,
+        progress: 70,
+      }));
+
+      // Process transaction types
+      const transactionTypes = transactionTypesResult.status === 'fulfilled' 
+        ? transactionTypesResult.value 
+        : [];
+
+      // Process Apicurio artifacts
+      const apicurioArtifacts = apicurioResult.status === 'fulfilled' 
+        ? apicurioResult.value.artifacts 
+        : [];
+
+      if (apicurioResult.status === 'fulfilled') {
+        console.log(`✅ Preloaded ${apicurioResult.value.count} Apicurio artifacts`);
+      }
 
       // Complete
       setData({
@@ -110,7 +93,7 @@ export function useDataPreloader() {
         isComplete: true,
       });
 
-      console.log('✅ Data preload complete');
+      console.log('✅ Data preload complete (parallel loading)');
     } catch (error: any) {
       console.error('❌ Preload error:', error);
       

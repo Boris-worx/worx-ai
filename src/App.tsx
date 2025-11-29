@@ -203,25 +203,50 @@ function AppContent() {
     }
   }, [user, hasAccessTo, activeTab]);
 
+  // Show initial loading toast
+  useEffect(() => {
+    if (preloadState.isPreloading && !preloadState.isComplete) {
+      toast.loading('Loading data...', { id: 'initial-load' });
+    }
+  }, [preloadState.isPreloading, preloadState.isComplete]);
+
   // Initialize data from preloader when complete
   useEffect(() => {
     if (preloadState.isComplete) {
       setTenants(preloadedData.tenants);
       setApicurioArtifacts(preloadedData.apicurioArtifacts);
       
+      // Dismiss loading toast
+      toast.dismiss('initial-load');
+      
       // Show success message only if there were no errors
       if (!preloadState.error && preloadedData.tenants.length > 0) {
-        toast.success(`Loaded ${preloadedData.tenants.length} tenant(s)`, { duration: 2000 });
+        toast.success(`Loaded ${preloadedData.tenants.length} tenant(s) and ${preloadedData.apicurioArtifacts.length} schema(s)`, { duration: 3000 });
+      } else if (preloadState.error) {
+        toast.error('Some data failed to load', { duration: 3000 });
       }
     }
   }, [preloadState.isComplete, preloadedData, preloadState.error]);
 
-  // Reload data sources when active tenant changes OR when tenants are loaded
+  // Track if data sources have been loaded at least once
+  const [dataSourcesLoaded, setDataSourcesLoaded] = useState(false);
+
+  // Lazy load data sources when user opens datasources or transactions tab
   useEffect(() => {
-    if (activeTenantId && tenants.length > 0) {
+    const needsDataSources = (activeTab === 'datasources' || activeTab === 'transactions');
+    
+    if (needsDataSources && !dataSourcesLoaded && activeTenantId && tenants.length > 0) {
+      refreshDataSources();
+      setDataSourcesLoaded(true);
+    }
+  }, [activeTab, activeTenantId, tenants, dataSourcesLoaded]);
+
+  // Reload data sources when active tenant changes (only if already loaded once)
+  useEffect(() => {
+    if (dataSourcesLoaded && activeTenantId && tenants.length > 0) {
       refreshDataSources();
     }
-  }, [activeTenantId, tenants]);
+  }, [activeTenantId]);
 
   // Refresh tenants from API (manual refresh only, initial load handled by preloader)
   const refreshTenants = async () => {

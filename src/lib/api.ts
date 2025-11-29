@@ -729,9 +729,9 @@ export let TRANSACTION_TYPES: string[] = [...FALLBACK_TRANSACTION_TYPES];
 
 // Load transaction types from data-capture-specs API
 export async function loadTransactionTypes(): Promise<string[]> {
+  const startTime = performance.now();
   try {
     console.log('📡 Loading transaction types from data-capture-specs API...');
-    console.log('   URL:', `${API_BASE_URL}/data-capture-specs`);
     
     const response = await fetch(`${API_BASE_URL}/data-capture-specs`, {
       headers: {
@@ -739,60 +739,32 @@ export async function loadTransactionTypes(): Promise<string[]> {
       }
     });
 
-    // Check response status
-    console.log('   Response status:', response.status, response.statusText);
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('   Error response body:', errorText);
       throw new Error(`API returned ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log('📦 API Response structure:', {
-      hasData: !!data.data,
-      hasDataCaptureSpecs: !!data.data?.DataCaptureSpecs,
-      specsCount: data.data?.DataCaptureSpecs?.length || 0
-    });
     
-    // Check for API error in response body
-    if (data.status?.code === 500 || data.status?.code >= 400) {
-      throw new Error(`API error: ${data.status?.message || 'Unknown error'}`);
-    }
+    // Extract ONLY dataCaptureSpecName - fast and minimal
+    const names = data.data?.DataCaptureSpecs?.map((x: any) => x.dataCaptureSpecName).filter(Boolean) || [];
     
-    // Extract dataCaptureSpecName from data.data.DataCaptureSpecs
-    const specs = data.data?.DataCaptureSpecs || [];
-    
-    if (specs.length === 0) {
+    if (names.length === 0) {
       console.warn('⚠️ No Data Capture Specs found, using fallback types');
       TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
       return FALLBACK_TRANSACTION_TYPES;
     }
     
-    console.log(`   Found ${specs.length} Data Capture Specs`);
-    
-    const names = specs
-      .map((x: any) => x.dataCaptureSpecName)
-      .filter(Boolean); // Remove empty/null names
-    
-    console.log('   Extracted names:', names);
-    
     // Get unique names and sort alphabetically
     const uniqueNames = [...new Set(names)].sort();
 
-    if (uniqueNames.length === 0) {
-      console.warn('⚠️ No valid transaction types extracted, using fallback types');
-      TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
-      return FALLBACK_TRANSACTION_TYPES;
-    }
-
     TRANSACTION_TYPES = uniqueNames;
-    console.log(`✅ Loaded ${TRANSACTION_TYPES.length} unique transaction types:`, TRANSACTION_TYPES);
+    const endTime = performance.now();
+    console.log(`✅ Loaded ${TRANSACTION_TYPES.length} transaction types in ${(endTime - startTime).toFixed(0)}ms`);
     
     return uniqueNames;
   } catch (error: any) {
-    console.error('❌ Failed to load transaction types:', error?.message || error);
-    console.warn('   Using fallback transaction types:', FALLBACK_TRANSACTION_TYPES);
+    const endTime = performance.now();
+    console.error(`❌ Failed to load transaction types (${(endTime - startTime).toFixed(0)}ms):`, error?.message || error);
     
     // Use fallback types on error
     TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];

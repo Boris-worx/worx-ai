@@ -8,7 +8,7 @@ import {
   PaginatedTransactionsResponse,
   formatTransactionType,
 } from "../lib/api";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, memo } from "react";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -87,6 +87,46 @@ interface TransactionsViewProps {
   onTenantChange: (tenantId: string) => void;
 }
 
+// Memoized transaction type button for better performance with large lists
+const TransactionTypeButton = memo(({ 
+  type, 
+  isActive, 
+  count, 
+  isCountLoaded, 
+  isLoadingThisCount,
+  onClick 
+}: { 
+  type: string; 
+  isActive: boolean; 
+  count: number | undefined;
+  isCountLoaded: boolean;
+  isLoadingThisCount: boolean;
+  onClick: () => void;
+}) => {
+  const displayCount = isCountLoaded ? count : (isLoadingThisCount ? '...' : '—');
+  
+  return (
+    <Button
+      variant={isActive ? "default" : "ghost"}
+      className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
+      onClick={onClick}
+      title={isCountLoaded ? `${count} transaction(s)` : 'Click to load'}
+    >
+      <span className="text-sm truncate flex-1">
+        {formatTransactionType(type)}
+      </span>
+      <Badge 
+        variant={isActive ? "secondary" : "outline"}
+        className={`ml-auto flex-shrink-0 text-xs ${isLoadingThisCount ? 'animate-pulse' : ''}`}
+      >
+        {displayCount}
+      </Badge>
+    </Button>
+  );
+});
+
+TransactionTypeButton.displayName = 'TransactionTypeButton';
+
 export function TransactionsView({
   transactions,
   setTransactions,
@@ -98,7 +138,7 @@ export function TransactionsView({
   onTenantChange,
 }: TransactionsViewProps) {
   const [selectedTxnType, setSelectedTxnType] =
-    useState<string>("Customer"); // Default to keyi
+    useState<string>(""); // Will be set to first type when loaded
   const [isLoadingType, setIsLoadingType] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
@@ -115,6 +155,7 @@ export function TransactionsView({
     Record<string, number>
   >({});
   const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const loadingCountsRef = useRef<Set<string>>(new Set()); // Track which counts are currently loading
   const [continuationToken, setContinuationToken] = useState<
     string | null
   >(null);
@@ -130,9 +171,9 @@ export function TransactionsView({
   const transactionTypes = useMemo(() => {
     const types = TRANSACTION_TYPES.length > 0 ? TRANSACTION_TYPES : [];
     
-    console.log('📋 Transaction Types (from data-capture-specs API):');
-    console.log('  - Total types:', types.length);
-    console.log('  - Types:', types);
+    if (types.length > 0) {
+      console.log(`📋 ${types.length} transaction types loaded`);
+    }
     
     return types;
   }, [TRANSACTION_TYPES]);
@@ -822,92 +863,87 @@ export function TransactionsView({
     }
   }, [availableFields]);
 
-  // Load transaction counts for all types when types are available
+  // Initialize with first transaction type when types are available
+  const initialLoadDoneRef = useRef(false);
+  
   useEffect(() => {
     if (transactionTypes.length > 0) {
-      loadAllTypeCounts();
+      setIsLoadingCounts(false);
+      
+      if (!selectedTxnType) {
+        // Set the first type alphabetically (matching UI sort) - its data will be loaded by the effect below
+        const sortedTypes = [...transactionTypes].sort((a, b) => a.localeCompare(b));
+        setSelectedTxnType(sortedTypes[0]);
+      }
     }
-  }, [transactionTypes]);
+  }, [transactionTypes, selectedTxnType]);
 
-  // Load counts for all transaction types
-  const loadAllTypeCounts = async () => {
-    setIsLoadingCounts(true);
-    const counts: Record<string, number> = {};
+  // Auto-load data when selectedTxnType changes
+  useEffect(() => {
+    if (selectedTxnType && transactionTypes.length > 0) {
+      // Load count in background (non-blocking)
+      if (typeCounts[selectedTxnType] === undefined) {
+        loadTypeCount(selectedTxnType);
+      }
+      
+      // Load transactions for first type automatically
+      if (!initialLoadDoneRef.current) {
+        console.log(`🚀 Auto-loading transactions for first type: ${selectedTxnType}`);
+        loadTransactionsForType(selectedTxnType);
+        initialLoadDoneRef.current = true;
+      }
+    }
+  }, [selectedTxnType]);
+
+  // Load count for a single transaction type (lazy loading on-demand)
+  const loadTypeCount = async (type: string) => {
+    // Skip if we already have the count for this type or it's currently loading
+    if (typeCounts[type] !== undefined || loadingCountsRef.current.has(type)) {
+      return;
+    }
+
+    // Mark as loading
+    loadingCountsRef.current.add(type);
 
     try {
-      console.log(
-        "Loading transaction counts for dynamic types from Data Capture Specs...",
+      const response = await getTransactionsByType(
+        type,
+        undefined,
+        activeTenantId,
       );
-      console.log("Transaction Types:", transactionTypes);
-
-      // Load counts for all types in parallel
-      const results = await Promise.allSettled(
-        transactionTypes.map(async (type) => {
-          try {
-            const response = await getTransactionsByType(
-              type,
-              undefined,
-              activeTenantId,
-            );
-            // Use TxnTotalCount from API if available, otherwise fallback to transactions.length
-            const count = response.totalCount !== undefined 
-              ? response.totalCount 
-              : response.transactions.length;
-            return {
-              type,
-              count,
-              supported: true,
-            };
-          } catch (error: any) {
-            // Silently handle expected errors (CORS, unsupported types, 500 errors)
-            if (
-              error.message === "Unsupported TxnType" ||
-              error.message === "Unsupported txn_type" ||
-              error.message === "Internal Server Error" ||
-              error.message === "CORS_ERROR" ||
-              error.message === "CORS_BLOCKED"
-            ) {
-              return { type, count: 0, supported: false };
-            }
-            // All other errors also treated as unsupported
-            return { type, count: 0, supported: false };
-          }
-        }),
-      );
-
-      // Process results
-      let supportedCount = 0;
-      results.forEach((result) => {
-        if (result.status === "fulfilled") {
-          counts[result.value.type] = result.value.count;
-          if (result.value.count > 0) supportedCount++;
-        }
-      });
-
-      console.log(
-        `✅ Loaded ${supportedCount} supported type(s) with data (using TxnTotalCount from API)`,
-      );
-      console.log("Type counts:", counts);
-      setTypeCounts(counts);
-
-      // Find first type with data and load it
-      const firstActiveType = transactionTypes.find(
-        (type) => counts[type] > 0,
-      );
-      if (firstActiveType) {
-        setSelectedTxnType(firstActiveType);
-        loadTransactionsForType(firstActiveType);
+      
+      // Use TxnTotalCount from API if available, otherwise fallback to transactions.length
+      const count = response.totalCount !== undefined 
+        ? response.totalCount 
+        : response.transactions.length;
+      
+      // Update counts state
+      setTypeCounts(prev => ({
+        ...prev,
+        [type]: count
+      }));
+    } catch (error: any) {
+      // Silently handle expected errors
+      if (
+        error.message === "Unsupported TxnType" ||
+        error.message === "Unsupported txn_type" ||
+        error.message === "Internal Server Error" ||
+        error.message === "CORS_ERROR" ||
+        error.message === "CORS_BLOCKED"
+      ) {
+        setTypeCounts(prev => ({
+          ...prev,
+          [type]: 0
+        }));
       } else {
-        // If no types have data, use first type or show empty
-        if (transactionTypes.length > 0) {
-          setSelectedTxnType(transactionTypes[0]);
-          setTransactions([]);
-        }
+        setTypeCounts(prev => ({
+          ...prev,
+          [type]: 0
+        }));
       }
-    } catch (error) {
-      console.error("Error loading type counts:", error);
     } finally {
-      setIsLoadingCounts(false);
+      // Remove from loading set
+      loadingCountsRef.current.delete(type);
     }
   };
 
@@ -1086,10 +1122,15 @@ export function TransactionsView({
   }, [selectedTxnType]);
 
   // Handle type selection
-  const handleTypeChange = (value: string) => {
+  const handleTypeChange = async (value: string) => {
     setSelectedTxnType(value);
-    loadTransactionsForType(value);
     setSearchTerm(""); // Reset search when changing type
+    
+    // Load count for this type in background (non-blocking)
+    loadTypeCount(value);
+    
+    // Load transactions for this type
+    loadTransactionsForType(value);
   };
 
   // View transaction detail
@@ -1140,9 +1181,9 @@ export function TransactionsView({
       );
       setIsDeleteDialogOpen(false);
 
-      // Refresh current type and update counts
+      // Refresh current type and update its count
       await loadTransactionsForType(selectedTxnType);
-      await loadAllTypeCounts();
+      await loadTypeCount(selectedTxnType);
     } catch (error: any) {
       toast.error(`Failed to delete: ${error.message}`);
     }
@@ -1165,8 +1206,8 @@ export function TransactionsView({
         await loadTransactionsForType(txnType);
       }
 
-      // Update type counts
-      await loadAllTypeCounts();
+      // Update count for this specific type
+      await loadTypeCount(txnType);
 
       return newTxn;
     } catch (error: any) {
@@ -1210,14 +1251,9 @@ export function TransactionsView({
   
   // Sort filtered types based on sort mode
   const sortedFilteredTypes = useMemo(() => {
-    const typesToSort = filteredTypes.filter((type) => {
-      const count = typeCounts[type] || 0;
-      return count > 0;
-    });
-    
-    return [...typesToSort].sort((a, b) => {
-      const countA = typeCounts[a] || 0;
-      const countB = typeCounts[b] || 0;
+    return [...filteredTypes].sort((a, b) => {
+      const countA = typeCounts[a] ?? -1; // Use -1 for unloaded counts so they sort to end
+      const countB = typeCounts[b] ?? -1;
       
       switch (sortMode) {
         case 'name-asc':
@@ -1225,8 +1261,16 @@ export function TransactionsView({
         case 'name-desc':
           return b.localeCompare(a);
         case 'count-desc':
+          // Put unloaded (-1) at the end
+          if (countA === -1 && countB === -1) return a.localeCompare(b);
+          if (countA === -1) return 1;
+          if (countB === -1) return -1;
           return countB - countA;
         case 'count-asc':
+          // Put unloaded (-1) at the end
+          if (countA === -1 && countB === -1) return a.localeCompare(b);
+          if (countA === -1) return 1;
+          if (countB === -1) return -1;
           return countA - countB;
         default:
           return 0;
@@ -1627,11 +1671,7 @@ export function TransactionsView({
                 Transaction Types
               </h3>
               <Badge variant="secondary">
-                {
-                  filteredTypes.filter(
-                    (type) => typeCounts[type] > 0,
-                  ).length
-                }
+                {transactionTypes.length}
               </Badge>
             </div>
 
@@ -1801,35 +1841,31 @@ export function TransactionsView({
                       <Skeleton className="h-9 w-full" />
                       <Skeleton className="h-9 w-full" />
                     </div>
-                  ) : (
+                  ) : sortedFilteredTypes.length > 0 ? (
                     <div className="space-y-1 p-2">
                       {/* Flat list of all transaction types */}
                       {sortedFilteredTypes.map((type) => {
-                        const count = typeCounts[type] || 0;
+                        const count = typeCounts[type];
+                        const isCountLoaded = count !== undefined;
+                        const isActiveType = selectedTxnType === type;
+                        const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
+                        
                         return (
-                          <Button
+                          <TransactionTypeButton
                             key={type}
-                            variant={
-                              selectedTxnType === type
-                                ? "default"
-                                : "ghost"
-                            }
-                            className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
+                            type={type}
+                            isActive={isActiveType}
+                            count={count}
+                            isCountLoaded={isCountLoaded}
+                            isLoadingThisCount={isLoadingThisCount}
                             onClick={() => handleTypeChange(type)}
-                            title={`${count} transaction(s)`}
-                          >
-                            <span className="text-sm truncate flex-1">
-                              {formatTransactionType(type)}
-                            </span>
-                            <Badge 
-                              variant={selectedTxnType === type ? "secondary" : "outline"}
-                              className="ml-auto flex-shrink-0 text-xs"
-                            >
-                              {count}
-                            </Badge>
-                          </Button>
+                          />
                         );
                       })}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-muted-foreground text-sm">
+                      No transaction types available
                     </div>
                   )}
                 </ScrollArea>
