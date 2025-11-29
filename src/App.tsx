@@ -20,15 +20,20 @@ import { BugIcon } from './components/icons/BugIcon';
 import { MoonIcon } from './components/icons/MoonIcon';
 import { SunIcon } from './components/icons/SunIcon';
 import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun, AppWindow, Database } from 'lucide-react';
-import { getAllTenants, getAllTransactions, getAllDataSources, Tenant, Transaction, DataSource } from './lib/api';
+import { getAllTenants, getAllTransactions, getAllDataSources, loadTransactionTypes, Tenant, Transaction, DataSource } from './lib/api';
 import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
 import { searchApicurioArtifacts, ApicurioArtifact, clearArtifactsCache } from './lib/apicurio';
+import { useDataPreloader } from './lib/useDataPreloader';
 
 function AppContent() {
   const { user, isAuthenticated, hasAccessTo, isGlobalUser } = useAuth();
+  
+  // Data preloader
+  const { state: preloadState, data: preloadedData, retry: retryPreload } = useDataPreloader();
+  
   // Active tab
   const [activeTab, setActiveTab] = useState('tenants');
   
@@ -118,10 +123,13 @@ function AppContent() {
   // Apicurio connection test dialog state
   const [apicurioTestOpen, setApicurioTestOpen] = useState(false);
 
-  // Theme state
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  // Theme state - initialize from localStorage or default to light
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('bfs_theme');
+    return (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
+  });
 
-  // Apply theme to document
+  // Apply theme to document and save to localStorage
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -129,6 +137,7 @@ function AppContent() {
     } else {
       root.classList.remove('dark');
     }
+    localStorage.setItem('bfs_theme', theme);
   }, [theme]);
 
   // Clean up old navigation order from localStorage
@@ -194,12 +203,18 @@ function AppContent() {
     }
   }, [user, hasAccessTo, activeTab]);
 
-  // Auto-load tenants from API on mount
-  // Don't auto-load transactions - API requires TxnType parameter
+  // Initialize data from preloader when complete
   useEffect(() => {
-    refreshTenants();
-    refreshApicurioArtifacts();
-  }, []);
+    if (preloadState.isComplete) {
+      setTenants(preloadedData.tenants);
+      setApicurioArtifacts(preloadedData.apicurioArtifacts);
+      
+      // Show success message only if there were no errors
+      if (!preloadState.error && preloadedData.tenants.length > 0) {
+        toast.success(`Loaded ${preloadedData.tenants.length} tenant(s)`, { duration: 2000 });
+      }
+    }
+  }, [preloadState.isComplete, preloadedData, preloadState.error]);
 
   // Reload data sources when active tenant changes OR when tenants are loaded
   useEffect(() => {
@@ -208,7 +223,7 @@ function AppContent() {
     }
   }, [activeTenantId, tenants]);
 
-  // Refresh tenants from API
+  // Refresh tenants from API (manual refresh only, initial load handled by preloader)
   const refreshTenants = async () => {
     setIsLoadingTenants(true);
     try {
@@ -224,7 +239,7 @@ function AppContent() {
       setTenants(sortedTenants);
       
       if (sortedTenants.length > 0) {
-        toast.success(`Loaded ${sortedTenants.length} tenant(s)`);
+        toast.success(`Refreshed ${sortedTenants.length} tenant(s)`);
       }
     } catch (error: any) {
       if (error.message !== 'CORS_BLOCKED') {
@@ -235,17 +250,18 @@ function AppContent() {
     }
   };
 
-  // Refresh Apicurio artifacts from Apicurio Registry
+  // Refresh Apicurio artifacts from Apicurio Registry (manual refresh only)
   const refreshApicurioArtifacts = async () => {
     setIsLoadingArtifacts(true);
     try {
       const response = await searchApicurioArtifacts('Value');
       setApicurioArtifacts(response.artifacts);
-      console.log(`✅ Loaded ${response.count} Apicurio artifacts from registry`);
+      console.log(`✅ Refreshed ${response.count} Apicurio artifacts from registry`);
+      toast.success(`Refreshed ${response.count} Apicurio artifact(s)`);
     } catch (error) {
-      console.error('Failed to load Apicurio artifacts:', error);
-      // Don't show error toast - cache or mock data will be used automatically
-      setApicurioArtifacts([]);
+      console.error('Failed to refresh Apicurio artifacts:', error);
+      toast.error('Could not refresh Apicurio artifacts', { duration: 5000 });
+      // Don't clear existing artifacts on refresh failure
     } finally {
       setIsLoadingArtifacts(false);
     }
@@ -338,7 +354,7 @@ function AppContent() {
 </linearGradient>
 </defs>
 </svg>
-              <span className="font-bold text-sm md:text-base whitespace-nowrap leading-none text-[rgb(0,32,91)]">Paradigm Transaction<br></br>Gateway Management</span>
+              <span className="font-bold text-sm md:text-base whitespace-nowrap leading-none text-[rgb(0,32,91)] dark:text-white">Paradigm Transaction<br></br>Gateway Management</span>
             </div>
 
             {/* Center - Navigation (Desktop only) */}
@@ -359,8 +375,8 @@ function AppContent() {
             <div className="flex items-center gap-2 md:w-[200px] justify-end">
               {/* Desktop Actions */}
               <div className="hidden md:flex items-center gap-2">
-                {/* API Connection Test Button */}
-                <Button
+                {/* API Connection Test Button - Hidden for now */}
+                {/* <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setApicurioTestOpen(true)}
@@ -368,7 +384,7 @@ function AppContent() {
                   title="Test API connections (Apicurio & BFS)"
                 >
                   <Database className="h-5 w-5" />
-                </Button>
+                </Button> */}
 
                 {/* Bug Report Button */}
                 <Button

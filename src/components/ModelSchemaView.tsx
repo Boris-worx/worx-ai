@@ -733,7 +733,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                   value={createFormData.state}
                   onValueChange={(value) => setCreateFormData({ ...createFormData, state: value })}
                 >
-                  <SelectTrigger id="create-state" className="bg-white">
+                  <SelectTrigger id="create-state" className="bg-white dark:bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -820,7 +820,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                   value={editFormData.state}
                   onValueChange={(value) => setEditFormData({ ...editFormData, state: value })}
                 >
-                  <SelectTrigger id="edit-state" className="bg-white">
+                  <SelectTrigger id="edit-state" className="bg-white dark:bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

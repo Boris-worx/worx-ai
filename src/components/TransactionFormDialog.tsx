@@ -16,14 +16,14 @@ interface TransactionFormDialogProps {
 }
 
 export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxnType }: TransactionFormDialogProps) {
-  // If defaultTxnType provided, use it. Otherwise default to first type (Customer)
-  const [txnType, setTxnType] = useState<string>(defaultTxnType || TRANSACTION_TYPES[0]);
+  // If defaultTxnType provided, use it. Otherwise default to first type
+  const [txnType, setTxnType] = useState<string>(defaultTxnType || TRANSACTION_TYPES[0] || '');
   const [isUploading, setIsUploading] = useState(false);
 
   // Update txnType when defaultTxnType changes or dialog opens
   useEffect(() => {
     if (open) {
-      setTxnType(defaultTxnType || TRANSACTION_TYPES[0]);
+      setTxnType(defaultTxnType || TRANSACTION_TYPES[0] || '');
     }
   }, [open, defaultTxnType]);
 
@@ -131,7 +131,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
           {/* Upload Button */}
           <div className="space-y-3">
             <Button
-              className="w-full h-32 border-2 border-dashed border-[#D8D9DA] bg-white hover:bg-white hover:border-[#636769]"
+              className="w-full h-32 border-2 border-dashed border-[#D8D9DA] bg-white dark:bg-card hover:bg-white dark:hover:bg-card hover:border-[#636769]"
               variant="outline"
               disabled={!txnType || isUploading}
               onClick={() => document.getElementById('json-upload')?.click()}

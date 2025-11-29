@@ -159,8 +159,8 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   </>
                 )}
 
-                {/* Test API Connections */}
-                <Button
+                {/* Test API Connections - Hidden for now */}
+                {/* <Button
                   variant="ghost"
                   onClick={() => {
                     onApicurioTestClick();
@@ -170,7 +170,7 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                 >
                   <Database className="h-4 w-4 mr-3" />
                   Test API Connections
-                </Button>
+                </Button> */}
 
                 {/* Report a Bug */}
                 <Button

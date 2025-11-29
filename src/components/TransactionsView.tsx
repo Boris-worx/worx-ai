@@ -7,8 +7,6 @@ import {
   deleteTransaction,
   PaginatedTransactionsResponse,
   formatTransactionType,
-  getDataCaptureSpecs,
-  DataCaptureSpec,
 } from "../lib/api";
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "./ui/button";
@@ -22,16 +20,12 @@ import {
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { ScrollArea } from "./ui/scroll-area";
-import { Separator } from "./ui/separator";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  SelectLabel,
-  SelectSeparator,
-  SelectGroup,
 } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
 import {
@@ -127,94 +121,21 @@ export function TransactionsView({
   const [hasMoreData, setHasMoreData] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // State for Data Capture Spec filtering
-  const [dataSourceId, setDataSourceId] = useState<string>(""); // For filtering Data Capture Specs
-  
-  // State for dynamic Transaction Types from Data Capture Specs
-  const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
-  const [isLoadingSpecs, setIsLoadingSpecs] = useState(true);
-  
   // State for sorting transaction types
   type SortMode = 'name-asc' | 'name-desc' | 'count-asc' | 'count-desc';
   const [sortMode, setSortMode] = useState<SortMode>('name-asc');
 
-  // Build dynamic transaction types list from Data Capture Specs
+  // Use transaction types loaded from data-capture-specs API
+  // These are loaded via loadTransactionTypes() in App.tsx on mount
   const transactionTypes = useMemo(() => {
-    // All supported transaction types from BFS API
-    const fallbackTypes = [
-      // Bid Tools
-      'Customer',
-      'Customer Aging',
-      'LineType',
-      'LineTypes',
-      'Location',
-      'QuoteComponentType',
-      'QuoteDetail',
-      'QuotePackOrder',
-      'QuotePack',
-      'QuotePartitionTest',
-      'Quote',
-      'QuoteCanonical',
-      'QuoteTest',
-      'ReasonCode',
-      'ServiceRequestComponentType',
-      'ServiceRequest',
-      'WorkflowCustomer',
-      'WorkflowMarket',
-      'WorkflowUser',
-      // BFS Online
-      'inv1',
-      'inv2',
-      'inv3',
-      'invap',
-      'invdes',
-      'invloc',
-      'inv',
-      'irc',
-      'keyi',
-      'loc',
-      'loc1',
-      'podt',
-      'stcode',
-      // Other
-      'Job',
-      'Items',
-      'Invoice',
-      'Invoice PDF',
-      'Sales Order',
-      'Item Pricing',
-      'Item Pricing PDF',
-      'Invoice Reprice',
-      'Target Margin',
-      'Statements',
-      'Statements PDF',
-      'Sales Order Create/DI Order',
-      'Product Hierarchy/Item Class',
-      'PO Create',
-      'Sales Order Query',
-      'DI order enhancements',
-      'Quotes',
-      'Publish Sales Order Quote',
-      'Publish Bid Quote-Quote',
-    ];
+    const types = TRANSACTION_TYPES.length > 0 ? TRANSACTION_TYPES : [];
     
-    // Get unique container names from Data Capture Specs
-    const specTypes = dataCaptureSpecs
-      .filter(spec => spec.isActive !== false) // Only active specs
-      .map(spec => spec.containerName)
-      .filter((name, index, self) => self.indexOf(name) === index); // Unique
+    console.log('📋 Transaction Types (from data-capture-specs API):');
+    console.log('  - Total types:', types.length);
+    console.log('  - Types:', types);
     
-    // Combine both lists and remove duplicates
-    const combinedTypes = [...fallbackTypes, ...specTypes]
-      .filter((name, index, self) => self.indexOf(name) === index) // Unique
-      .sort();
-    
-    console.log('📋 Transaction Types (API + Data Capture Specs):', combinedTypes);
-    console.log('  - API types:', fallbackTypes);
-    console.log('  - From Data Capture Specs:', specTypes);
-    
-    return combinedTypes;
-  }, [dataCaptureSpecs]);
+    return types;
+  }, [TRANSACTION_TYPES]);
 
   // Helper to format field labels
   const formatFieldLabel = (field: string): string => {
@@ -901,34 +822,12 @@ export function TransactionsView({
     }
   }, [availableFields]);
 
-  // Load Data Capture Specs on mount and when tenant changes
+  // Load transaction counts for all types when types are available
   useEffect(() => {
-    loadDataCaptureSpecs();
-  }, [activeTenantId]);
-
-  // Load Data Capture Specs
-  const loadDataCaptureSpecs = async () => {
-    setIsLoadingSpecs(true);
-    try {
-      console.log('📡 Loading Data Capture Specs for tenant:', activeTenantId);
-      const specs = await getDataCaptureSpecs(activeTenantId);
-      console.log('✅ Loaded', specs.length, 'Data Capture Specs:', specs);
-      setDataCaptureSpecs(specs);
-    } catch (error) {
-      console.error('❌ Failed to load Data Capture Specs:', error);
-      setDataCaptureSpecs([]);
-    } finally {
-      setIsLoadingSpecs(false);
-    }
-  };
-
-  // Load transaction counts for all types on mount
-  useEffect(() => {
-    // Wait for specs to load first
-    if (!isLoadingSpecs && transactionTypes.length > 0) {
+    if (transactionTypes.length > 0) {
       loadAllTypeCounts();
     }
-  }, [isLoadingSpecs, transactionTypes]);
+  }, [transactionTypes]);
 
   // Load counts for all transaction types
   const loadAllTypeCounts = async () => {
@@ -960,16 +859,17 @@ export function TransactionsView({
               supported: true,
             };
           } catch (error: any) {
-            // Silently handle expected errors (CORS, unsupported types)
+            // Silently handle expected errors (CORS, unsupported types, 500 errors)
             if (
               error.message === "Unsupported TxnType" ||
               error.message === "Unsupported txn_type" ||
+              error.message === "Internal Server Error" ||
               error.message === "CORS_ERROR" ||
               error.message === "CORS_BLOCKED"
             ) {
               return { type, count: 0, supported: false };
             }
-            // Only log unexpected errors
+            // All other errors also treated as unsupported
             return { type, count: 0, supported: false };
           }
         }),
@@ -1334,28 +1234,7 @@ export function TransactionsView({
     });
   }, [filteredTypes, typeCounts, sortMode]);
 
-  // Helper function to determine transaction type group
-  const getTypeGroup = (type: string): 'bidtools' | 'bfsonline' => {
-    const bfsOnlineTypes = ['inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'irc', 'keyi', 'loc', 'loc1', 'podt', 'stcode'];
-    
-    if (bfsOnlineTypes.includes(type)) return 'bfsonline';
-    return 'bidtools';
-  };
-
-  // Group sorted types by database type (Bid Tools first, then BFS Online)
-  const groupedTypes = useMemo(() => {
-    const groups: Record<string, string[]> = {
-      'bidtools': [],
-      'bfsonline': []
-    };
-    
-    sortedFilteredTypes.forEach(type => {
-      const group = getTypeGroup(type);
-      groups[group].push(type);
-    });
-    
-    return groups;
-  }, [sortedFilteredTypes]);
+  // No grouping - use flat list of transaction types
 
   // Helper function to get nested value from object
   const getNestedValue = (obj: any, path: string): any => {
@@ -1768,34 +1647,12 @@ export function TransactionsView({
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Bid Tools Group */}
-                    {groupedTypes['bidtools'].length > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>Bid Tools</SelectLabel>
-                        {groupedTypes['bidtools'].map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {formatTransactionType(type)} ({typeCounts[type] || 0})
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    
-                    {/* Separator */}
-                    {groupedTypes['bidtools'].length > 0 && groupedTypes['bfsonline'].length > 0 && (
-                      <SelectSeparator />
-                    )}
-                    
-                    {/* BFS Online Templates Group */}
-                    {groupedTypes['bfsonline'].length > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>BFS Online Templates</SelectLabel>
-                        {groupedTypes['bfsonline'].map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {formatTransactionType(type)} ({typeCounts[type] || 0})
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
+                    {/* Flat list of all transaction types */}
+                    {sortedFilteredTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatTransactionType(type)} ({typeCounts[type] || 0})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1946,80 +1803,33 @@ export function TransactionsView({
                     </div>
                   ) : (
                     <div className="space-y-1 p-2">
-                      {/* Bid Tools Group */}
-                      {groupedTypes['bidtools'].length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            Bid Tools
-                          </div>
-                          {groupedTypes['bidtools'].map((type) => {
-                            const count = typeCounts[type] || 0;
-                            return (
-                              <Button
-                                key={type}
-                                variant={
-                                  selectedTxnType === type
-                                    ? "default"
-                                    : "ghost"
-                                }
-                                className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
-                                onClick={() => handleTypeChange(type)}
-                                title={`${count} transaction(s)`}
-                              >
-                                <span className="text-sm truncate flex-1">
-                                  {formatTransactionType(type)}
-                                </span>
-                                <Badge 
-                                  variant={selectedTxnType === type ? "secondary" : "outline"}
-                                  className="ml-auto flex-shrink-0 text-xs"
-                                >
-                                  {count}
-                                </Badge>
-                              </Button>
-                            );
-                          })}
-                        </>
-                      )}
-
-                      {/* Separator between groups */}
-                      {groupedTypes['bidtools'].length > 0 && groupedTypes['bfsonline'].length > 0 && (
-                        <Separator className="my-1" />
-                      )}
-
-                      {/* BFS Online Templates Group */}
-                      {groupedTypes['bfsonline'].length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                            BFS Online
-                          </div>
-                          {groupedTypes['bfsonline'].map((type) => {
-                            const count = typeCounts[type] || 0;
-                            return (
-                              <Button
-                                key={type}
-                                variant={
-                                  selectedTxnType === type
-                                    ? "default"
-                                    : "ghost"
-                                }
-                                className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
-                                onClick={() => handleTypeChange(type)}
-                                title={`${count} transaction(s)`}
-                              >
-                                <span className="text-sm truncate flex-1">
-                                  {formatTransactionType(type)}
-                                </span>
-                                <Badge 
-                                  variant={selectedTxnType === type ? "secondary" : "outline"}
-                                  className="ml-auto flex-shrink-0 text-xs"
-                                >
-                                  {count}
-                                </Badge>
-                              </Button>
-                            );
-                          })}
-                        </>
-                      )}
+                      {/* Flat list of all transaction types */}
+                      {sortedFilteredTypes.map((type) => {
+                        const count = typeCounts[type] || 0;
+                        return (
+                          <Button
+                            key={type}
+                            variant={
+                              selectedTxnType === type
+                                ? "default"
+                                : "ghost"
+                            }
+                            className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
+                            onClick={() => handleTypeChange(type)}
+                            title={`${count} transaction(s)`}
+                          >
+                            <span className="text-sm truncate flex-1">
+                              {formatTransactionType(type)}
+                            </span>
+                            <Badge 
+                              variant={selectedTxnType === type ? "secondary" : "outline"}
+                              className="ml-auto flex-shrink-0 text-xs"
+                            >
+                              {count}
+                            </Badge>
+                          </Button>
+                        );
+                      })}
                     </div>
                   )}
                 </ScrollArea>

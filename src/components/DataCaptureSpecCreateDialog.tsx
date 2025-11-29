@@ -978,7 +978,7 @@ export function DataCaptureSpecCreateDialog({
               {/* Basic Information */}
               <AccordionItem
                 value="basic"
-                className="bg-white rounded-[10px] border px-4 py-0"
+                className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
               >
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   Basic Information
@@ -1176,7 +1176,7 @@ export function DataCaptureSpecCreateDialog({
               {/* Key Fields Configuration */}
               <AccordionItem
                 value="keys"
-                className="bg-white rounded-[10px] border px-4 py-0"
+                className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
               >
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   Key Fields Configuration
@@ -1215,7 +1215,7 @@ export function DataCaptureSpecCreateDialog({
                       <Label className="text-xs">
                         Source Primary Key Fields (Composite)
                       </Label>
-                      <div className="flex flex-wrap gap-1 p-2 border rounded-md min-h-[32px] bg-white">
+                      <div className="flex flex-wrap gap-1 p-2 border rounded-md min-h-[32px] bg-white dark:bg-card">
                         {(formData.sourcePrimaryKeyFields || []).map((field, idx) => (
                           <Badge
                             key={idx}
@@ -1306,7 +1306,7 @@ export function DataCaptureSpecCreateDialog({
                           <Button
                             variant="outline"
                             role="combobox"
-                            className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                            className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white dark:bg-card hover:bg-white dark:hover:bg-card"
                           >
                             <div className="flex flex-wrap gap-1 flex-1">
                               {formData.allowedFilters
@@ -1456,7 +1456,7 @@ export function DataCaptureSpecCreateDialog({
               {availableFields.length > 0 && (
                 <AccordionItem
                   value="required"
-                  className="bg-white rounded-[10px] border px-4 py-0"
+                  className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                 >
                   <AccordionTrigger className="text-sm py-2 hover:no-underline">
                     Required Fields (
@@ -1472,7 +1472,7 @@ export function DataCaptureSpecCreateDialog({
                           <Button
                             variant="outline"
                             role="combobox"
-                            className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                            className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white dark:bg-card hover:bg-white dark:hover:bg-card"
                           >
                             <div className="flex flex-wrap gap-1 flex-1">
                               {formData.requiredFields
@@ -1621,7 +1621,7 @@ export function DataCaptureSpecCreateDialog({
               {/* Additional Fields - Collapsed by default */}
               <AccordionItem
                 value="additional"
-                className="bg-white rounded-[10px] border px-4 py-0"
+                className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
               >
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   <div className="flex items-center justify-between w-full p-[0px]">
@@ -1715,7 +1715,7 @@ export function DataCaptureSpecCreateDialog({
               {/* Container Schema - Collapsed by default */}
               <AccordionItem
                 value="schema"
-                className="bg-white rounded-[10px] border px-4 py-0"
+                className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
               >
                 <AccordionTrigger className="text-sm py-2 hover:no-underline">
                   <div className="flex items-center justify-between w-full p-[0px]">

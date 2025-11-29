@@ -1329,15 +1329,17 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             />
           </div>
 
-          {/* Right: Add Button */}
-          {canCreate && (
-            <Button
-              onClick={() => setIsCreateDialogOpen(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Data Source
-            </Button>
-          )}
+          {/* Right: Action Buttons */}
+          <div className="flex items-center gap-2">
+            {canCreate && (
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Data Source
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -1551,7 +1553,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                                 <th className="text-right py-2 px-4 whitespace-nowrap font-normal">Action</th>
                               </tr>
                             </thead>
-                            <tbody className="bg-white">
+                            <tbody className="bg-white dark:bg-card">
                               {paginatedSpecs.length > 0 ? (
                                 paginatedSpecs.map((spec) => (
                                   <tr key={spec.id} className="border-b last:border-0">
@@ -1770,7 +1772,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 value={newDataSourceTenantId}
                 onValueChange={setNewDataSourceTenantId}
               >
-                <SelectTrigger id="tenantId" className="bg-white border ">
+                <SelectTrigger id="tenantId" className="bg-white dark:bg-card border ">
                   <SelectValue placeholder="Select tenant" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1846,7 +1848,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 onValueChange={setEditDataSourceTenantId}
                 disabled
               >
-                <SelectTrigger id="editTenantId" className="bg-white border border-input">
+                <SelectTrigger id="editTenantId" className="bg-white dark:bg-card border border-input">
                   <SelectValue placeholder="Select tenant" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2091,7 +2093,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 {/* Basic Information */}
                 <AccordionItem
                   value="basic"
-                  className="bg-white rounded-[10px] border px-4 py-0"
+                  className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                 >
                   <AccordionTrigger className="text-sm py-2 hover:no-underline">
                     Basic Information
@@ -2168,7 +2170,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 {/* Key Fields Configuration */}
                 <AccordionItem
                   value="keys"
-                  className="bg-white rounded-[10px] border px-4 py-0"
+                  className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                 >
                   <AccordionTrigger className="text-sm py-2 hover:no-underline">
                     Key Fields Configuration
@@ -2263,7 +2265,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                               <Button
                                 variant="outline"
                                 role="combobox"
-                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white dark:bg-card hover:bg-white dark:hover:bg-card"
                               >
                                 <div className="flex flex-wrap gap-1 flex-1">
                                   {(!editSpecForm.allowedFilters || editSpecForm.allowedFilters.length === 0) ? (
@@ -2403,7 +2405,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   return (
                     <AccordionItem
                       value="required"
-                      className="bg-white rounded-[10px] border px-4 py-0"
+                      className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                     >
                       <AccordionTrigger className="text-sm py-2 hover:no-underline">
                         Required Fields ({(editSpecForm.requiredFields || []).length} selected)
@@ -2416,7 +2418,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                               <Button
                                 variant="outline"
                                 role="combobox"
-                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white hover:bg-white"
+                                className="w-full h-auto min-h-[32px] justify-between text-xs font-normal bg-white dark:bg-card hover:bg-white dark:hover:bg-card"
                               >
                                 <div className="flex flex-wrap gap-1 flex-1">
                                   {(!editSpecForm.requiredFields || editSpecForm.requiredFields.length === 0) ? (
@@ -2532,7 +2534,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 {/* Additional Fields - Collapsed by default */}
                 <AccordionItem
                   value="additional"
-                  className="bg-white rounded-[10px] border px-4 py-0"
+                  className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                 >
                   <AccordionTrigger className="text-sm py-2 hover:no-underline">
                     <div className="flex items-center justify-between w-full pr-4">
@@ -2611,7 +2613,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 {/* Container Schema - Collapsed by default */}
                 <AccordionItem
                   value="schema"
-                  className="bg-white rounded-[10px] border px-4 py-0"
+                  className="bg-white dark:bg-card rounded-[10px] border px-4 py-0"
                 >
                   <AccordionTrigger className="text-sm py-2 hover:no-underline">
                     <div className="flex items-center justify-between w-full p-[0px]">

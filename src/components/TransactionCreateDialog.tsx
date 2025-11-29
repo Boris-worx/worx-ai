@@ -19,7 +19,7 @@ interface TransactionCreateDialogProps {
 }
 
 export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultTxnType }: TransactionCreateDialogProps) {
-  const [txnType, setTxnType] = useState<string>(defaultTxnType || TRANSACTION_TYPES[0]);
+  const [txnType, setTxnType] = useState<string>(defaultTxnType || TRANSACTION_TYPES[0] || '');
   const [jsonText, setJsonText] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [jsonError, setJsonError] = useState<string>('');
@@ -27,9 +27,10 @@ export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultT
   // Update txnType when defaultTxnType changes or dialog opens
   useEffect(() => {
     if (open) {
-      setTxnType(defaultTxnType || TRANSACTION_TYPES[0]);
+      const firstType = defaultTxnType || TRANSACTION_TYPES[0] || '';
+      setTxnType(firstType);
       // Set default JSON template
-      setJsonText(getDefaultTemplate(defaultTxnType || TRANSACTION_TYPES[0]));
+      setJsonText(getDefaultTemplate(firstType));
       setJsonError('');
     }
   }, [open, defaultTxnType]);

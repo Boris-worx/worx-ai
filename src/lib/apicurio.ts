@@ -748,6 +748,85 @@ function enhanceJsonSchemaWithIRCMetadata(jsonSchema: any): any {
   return enhanced;
 }
 
+/**
+ * Update artifact content using PUT operation
+ * 
+ * PUT /groups/{groupId}/artifacts/{artifactId}
+ * - Updates the artifact and creates a new version
+ * 
+ * @param groupId - The group ID (e.g., 'bfs.online')
+ * @param artifactId - The artifact ID (e.g., 'inv.response')
+ * @param content - The new artifact content (JSON schema)
+ * @param version - Optional: specific version to update
+ * @returns Promise with success status and message
+ */
+export async function updateApicurioArtifact(
+  groupId: string,
+  artifactId: string,
+  content: any,
+  version?: string
+): Promise<{ success: boolean; message: string; version?: string; error?: any }> {
+  try {
+    // If version is provided, update that specific version
+    // Otherwise, update the artifact (creates new version)
+    const url = version 
+      ? `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`
+      : `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts/${encodeURIComponent(artifactId)}`;
+    
+    console.log('📦 PUT: Updating artifact:', url);
+    console.log('📦 PUT: Content:', JSON.stringify(content, null, 2));
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(content),
+    });
+
+    const responseText = await response.text();
+    console.log('📦 PUT: Response status:', response.status);
+    console.log('📦 PUT: Response text:', responseText);
+
+    if (!response.ok) {
+      console.error(`❌ PUT failed with status ${response.status}`);
+      return {
+        success: false,
+        message: `Failed to update artifact: ${response.status} - ${responseText}`,
+        error: { status: response.status, text: responseText }
+      };
+    }
+
+    let result: any = {};
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        console.warn('Response is not JSON:', responseText);
+      }
+    }
+    
+    console.log('📦 ✅ PUT successful:', result);
+    
+    // Clear cache after update
+    clearArtifactsCache();
+    
+    return {
+      success: true,
+      message: 'Artifact updated successfully',
+      version: result.version
+    };
+  } catch (error: any) {
+    console.error('❌ PUT error:', error);
+    return {
+      success: false,
+      message: error.message || 'Unknown error occurred',
+      error
+    };
+  }
+}
+
 // Export Apicurio configuration for testing
 export function getApicurioConfig() {
   return {

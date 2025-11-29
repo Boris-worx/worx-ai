@@ -712,51 +712,93 @@ async function getModelSchemasByTenantGlobal(tenantId: string): Promise<ModelSch
 
 // ==================== TRANSACTION API FUNCTIONS ====================
 
-// Transaction types available in the system
-export const TRANSACTION_TYPES = [
+// Fallback transaction types in case API fails
+// These are common types that should exist in most BFS deployments
+const FALLBACK_TRANSACTION_TYPES = [
   'Customer',
-  'Customer Aging',
-  'keyi',
-  'inv',
-  'inv1',
-  'inv2',
-  'inv3',
-  'invap',
-  'invdes',
-  'invloc',
-  'loc',
-  'loc1',
-  'stocode',
-  'LineType',
-  'LineTypes',
   'Location',
   'Quote',
-  'QuoteDetails',
-  'QuotePack',
-  'QuotePackOrder',
+  'LineType',
   'ReasonCode',
   'ServiceRequest',
-  'WorkflowCustomer',
-  'Job',
-  'Items',
-  'Invoice',
-  'Invoice PDF',
-  'Sales Order',
-  'Item Pricing',
-  'Item Pricing PDF',
-  'Invoice Reprice',
-  'Target Margin',
-  'Statements',
-  'Statements PDF',
-  'Sales Order Create/DI Order',
-  'Product Hierarchy/Item Class',
-  'PO Create',
-  'Sales Order Query',
-  'DI order enhancements',
-  'Quotes',
-  'Publish Sales Order Quote',
-  'Publish Bid Quote-Quote',
-] as const;
+];
+
+// Transaction types - dynamically loaded from data-capture-specs API
+// These are loaded on app initialization via loadTransactionTypes()
+export let TRANSACTION_TYPES: string[] = [...FALLBACK_TRANSACTION_TYPES];
+
+// Load transaction types from data-capture-specs API
+export async function loadTransactionTypes(): Promise<string[]> {
+  try {
+    console.log('📡 Loading transaction types from data-capture-specs API...');
+    console.log('   URL:', `${API_BASE_URL}/data-capture-specs`);
+    
+    const response = await fetch(`${API_BASE_URL}/data-capture-specs`, {
+      headers: {
+        [AUTH_HEADER_KEY]: AUTH_HEADER_VALUE
+      }
+    });
+
+    // Check response status
+    console.log('   Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('   Error response body:', errorText);
+      throw new Error(`API returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('📦 API Response structure:', {
+      hasData: !!data.data,
+      hasDataCaptureSpecs: !!data.data?.DataCaptureSpecs,
+      specsCount: data.data?.DataCaptureSpecs?.length || 0
+    });
+    
+    // Check for API error in response body
+    if (data.status?.code === 500 || data.status?.code >= 400) {
+      throw new Error(`API error: ${data.status?.message || 'Unknown error'}`);
+    }
+    
+    // Extract dataCaptureSpecName from data.data.DataCaptureSpecs
+    const specs = data.data?.DataCaptureSpecs || [];
+    
+    if (specs.length === 0) {
+      console.warn('⚠️ No Data Capture Specs found, using fallback types');
+      TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
+      return FALLBACK_TRANSACTION_TYPES;
+    }
+    
+    console.log(`   Found ${specs.length} Data Capture Specs`);
+    
+    const names = specs
+      .map((x: any) => x.dataCaptureSpecName)
+      .filter(Boolean); // Remove empty/null names
+    
+    console.log('   Extracted names:', names);
+    
+    // Get unique names and sort alphabetically
+    const uniqueNames = [...new Set(names)].sort();
+
+    if (uniqueNames.length === 0) {
+      console.warn('⚠️ No valid transaction types extracted, using fallback types');
+      TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
+      return FALLBACK_TRANSACTION_TYPES;
+    }
+
+    TRANSACTION_TYPES = uniqueNames;
+    console.log(`✅ Loaded ${TRANSACTION_TYPES.length} unique transaction types:`, TRANSACTION_TYPES);
+    
+    return uniqueNames;
+  } catch (error: any) {
+    console.error('❌ Failed to load transaction types:', error?.message || error);
+    console.warn('   Using fallback transaction types:', FALLBACK_TRANSACTION_TYPES);
+    
+    // Use fallback types on error
+    TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
+    return FALLBACK_TRANSACTION_TYPES;
+  }
+}
 
 // Format transaction type display name
 export const formatTransactionType = (type: string): string => {
@@ -867,11 +909,14 @@ export async function getTransactionsByType(
         };
       }
       
-      // Check if it's "Unsupported TxnType" or "No Cosmos container configured" - treat as empty result, not error
+      // Check if it's "Unsupported TxnType", "No Cosmos container configured", or 500 Internal Server Error
+      // Treat as empty result, not error
       if (errorData.status?.message === 'Unsupported TxnType' || 
           errorData.status?.message === 'Unsupported txn_type' ||
+          errorData.status?.message === 'Internal Server Error' ||
           errorData.status?.message?.includes('No Cosmos container configured') ||
-          response.status === 400) {
+          response.status === 400 ||
+          response.status === 500) {
         // Silently return empty array for unsupported types - no console logs
         return {
           transactions: [],
@@ -880,10 +925,8 @@ export async function getTransactionsByType(
         };
       }
       
-      // Only log errors for non-400 status codes (real errors)
-      if (response.status !== 400) {
-        console.error('Error response body:', errorText);
-      }
+      // Only log unexpected errors
+      console.error(`⚠️ Unexpected API error for ${txnType}:`, errorText);
       throw new Error(errorData.status?.message || `API returned ${response.status}`);
     }
 

@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { getApicurioConfig } from "../lib/apicurio";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { ApicurioPutTest } from "./ApicurioPutTest";
 
 interface TestResult {
   success: boolean;
@@ -538,7 +539,7 @@ export function ApicurioConnectionTest() {
                   )}
                   
                   {result.details && (
-                    <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-x-auto whitespace-pre-wrap">
+                    <pre className="mt-2 text-xs bg-white dark:bg-card p-2 rounded border overflow-x-auto whitespace-pre-wrap">
                       {result.details}
                     </pre>
                   )}
@@ -556,10 +557,10 @@ export function ApicurioConnectionTest() {
                   
                   {result.headers && Object.keys(result.headers).length > 0 && (
                     <details className="mt-2">
-                      <summary className="text-xs cursor-pointer text-slate-600 hover:text-slate-900">
+                      <summary className="text-xs cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
                         Show response headers ({Object.keys(result.headers).length})
                       </summary>
-                      <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-x-auto">
+                      <pre className="mt-2 text-xs bg-white dark:bg-card p-2 rounded border overflow-x-auto">
                         {JSON.stringify(result.headers, null, 2)}
                       </pre>
                     </details>
@@ -620,7 +621,7 @@ export function ApicurioConnectionTest() {
       
       <CardContent>
         <Tabs defaultValue="apicurio" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="apicurio" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               Apicurio Registry
@@ -643,15 +644,18 @@ export function ApicurioConnectionTest() {
                 )
               )}
             </TabsTrigger>
+            <TabsTrigger value="put-test" className="flex items-center gap-2">
+              🧪 PUT Test
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="apicurio" className="mt-4">
             <div className="bg-slate-50 p-3 rounded-lg border text-sm mb-4">
               <p className="font-semibold mb-2">Apicurio Configuration:</p>
               <div className="font-mono text-xs space-y-1">
-                <p><span className="text-slate-600">Base URL:</span> {APICURIO_BASE}</p>
-                <p><span className="text-slate-600">API Version:</span> v3</p>
-                <p><span className="text-slate-600">Groups:</span> bfs.online (15 artifacts), paradigm.bidtools2</p>
+                <p><span className="text-slate-600 dark:text-slate-400">Base URL:</span> {APICURIO_BASE}</p>
+                <p><span className="text-slate-600 dark:text-slate-400">API Version:</span> v3</p>
+                <p><span className="text-slate-600 dark:text-slate-400">Groups:</span> bfs.online (15 artifacts), paradigm.bidtools2</p>
               </div>
             </div>
             
@@ -668,9 +672,9 @@ export function ApicurioConnectionTest() {
             <div className="bg-slate-50 p-3 rounded-lg border text-sm mb-4">
               <p className="font-semibold mb-2">BFS API Configuration:</p>
               <div className="font-mono text-xs space-y-1">
-                <p><span className="text-slate-600">Base URL:</span> {BFS_API}</p>
-                <p><span className="text-slate-600">Auth:</span> X-BFS-Auth header required</p>
-                <p className="mt-2"><span className="text-slate-600">Testing Endpoints:</span></p>
+                <p><span className="text-slate-600 dark:text-slate-400">Base URL:</span> {BFS_API}</p>
+                <p><span className="text-slate-600 dark:text-slate-400">Auth:</span> X-BFS-Auth header required</p>
+                <p className="mt-2"><span className="text-slate-600 dark:text-slate-400">Testing Endpoints:</span></p>
                 <ul className="ml-4 space-y-1">
                   <li>• /tenants - Tenant management</li>
                   <li>• /txns - Transactions</li>
@@ -679,7 +683,7 @@ export function ApicurioConnectionTest() {
                   <li>• /dataCaptureSpecs - Data Capture Specifications</li>
                   <li>• /txns/types - Transaction Types (Data Plane)</li>
                 </ul>
-                <p className="mt-2"><span className="text-slate-600">Testing Methods:</span> OPTIONS, GET, POST, PUT, DELETE</p>
+                <p className="mt-2"><span className="text-slate-600 dark:text-slate-400">Testing Methods:</span> OPTIONS, GET, POST, PUT, DELETE</p>
               </div>
             </div>
             
@@ -690,6 +694,10 @@ export function ApicurioConnectionTest() {
                 Click "Run All Tests" to start testing BFS API connection
               </div>
             )}
+          </TabsContent>
+          
+          <TabsContent value="put-test" className="mt-4">
+            <ApicurioPutTest />
           </TabsContent>
         </Tabs>
       </CardContent>
