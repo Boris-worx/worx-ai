@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getAllTenants, loadTransactionTypes, Tenant } from './api';
-import { searchApicurioArtifacts, ApicurioArtifact } from './apicurio';
+// Removed: searchApicurioArtifacts import - loaded lazily when needed
 
 export interface PreloadState {
   isPreloading: boolean;
@@ -12,8 +12,8 @@ export interface PreloadState {
 
 export interface PreloadedData {
   tenants: Tenant[];
-  apicurioArtifacts: ApicurioArtifact[];
   transactionTypes: string[];
+  // Removed: apicurioArtifacts - loaded lazily when needed in Data Source Onboarding
 }
 
 export function useDataPreloader() {
@@ -27,8 +27,8 @@ export function useDataPreloader() {
 
   const [data, setData] = useState<PreloadedData>({
     tenants: [],
-    apicurioArtifacts: [],
     transactionTypes: [],
+    // Removed: apicurioArtifacts - loaded lazily when needed in Data Source Onboarding
   });
 
   const preloadData = useCallback(async () => {
@@ -40,13 +40,9 @@ export function useDataPreloader() {
       }));
 
       // Load all data in PARALLEL instead of sequentially
-      const [tenantsResult, transactionTypesResult, apicurioResult] = await Promise.allSettled([
+      const [tenantsResult, transactionTypesResult] = await Promise.allSettled([
         getAllTenants(),
         loadTransactionTypes(),
-        searchApicurioArtifacts('Value').catch(err => {
-          console.warn('⚠️ Failed to preload Apicurio artifacts:', err);
-          return { artifacts: [], count: 0 };
-        }),
       ]);
 
       // Process tenants
@@ -69,20 +65,11 @@ export function useDataPreloader() {
         ? transactionTypesResult.value 
         : [];
 
-      // Process Apicurio artifacts
-      const apicurioArtifacts = apicurioResult.status === 'fulfilled' 
-        ? apicurioResult.value.artifacts 
-        : [];
-
-      if (apicurioResult.status === 'fulfilled') {
-        console.log(`✅ Preloaded ${apicurioResult.value.count} Apicurio artifacts`);
-      }
-
       // Complete
       setData({
         tenants: sortedTenants,
-        apicurioArtifacts,
         transactionTypes,
+        // Removed: apicurioArtifacts - loaded lazily when needed in Data Source Onboarding
       });
 
       setState({

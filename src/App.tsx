@@ -214,14 +214,14 @@ function AppContent() {
   useEffect(() => {
     if (preloadState.isComplete) {
       setTenants(preloadedData.tenants);
-      setApicurioArtifacts(preloadedData.apicurioArtifacts);
+      // Removed: setApicurioArtifacts - loaded lazily when Data Source Onboarding opens
       
       // Dismiss loading toast
       toast.dismiss('initial-load');
       
       // Show success message only if there were no errors
       if (!preloadState.error && preloadedData.tenants.length > 0) {
-        toast.success(`Loaded ${preloadedData.tenants.length} tenant(s) and ${preloadedData.apicurioArtifacts.length} schema(s)`, { duration: 3000 });
+        toast.success(`Loaded ${preloadedData.tenants.length} tenant(s)`, { duration: 3000 });
       } else if (preloadState.error) {
         toast.error('Some data failed to load', { duration: 3000 });
       }
@@ -230,6 +230,9 @@ function AppContent() {
 
   // Track if data sources have been loaded at least once
   const [dataSourcesLoaded, setDataSourcesLoaded] = useState(false);
+  
+  // Track if Apicurio schemas have been loaded at least once
+  const [apicurioSchemasLoaded, setApicurioSchemasLoaded] = useState(false);
 
   // Lazy load data sources when user opens datasources or transactions tab
   useEffect(() => {
@@ -240,6 +243,27 @@ function AppContent() {
       setDataSourcesLoaded(true);
     }
   }, [activeTab, activeTenantId, tenants, dataSourcesLoaded]);
+  
+  // Lazy load Apicurio schemas when user opens datasources tab (for Data Capture Spec creation)
+  useEffect(() => {
+    const loadApicurioSchemas = async () => {
+      if (activeTab === 'datasources' && !apicurioSchemasLoaded) {
+        try {
+          console.log('📡 Loading Apicurio schemas...');
+          const result = await searchApicurioArtifacts('Value');
+          setApicurioArtifacts(result.artifacts);
+          setApicurioSchemasLoaded(true);
+          console.log(`✅ Loaded ${result.count} Apicurio schema(s)`);
+        } catch (error) {
+          console.error('Failed to load Apicurio schemas:', error);
+          // Don't block the UI if Apicurio fails
+          setApicurioSchemasLoaded(true); // Mark as loaded to avoid retry loops
+        }
+      }
+    };
+    
+    loadApicurioSchemas();
+  }, [activeTab, apicurioSchemasLoaded]);
 
   // Reload data sources when active tenant changes (only if already loaded once)
   useEffect(() => {
