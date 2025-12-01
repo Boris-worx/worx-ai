@@ -73,6 +73,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./ui/accordion";
 
 interface TransactionsViewProps {
   transactions: Transaction[];
@@ -865,6 +871,73 @@ export function TransactionsView({
 
   // Initialize with first transaction type when types are available
   const initialLoadDoneRef = useRef(false);
+  const countsLoadStartedRef = useRef(false);
+  
+  // Load counts for all transaction types in parallel (with batching)
+  const loadAllTypeCounts = async () => {
+    console.log(`📊 Loading counts for ${transactionTypes.length} transaction types...`);
+    const startTime = performance.now();
+    
+    const BATCH_SIZE = 10; // Load 10 types at a time
+    const batches: string[][] = [];
+    
+    // Filter types that need loading
+    const typesToLoad = transactionTypes.filter(
+      type => typeCounts[type] === undefined && !loadingCountsRef.current.has(type)
+    );
+    
+    // Split into batches
+    for (let i = 0; i < typesToLoad.length; i += BATCH_SIZE) {
+      batches.push(typesToLoad.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log(`📦 Loading ${typesToLoad.length} types in ${batches.length} batches of ${BATCH_SIZE}`);
+    
+    // Process batches sequentially, but items within batch in parallel
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      console.log(`🔄 Batch ${batchIndex + 1}/${batches.length}: Loading ${batch.length} types...`);
+      
+      const batchPromises = batch.map(async (type) => {
+        // Mark as loading
+        loadingCountsRef.current.add(type);
+        
+        try {
+          const response = await getTransactionsByType(
+            type,
+            undefined,
+            activeTenantId,
+          );
+          
+          // Use TxnTotalCount from API if available, otherwise fallback to transactions.length
+          const count = response.totalCount !== undefined 
+            ? response.totalCount 
+            : response.transactions.length;
+          
+          // Update counts state
+          setTypeCounts(prev => ({
+            ...prev,
+            [type]: count
+          }));
+        } catch (error: any) {
+          // Silently handle expected errors
+          setTypeCounts(prev => ({
+            ...prev,
+            [type]: 0
+          }));
+        } finally {
+          // Remove from loading set
+          loadingCountsRef.current.delete(type);
+        }
+      });
+      
+      // Wait for this batch to complete before starting next
+      await Promise.all(batchPromises);
+    }
+    
+    const endTime = performance.now();
+    console.log(`✅ All counts loaded in ${Math.round(endTime - startTime)}ms`);
+  };
   
   useEffect(() => {
     if (transactionTypes.length > 0) {
@@ -875,13 +948,20 @@ export function TransactionsView({
         const sortedTypes = [...transactionTypes].sort((a, b) => a.localeCompare(b));
         setSelectedTxnType(sortedTypes[0]);
       }
+      
+      // Load all counts in parallel (once)
+      if (!countsLoadStartedRef.current) {
+        countsLoadStartedRef.current = true;
+        console.log(`🚀 Starting parallel count loading for ${transactionTypes.length} types...`);
+        loadAllTypeCounts();
+      }
     }
   }, [transactionTypes, selectedTxnType]);
 
   // Auto-load data when selectedTxnType changes
   useEffect(() => {
     if (selectedTxnType && transactionTypes.length > 0) {
-      // Load count in background (non-blocking)
+      // Load count in background (non-blocking) - fallback if not loaded by parallel load
       if (typeCounts[selectedTxnType] === undefined) {
         loadTypeCount(selectedTxnType);
       }
@@ -1240,6 +1320,14 @@ export function TransactionsView({
     }
   };
 
+  // Determine which group a transaction type belongs to
+  const getTypeGroup = (type: string): 'BFS Online' | 'Paradigm BigTools' => {
+    // BFS Online types typically start with lowercase (ar, loc, qbDrct, etc.)
+    // Paradigm BigTools types typically start with uppercase (Customer, LineType, etc.)
+    const firstChar = type.charAt(0);
+    return firstChar === firstChar.toLowerCase() ? 'BFS Online' : 'Paradigm BigTools';
+  };
+
   // Filter types by search term
   const filteredTypes = useMemo(() => {
     if (!searchTerm.trim()) return transactionTypes;
@@ -1277,6 +1365,21 @@ export function TransactionsView({
       }
     });
   }, [filteredTypes, typeCounts, sortMode]);
+  
+  // Group types by their group
+  const groupedTypes = useMemo(() => {
+    const groups: Record<string, string[]> = {
+      'BFS Online': [],
+      'Paradigm BigTools': [],
+    };
+    
+    sortedFilteredTypes.forEach(type => {
+      const group = getTypeGroup(type);
+      groups[group].push(type);
+    });
+    
+    return groups;
+  }, [sortedFilteredTypes]);
 
   // No grouping - use flat list of transaction types
 
@@ -1687,12 +1790,33 @@ export function TransactionsView({
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Flat list of all transaction types */}
-                    {sortedFilteredTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {formatTransactionType(type)} ({typeCounts[type] || 0})
-                      </SelectItem>
-                    ))}
+                    {/* BFS Online Group */}
+                    {groupedTypes['BFS Online'].length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                          BFS Online
+                        </div>
+                        {groupedTypes['BFS Online'].map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatTransactionType(type)} ({typeCounts[type] || 0})
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    
+                    {/* Paradigm BigTools Group */}
+                    {groupedTypes['Paradigm BigTools'].length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                          Paradigm BigTools
+                        </div>
+                        {groupedTypes['Paradigm BigTools'].map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {formatTransactionType(type)} ({typeCounts[type] || 0})
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1830,7 +1954,7 @@ export function TransactionsView({
                 </DropdownMenu>
               </div>
 
-              {/* Types List */}
+              {/* Types List - Grouped by Source */}
               <Card className="border rounded-[10px]">
                 <ScrollArea className="h-[600px]">
                   {isLoadingCounts ? (
@@ -1842,27 +1966,79 @@ export function TransactionsView({
                       <Skeleton className="h-9 w-full" />
                     </div>
                   ) : sortedFilteredTypes.length > 0 ? (
-                    <div className="space-y-1 p-2">
-                      {/* Flat list of all transaction types */}
-                      {sortedFilteredTypes.map((type) => {
-                        const count = typeCounts[type];
-                        const isCountLoaded = count !== undefined;
-                        const isActiveType = selectedTxnType === type;
-                        const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
-                        
-                        return (
-                          <TransactionTypeButton
-                            key={type}
-                            type={type}
-                            isActive={isActiveType}
-                            count={count}
-                            isCountLoaded={isCountLoaded}
-                            isLoadingThisCount={isLoadingThisCount}
-                            onClick={() => handleTypeChange(type)}
-                          />
-                        );
-                      })}
-                    </div>
+                    <Accordion type="multiple" defaultValue={['BFS Online', 'Paradigm BigTools']} className="w-full">
+                      {/* BFS Online Group */}
+                      {groupedTypes['BFS Online'].length > 0 && (
+                        <AccordionItem value="BFS Online" className="border-b-0">
+                          <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
+                            <div className="flex items-center gap-2">
+                              <span>BFS Online</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {groupedTypes['BFS Online'].length}
+                              </Badge>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-0">
+                            <div className="space-y-1 px-2 pb-2">
+                              {groupedTypes['BFS Online'].map((type) => {
+                                const count = typeCounts[type];
+                                const isCountLoaded = count !== undefined;
+                                const isActiveType = selectedTxnType === type;
+                                const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
+                                
+                                return (
+                                  <TransactionTypeButton
+                                    key={type}
+                                    type={type}
+                                    isActive={isActiveType}
+                                    count={count}
+                                    isCountLoaded={isCountLoaded}
+                                    isLoadingThisCount={isLoadingThisCount}
+                                    onClick={() => handleTypeChange(type)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                      
+                      {/* Paradigm BigTools Group */}
+                      {groupedTypes['Paradigm BigTools'].length > 0 && (
+                        <AccordionItem value="Paradigm BigTools" className="border-b-0">
+                          <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
+                            <div className="flex items-center gap-2">
+                              <span>Paradigm BigTools</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {groupedTypes['Paradigm BigTools'].length}
+                              </Badge>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-0">
+                            <div className="space-y-1 px-2 pb-2">
+                              {groupedTypes['Paradigm BigTools'].map((type) => {
+                                const count = typeCounts[type];
+                                const isCountLoaded = count !== undefined;
+                                const isActiveType = selectedTxnType === type;
+                                const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
+                                
+                                return (
+                                  <TransactionTypeButton
+                                    key={type}
+                                    type={type}
+                                    isActive={isActiveType}
+                                    count={count}
+                                    isCountLoaded={isCountLoaded}
+                                    isLoadingThisCount={isLoadingThisCount}
+                                    onClick={() => handleTypeChange(type)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground text-sm">
                       No transaction types available

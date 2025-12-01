@@ -1688,6 +1688,69 @@ export async function getDataCaptureSpecs(
   }
 }
 
+// Get single Data Capture Specification by ID (with full containerSchema)
+export async function getDataCaptureSpec(
+  dataCaptureSpecId: string
+): Promise<DataCaptureSpec> {
+  try {
+    const url = `${API_BASE_URL}/data-capture-specs/${dataCaptureSpecId}`;
+    
+    console.log('🔍 GET Data Capture Spec by ID Request:');
+    console.log('  URL:', url);
+    console.log('  dataCaptureSpecId:', dataCaptureSpecId);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Failed to fetch data capture spec: ${dataCaptureSpecId}`;
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.status?.message || errorData.message || errorMessage;
+      } catch {
+        // If not JSON, use text as error message
+        errorMessage = errorText || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const responseText = await response.text();
+    console.log('📦 Raw API Response:', responseText.substring(0, 500));
+    
+    let spec: DataCaptureSpec;
+    const responseData = JSON.parse(responseText);
+    
+    // Check if response is wrapped in { data: { DataCaptureSpec: ... } } format
+    if (responseData.data && responseData.data.DataCaptureSpec) {
+      spec = responseData.data.DataCaptureSpec;
+    }
+    // Or if it's directly the spec object
+    else if (responseData.dataCaptureSpecId || responseData.id) {
+      spec = responseData;
+    }
+    // Or wrapped in just { data: ... }
+    else if (responseData.data) {
+      spec = responseData.data;
+    } else {
+      throw new Error('Unexpected API response format');
+    }
+    
+    console.log('✅ Fetched data capture spec:', spec.dataCaptureSpecId);
+    console.log('  containerSchema present:', !!spec.containerSchema);
+    console.log('  containerSchema keys:', spec.containerSchema ? Object.keys(spec.containerSchema) : 'none');
+    
+    return spec;
+  } catch (error) {
+    console.error(`Error fetching data capture spec ${dataCaptureSpecId}:`, error);
+    throw error;
+  }
+}
+
 // Create Data Capture Specification
 export async function createDataCaptureSpec(
   spec: Omit<DataCaptureSpec, 'dataCaptureSpecId' | '_etag' | '_rid' | '_ts' | '_self' | '_attachments' | 'createTime' | 'updateTime'>

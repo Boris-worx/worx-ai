@@ -14,7 +14,7 @@ import { DeleteIcon } from './icons/DeleteIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { Skeleton } from './ui/skeleton';
 import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, Check, X } from 'lucide-react';
-import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
+import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, getDataCaptureSpec, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -28,6 +28,7 @@ import { Checkbox } from './ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 import { Switch } from './ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { DataCaptureSpecCreateDialog } from './DataCaptureSpecCreateDialog';
 
 import { UserRole } from './AuthContext';
@@ -576,6 +577,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const [dataCaptureSpecs, setDataCaptureSpecs] = useState<DataCaptureSpec[]>([]);
   const [isLoadingSpecs, setIsLoadingSpecs] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<DataCaptureSpecification | null>(null);
+  const [fullSpecData, setFullSpecData] = useState<DataCaptureSpec | null>(null); // Full API object for View dialog
   const [isSpecViewOpen, setIsSpecViewOpen] = useState(false);
   const [isSpecEditOpen, setIsSpecEditOpen] = useState(false);
   const [isSpecDeleteOpen, setIsSpecDeleteOpen] = useState(false);
@@ -641,33 +643,82 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   });
   const [isUpdatingSpec, setIsUpdatingSpec] = useState(false);
 
-  // Load selected spec data into edit form when dialog opens
+  // Track if we've already loaded the full spec to avoid infinite loop
+  const [loadedFullSpecId, setLoadedFullSpecId] = useState<string | null>(null);
+
+  // Load full spec data when View Dialog opens (fetch from API to get complete containerSchema)
   useEffect(() => {
-    if (isSpecEditOpen && selectedSpec) {
-      // Find the real spec with all data
-      const realSpec = dataCaptureSpecs.find(s => s.dataCaptureSpecId === selectedSpec.dataCaptureSpecId);
-      
-      if (realSpec) {
-        setEditSpecForm({
-          dataCaptureSpecName: realSpec.dataCaptureSpecName || '',
-          containerName: realSpec.containerName || '',
-          tenantId: realSpec.tenantId || '',
-          dataSourceId: realSpec.dataSourceId || '',
-          version: realSpec.version || 1,
-          isActive: realSpec.isActive !== undefined ? realSpec.isActive : true,
-          profile: realSpec.profile || 'data-capture',
-          sourcePrimaryKeyField: realSpec.sourcePrimaryKeyField || '',
-          partitionKeyField: realSpec.partitionKeyField || 'partitionKey',
-          partitionKeyValue: realSpec.partitionKeyValue || '',
-          allowedFilters: Array.isArray(realSpec.allowedFilters) ? realSpec.allowedFilters : [],
-          requiredFields: Array.isArray(realSpec.requiredFields) ? realSpec.requiredFields : [],
-          containerSchemaText: realSpec.containerSchema 
-            ? JSON.stringify(realSpec.containerSchema, null, 2) 
-            : ''
-        });
+    const loadFullSpec = async () => {
+      if (isSpecViewOpen && selectedSpec && selectedSpec.dataCaptureSpecId) {
+        // Only load if we haven't loaded this spec yet
+        if (loadedFullSpecId !== selectedSpec.dataCaptureSpecId) {
+          try {
+            console.log('🔍 Loading full spec for view:', selectedSpec.dataCaptureSpecId);
+            const fullSpec = await getDataCaptureSpec(selectedSpec.dataCaptureSpecId);
+            
+            // Store the full API object for display
+            setFullSpecData(fullSpec);
+            setLoadedFullSpecId(selectedSpec.dataCaptureSpecId);
+            
+            console.log('✅ Loaded full spec with containerSchema');
+            console.log('  Full spec keys:', Object.keys(fullSpec));
+          } catch (error) {
+            console.error('Failed to load full spec:', error);
+            toast.error('Failed to load full specification details');
+          }
+        }
       }
+    };
+    
+    loadFullSpec();
+  }, [isSpecViewOpen, selectedSpec?.dataCaptureSpecId, loadedFullSpecId]);
+  
+  // Reset loadedFullSpecId and fullSpecData when dialog closes
+  useEffect(() => {
+    if (!isSpecViewOpen) {
+      setLoadedFullSpecId(null);
+      setFullSpecData(null);
     }
-  }, [isSpecEditOpen, selectedSpec, dataCaptureSpecs]);
+  }, [isSpecViewOpen]);
+
+  // Load selected spec data into edit form when dialog opens (fetch full spec from API)
+  useEffect(() => {
+    const loadSpecForEdit = async () => {
+      if (isSpecEditOpen && selectedSpec && selectedSpec.dataCaptureSpecId) {
+        try {
+          console.log('🔍 Loading full spec for edit:', selectedSpec.dataCaptureSpecId);
+          
+          // Fetch full spec from API to get complete containerSchema
+          const fullSpec = await getDataCaptureSpec(selectedSpec.dataCaptureSpecId);
+          
+          setEditSpecForm({
+            dataCaptureSpecName: fullSpec.dataCaptureSpecName || '',
+            containerName: fullSpec.containerName || '',
+            tenantId: fullSpec.tenantId || '',
+            dataSourceId: fullSpec.dataSourceId || '',
+            version: fullSpec.version || 1,
+            isActive: fullSpec.isActive !== undefined ? fullSpec.isActive : true,
+            profile: fullSpec.profile || 'data-capture',
+            sourcePrimaryKeyField: fullSpec.sourcePrimaryKeyField || '',
+            partitionKeyField: fullSpec.partitionKeyField || 'partitionKey',
+            partitionKeyValue: fullSpec.partitionKeyValue || '',
+            allowedFilters: Array.isArray(fullSpec.allowedFilters) ? fullSpec.allowedFilters : [],
+            requiredFields: Array.isArray(fullSpec.requiredFields) ? fullSpec.requiredFields : [],
+            containerSchemaText: fullSpec.containerSchema 
+              ? JSON.stringify(fullSpec.containerSchema, null, 2) 
+              : ''
+          });
+          
+          console.log('✅ Loaded full spec for edit with containerSchema');
+        } catch (error) {
+          console.error('Failed to load full spec for edit:', error);
+          toast.error('Failed to load specification details');
+        }
+      }
+    };
+    
+    loadSpecForEdit();
+  }, [isSpecEditOpen, selectedSpec?.dataCaptureSpecId]);
 
   // Load IRC example template (from client's curl request)
   const loadIRCExampleTemplate = () => {
@@ -2036,14 +2087,44 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 </div>
               )}
 
-              {/* Container Schema - Show sample Cosmos DB document */}
+              {/* Schema Display with Tabs */}
               <div>
-                <div className="text-sm font-medium mb-2">Container Schema (Cosmos DB)</div>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <pre className="text-xs overflow-x-auto max-h-[400px] overflow-y-auto">
-                    {JSON.stringify(selectedSpec, null, 2)}
-                  </pre>
-                </div>
+                <Tabs defaultValue="full" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="full">Full Specification</TabsTrigger>
+                    <TabsTrigger value="schema">Container Schema Only</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="full" className="mt-4">
+                    <div className="text-sm font-medium mb-2">
+                      Complete Data Capture Specification
+                      <span className="text-xs text-muted-foreground ml-2">(Full API Response)</span>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-3">
+                      <pre className="text-xs overflow-x-auto max-h-[400px] overflow-y-auto">
+                        {fullSpecData 
+                          ? JSON.stringify(fullSpecData, null, 2)
+                          : 'Loading full specification...'
+                        }
+                      </pre>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="schema" className="mt-4">
+                    <div className="text-sm font-medium mb-2">
+                      Container Schema (Cosmos DB)
+                      <span className="text-xs text-muted-foreground ml-2">(JSON Schema Definition)</span>
+                    </div>
+                    <div className="rounded-md border bg-muted/30 p-3">
+                      <pre className="text-xs overflow-x-auto max-h-[400px] overflow-y-auto">
+                        {fullSpecData?.containerSchema 
+                          ? JSON.stringify(fullSpecData.containerSchema, null, 2)
+                          : 'Container schema not available'
+                        }
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
             </div>
           )}
