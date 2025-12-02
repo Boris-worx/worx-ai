@@ -1,28 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
-import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { ViewIcon } from './icons/ViewIcon';
-import { EditIcon } from './icons/EditIcon';
-import { DeleteIcon } from './icons/DeleteIcon';
-import { Skeleton } from './ui/skeleton';
-import { Eye, CheckCircle2, AlertCircle, Plus, Trash2, Pencil, FileCode, MoreVertical, Filter, Lock } from 'lucide-react';
 import { ModelSchema, getAllModelSchemas, createModelSchema, updateModelSchema, deleteModelSchema } from '../lib/api';
 import { toast } from 'sonner@2.0.3';
 import { UserRole } from './AuthContext';
 import { DataTable } from './DataTable';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { TenantSelector } from './TenantSelector';
-import { Tenant } from '../lib/api';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Tenant, TRANSACTION_TYPES_INFO, getAllDataSources, DataSource } from '../lib/api';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardHeader } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Skeleton } from './ui/skeleton';
+import { Textarea } from './ui/textarea';
+import { ScrollArea } from './ui/scroll-area';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { Plus, Eye as ViewIcon, Edit2 as EditIcon, Trash2 as DeleteIcon, Lock } from 'lucide-react';
 
 interface ModelSchemaViewProps {
   userRole: UserRole;
@@ -37,6 +33,10 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [selectedSchemaForDetail, setSelectedSchemaForDetail] = useState<ModelSchema | null>(null);
   const [isSchemaDetailOpen, setIsSchemaDetailOpen] = useState(false);
+
+  // State for Data Source filtering
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [selectedDataSourceId, setSelectedDataSourceId] = useState<string>("all");
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);

@@ -1171,19 +1171,6 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       
       toast.success(`Data source "${getDataSourceName(created)}" created successfully!`);
       
-      // ✅ US1: Offer to continue with Data Capture Specification
-      // Show a prompt asking if user wants to add a specification
-      setTimeout(() => {
-        const continueWithSpec = window.confirm(
-          'Data Source created successfully!\n\nWould you like to add a Data Capture Specification now?'
-        );
-        
-        if (continueWithSpec) {
-          setSelectedDataSource(created);
-          setIsSpecCreateOpen(true);
-        }
-      }, 500);
-      
       // Refresh data from API after a short delay to allow backend to fully process
       setTimeout(() => {
         refreshData();
@@ -1271,10 +1258,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         idToUpdate,
         editDataSourceName.trim(),
         etag,
-        undefined, // type
-        undefined, // connection
-        undefined, // description
-        undefined, // tenantId - cannot be changed
+        dataSourceToEdit.Type, // preserve type
+        dataSourceToEdit.ConnectionString, // preserve connection string
+        dataSourceToEdit.Description, // preserve description
+        dataSourceToEdit.TenantId, // preserve tenantId - required by API
       );
       
       // Update in list

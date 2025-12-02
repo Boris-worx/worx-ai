@@ -292,6 +292,10 @@ export async function deleteTenant(
 }
 
 // Update tenant (Edit functionality)
+// PUT /tenants/{tenantId}
+// Headers: If-Match with ETag value from previous GET/POST
+// Body: { TenantId, TenantName }
+// Response: { status: {...}, data: { tenant: {...} } }
 export async function updateTenant(
   tenantId: string,
   tenantName: string,
@@ -331,8 +335,8 @@ export async function updateTenant(
       );
     }
 
-    const data: ApiResponse<Tenant> = await response.json();
-    return data.data;
+    const data: ApiResponse<{ tenant: Tenant }> = await response.json();
+    return data.data.tenant;
   } catch (error) {
     console.error("Error updating tenant:", error);
     throw error;
@@ -712,6 +716,12 @@ async function getModelSchemasByTenantGlobal(tenantId: string): Promise<ModelSch
 
 // ==================== TRANSACTION API FUNCTIONS ====================
 
+// Transaction Type with metadata (includes dataSourceId for grouping)
+export interface TransactionTypeInfo {
+  name: string; // dataCaptureSpecName
+  dataSourceId: string;
+}
+
 // Fallback transaction types in case API fails
 // These are common types that should exist in most BFS deployments
 const FALLBACK_TRANSACTION_TYPES = [
@@ -726,6 +736,9 @@ const FALLBACK_TRANSACTION_TYPES = [
 // Transaction types - dynamically loaded from data-capture-specs API
 // These are loaded on app initialization via loadTransactionTypes()
 export let TRANSACTION_TYPES: string[] = [...FALLBACK_TRANSACTION_TYPES];
+
+// Transaction types with full metadata (includes dataSourceId)
+export let TRANSACTION_TYPES_INFO: TransactionTypeInfo[] = [];
 
 // Load transaction types from data-capture-specs API
 export async function loadTransactionTypes(): Promise<string[]> {
@@ -745,21 +758,32 @@ export async function loadTransactionTypes(): Promise<string[]> {
 
     const data = await response.json();
     
-    // Extract ONLY dataCaptureSpecName - fast and minimal
-    const names = data.data?.DataCaptureSpecs?.map((x: any) => x.dataCaptureSpecName).filter(Boolean) || [];
+    // Extract dataCaptureSpecName and dataSourceId from list
+    const specs = data.data?.DataCaptureSpecs || [];
     
-    if (names.length === 0) {
+    if (specs.length === 0) {
       console.warn('⚠️ No Data Capture Specs found, using fallback types');
       TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
+      TRANSACTION_TYPES_INFO = [];
       return FALLBACK_TRANSACTION_TYPES;
     }
     
+    // Build transaction types info with dataSourceId
+    const typesInfo: TransactionTypeInfo[] = specs
+      .filter((x: any) => x.dataCaptureSpecName)
+      .map((x: any) => ({
+        name: x.dataCaptureSpecName,
+        dataSourceId: x.dataSourceId || x.DataSourceId || 'unknown',
+      }));
+    
     // Get unique names and sort alphabetically
-    const uniqueNames = [...new Set(names)].sort();
+    const uniqueNames = [...new Set(typesInfo.map(t => t.name))].sort();
 
     TRANSACTION_TYPES = uniqueNames;
+    TRANSACTION_TYPES_INFO = typesInfo;
+    
     const endTime = performance.now();
-    console.log(`✅ Loaded ${TRANSACTION_TYPES.length} transaction types in ${(endTime - startTime).toFixed(0)}ms`);
+    console.log(`✅ Loaded ${TRANSACTION_TYPES.length} transaction types with dataSourceIds in ${(endTime - startTime).toFixed(0)}ms`);
     
     return uniqueNames;
   } catch (error: any) {
@@ -768,6 +792,7 @@ export async function loadTransactionTypes(): Promise<string[]> {
     
     // Use fallback types on error
     TRANSACTION_TYPES = [...FALLBACK_TRANSACTION_TYPES];
+    TRANSACTION_TYPES_INFO = [];
     return FALLBACK_TRANSACTION_TYPES;
   }
 }
@@ -1507,6 +1532,10 @@ export async function deleteDataSource(
 }
 
 // Update data source
+// PUT /datasources/{dataSourceId}
+// Headers: If-Match with ETag value from previous GET/POST
+// Body: { DatasourceId, DatasourceName, Type?, ConnectionString?, Description?, TenantId? }
+// Response: { status: {...}, data: { datasource: {...} } }
 export async function updateDataSource(
   dataSourceId: string,
   dataSourceName: string,
@@ -1533,21 +1562,20 @@ export async function updateDataSource(
 
   try {
     const requestBody: any = {
-      DatasourceName: dataSourceName,
+      DatasourceId: dataSourceId, // Required - like TenantId for Tenant
+      DatasourceName: dataSourceName, // Required
+      TenantId: tenantId || '', // Required by API
     };
     
     // Only include optional fields if they are provided
-    if (type !== undefined) {
+    if (type !== undefined && type !== null) {
       requestBody.Type = type;
     }
-    if (connectionString !== undefined) {
+    if (connectionString !== undefined && connectionString !== null) {
       requestBody.ConnectionString = connectionString;
     }
-    if (description !== undefined) {
+    if (description !== undefined && description !== null) {
       requestBody.Description = description;
-    }
-    if (tenantId !== undefined) {
-      requestBody.TenantId = tenantId;
     }
 
     console.log('📝 PUT Data Source Request:');
@@ -1586,9 +1614,9 @@ export async function updateDataSource(
     const responseText = await response.text();
     console.log('✅ Success response:', responseText);
     
-    const data: ApiResponse<DataSource> = JSON.parse(responseText);
-    console.log("Updated data source:", data.data);
-    return data.data;
+    const data: ApiResponse<{ datasource: DataSource }> = JSON.parse(responseText);
+    console.log("Updated data source:", data.data.datasource);
+    return data.data.datasource;
   } catch (error) {
     console.error("Error updating data source:", error);
     throw error;

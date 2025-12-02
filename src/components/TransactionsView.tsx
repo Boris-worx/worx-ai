@@ -1,12 +1,16 @@
 import {
   Transaction,
   TRANSACTION_TYPES,
+  TRANSACTION_TYPES_INFO,
+  TransactionTypeInfo,
   getTransactionsByType,
   createTransaction,
   updateTransaction,
   deleteTransaction,
   PaginatedTransactionsResponse,
   formatTransactionType,
+  getAllDataSources,
+  DataSource,
 } from "../lib/api";
 import { useState, useMemo, useEffect, useRef, memo } from "react";
 import { Button } from "./ui/button";
@@ -171,6 +175,14 @@ export function TransactionsView({
   // State for sorting transaction types
   type SortMode = 'name-asc' | 'name-desc' | 'count-asc' | 'count-desc';
   const [sortMode, setSortMode] = useState<SortMode>('name-asc');
+
+  // State for Data Source filtering
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [selectedDataSourceId, setSelectedDataSourceId] = useState<string>("all");
+  
+  // State for Accordion (which groups are open)
+  // By default all groups are open, we track closed groups instead
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
 
   // Use transaction types loaded from data-capture-specs API
   // These are loaded via loadTransactionTypes() in App.tsx on mount
@@ -958,6 +970,20 @@ export function TransactionsView({
     }
   }, [transactionTypes, selectedTxnType]);
 
+  // Load Data Sources for filtering
+  useEffect(() => {
+    const loadDataSources = async () => {
+      try {
+        const sources = await getAllDataSources(activeTenantId === 'global' ? undefined : activeTenantId);
+        setDataSources(sources);
+      } catch (error) {
+        console.error('Failed to load data sources:', error);
+      }
+    };
+    
+    loadDataSources();
+  }, [activeTenantId]);
+
   // Auto-load data when selectedTxnType changes
   useEffect(() => {
     if (selectedTxnType && transactionTypes.length > 0) {
@@ -1321,21 +1347,52 @@ export function TransactionsView({
   };
 
   // Determine which group a transaction type belongs to
-  const getTypeGroup = (type: string): 'BFS Online' | 'Paradigm BigTools' => {
-    // BFS Online types typically start with lowercase (ar, loc, qbDrct, etc.)
-    // Paradigm BigTools types typically start with uppercase (Customer, LineType, etc.)
+  const getTypeGroup = (type: string): string => {
+    // Find the Data Source for this transaction type
+    const typeInfo = TRANSACTION_TYPES_INFO.find(t => t.name === type);
+    if (typeInfo?.dataSourceId) {
+      // Find the Data Source name
+      const ds = dataSources.find(d => 
+        (d.DatasourceId || d.DataSourceId) === typeInfo.dataSourceId
+      );
+      if (ds) {
+        return ds.DatasourceName || ds.DataSourceName || 'Unknown';
+      }
+    }
+    // Fallback to old logic if Data Source not found
     const firstChar = type.charAt(0);
     return firstChar === firstChar.toLowerCase() ? 'BFS Online' : 'Paradigm BigTools';
   };
 
-  // Filter types by search term
+  // Filter types by search term and Data Source
   const filteredTypes = useMemo(() => {
-    if (!searchTerm.trim()) return transactionTypes;
-    const lower = searchTerm.toLowerCase();
-    return transactionTypes.filter((type) =>
-      type.toLowerCase().includes(lower),
-    );
-  }, [searchTerm, transactionTypes]);
+    let types = transactionTypes;
+    
+    // Filter by Data Source
+    if (selectedDataSourceId !== "all") {
+      types = types.filter((type) => {
+        const typeInfo = TRANSACTION_TYPES_INFO.find(t => t.name === type);
+        return typeInfo?.dataSourceId === selectedDataSourceId;
+      });
+    }
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const lower = searchTerm.toLowerCase();
+      types = types.filter((type) =>
+        type.toLowerCase().includes(lower),
+      );
+    }
+    
+    // Filter out types with 0 count (only show types with data)
+    types = types.filter((type) => {
+      const count = typeCounts[type];
+      // Keep types that are either unloaded (undefined) or have count > 0
+      return count === undefined || count > 0;
+    });
+    
+    return types;
+  }, [searchTerm, transactionTypes, selectedDataSourceId, typeCounts]);
   
   // Sort filtered types based on sort mode
   const sortedFilteredTypes = useMemo(() => {
@@ -1368,20 +1425,44 @@ export function TransactionsView({
   
   // Group types by their group
   const groupedTypes = useMemo(() => {
-    const groups: Record<string, string[]> = {
-      'BFS Online': [],
-      'Paradigm BigTools': [],
-    };
+    const groups: Record<string, string[]> = {};
     
     sortedFilteredTypes.forEach(type => {
       const group = getTypeGroup(type);
+      if (!groups[group]) {
+        groups[group] = [];
+      }
       groups[group].push(type);
     });
     
     return groups;
-  }, [sortedFilteredTypes]);
+  }, [sortedFilteredTypes, dataSources]);
 
-  // No grouping - use flat list of transaction types
+  // Get group names in a consistent order
+  const groupNames = useMemo(() => {
+    return Object.keys(groupedTypes).sort();
+  }, [groupedTypes]);
+
+  // Calculate which groups are open (all groups except closed ones)
+  const openGroups = useMemo(() => {
+    return groupNames.filter(name => !closedGroups.has(name));
+  }, [groupNames, closedGroups]);
+
+  // Filter Data Sources to show only those with transaction types that have data
+  const filteredDataSources = useMemo(() => {
+    return dataSources.filter((ds) => {
+      const dsId = ds.DatasourceId || ds.DataSourceId;
+      // Check if this Data Source has at least one type with count > 0
+      return transactionTypes.some((type) => {
+        const typeInfo = TRANSACTION_TYPES_INFO.find(t => t.name === type);
+        if (typeInfo?.dataSourceId === dsId) {
+          const count = typeCounts[type];
+          return count !== undefined && count > 0;
+        }
+        return false;
+      });
+    });
+  }, [dataSources, transactionTypes, typeCounts]);
 
   // Helper function to get nested value from object
   const getNestedValue = (obj: any, path: string): any => {
@@ -1790,33 +1871,21 @@ export function TransactionsView({
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* BFS Online Group */}
-                    {groupedTypes['BFS Online'].length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                          BFS Online
+                    {/* Dynamic Data Source Groups */}
+                    {groupNames.map((groupName, index) => (
+                      groupedTypes[groupName].length > 0 && (
+                        <div key={groupName}>
+                          <div className={`px-2 py-1.5 text-xs font-semibold text-muted-foreground ${index > 0 ? 'border-t mt-1 pt-2' : ''}`}>
+                            {groupName}
+                          </div>
+                          {groupedTypes[groupName].map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {formatTransactionType(type)} ({typeCounts[type] || 0})
+                            </SelectItem>
+                          ))}
                         </div>
-                        {groupedTypes['BFS Online'].map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {formatTransactionType(type)} ({typeCounts[type] || 0})
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                    
-                    {/* Paradigm BigTools Group */}
-                    {groupedTypes['Paradigm BigTools'].length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                          Paradigm BigTools
-                        </div>
-                        {groupedTypes['Paradigm BigTools'].map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {formatTransactionType(type)} ({typeCounts[type] || 0})
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
+                      )
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1909,6 +1978,27 @@ export function TransactionsView({
           <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6">
             {/* Left Sidebar - Transaction Types List */}
             <div className="space-y-3 md:block hidden">
+              {/* Data Source Filter */}
+              <Select
+                value={selectedDataSourceId}
+                onValueChange={setSelectedDataSourceId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by Data Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Data Sources</SelectItem>
+                  {filteredDataSources.map((ds) => (
+                    <SelectItem
+                      key={ds.DatasourceId || ds.DataSourceId}
+                      value={ds.DatasourceId || ds.DataSourceId || ''}
+                    >
+                      {ds.DatasourceName || ds.DataSourceName || 'Unknown'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               {/* Search Types and Sort */}
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -1966,78 +2056,55 @@ export function TransactionsView({
                       <Skeleton className="h-9 w-full" />
                     </div>
                   ) : sortedFilteredTypes.length > 0 ? (
-                    <Accordion type="multiple" defaultValue={['BFS Online', 'Paradigm BigTools']} className="w-full">
-                      {/* BFS Online Group */}
-                      {groupedTypes['BFS Online'].length > 0 && (
-                        <AccordionItem value="BFS Online" className="border-b-0">
-                          <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
-                            <div className="flex items-center gap-2">
-                              <span>BFS Online</span>
-                              <Badge variant="secondary" className="text-xs">
-                                {groupedTypes['BFS Online'].length}
-                              </Badge>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="pb-0">
-                            <div className="space-y-1 px-2 pb-2">
-                              {groupedTypes['BFS Online'].map((type) => {
-                                const count = typeCounts[type];
-                                const isCountLoaded = count !== undefined;
-                                const isActiveType = selectedTxnType === type;
-                                const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
-                                
-                                return (
-                                  <TransactionTypeButton
-                                    key={type}
-                                    type={type}
-                                    isActive={isActiveType}
-                                    count={count}
-                                    isCountLoaded={isCountLoaded}
-                                    isLoadingThisCount={isLoadingThisCount}
-                                    onClick={() => handleTypeChange(type)}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      )}
-                      
-                      {/* Paradigm BigTools Group */}
-                      {groupedTypes['Paradigm BigTools'].length > 0 && (
-                        <AccordionItem value="Paradigm BigTools" className="border-b-0">
-                          <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
-                            <div className="flex items-center gap-2">
-                              <span>Paradigm BigTools</span>
-                              <Badge variant="secondary" className="text-xs">
-                                {groupedTypes['Paradigm BigTools'].length}
-                              </Badge>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="pb-0">
-                            <div className="space-y-1 px-2 pb-2">
-                              {groupedTypes['Paradigm BigTools'].map((type) => {
-                                const count = typeCounts[type];
-                                const isCountLoaded = count !== undefined;
-                                const isActiveType = selectedTxnType === type;
-                                const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
-                                
-                                return (
-                                  <TransactionTypeButton
-                                    key={type}
-                                    type={type}
-                                    isActive={isActiveType}
-                                    count={count}
-                                    isCountLoaded={isCountLoaded}
-                                    isLoadingThisCount={isLoadingThisCount}
-                                    onClick={() => handleTypeChange(type)}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      )}
+                    <Accordion 
+                      type="multiple" 
+                      value={openGroups} 
+                      onValueChange={(newOpenGroups) => {
+                        // Calculate which groups are now closed
+                        const newClosedGroups = new Set(
+                          groupNames.filter(name => !newOpenGroups.includes(name))
+                        );
+                        setClosedGroups(newClosedGroups);
+                      }} 
+                      className="w-full"
+                    >
+                      {/* Dynamic Data Source Groups */}
+                      {groupNames.map((groupName) => (
+                        groupedTypes[groupName].length > 0 && (
+                          <AccordionItem key={groupName} value={groupName} className="border-b-0">
+                            <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
+                              <div className="flex items-center gap-2">
+                                <span>{groupName}</span>
+                                <Badge variant="secondary" className="text-xs">
+                                  {groupedTypes[groupName].length}
+                                </Badge>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pb-0">
+                              <div className="space-y-1 px-2 pb-2">
+                                {groupedTypes[groupName].map((type) => {
+                                  const count = typeCounts[type];
+                                  const isCountLoaded = count !== undefined;
+                                  const isActiveType = selectedTxnType === type;
+                                  const isLoadingThisCount = !isCountLoaded && isActiveType && isLoadingType;
+                                  
+                                  return (
+                                    <TransactionTypeButton
+                                      key={type}
+                                      type={type}
+                                      isActive={isActiveType}
+                                      count={count}
+                                      isCountLoaded={isCountLoaded}
+                                      isLoadingThisCount={isLoadingThisCount}
+                                      onClick={() => handleTypeChange(type)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        )
+                      ))}
                     </Accordion>
                   ) : (
                     <div className="p-4 text-center text-muted-foreground text-sm">
