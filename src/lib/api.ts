@@ -1462,6 +1462,74 @@ export async function createDataSource(
   }
 }
 
+// Update existing data source
+export async function updateDataSource(
+  dataSourceId: string,
+  dataSourceName: string,
+  tenantId?: string
+): Promise<DataSource> {
+  if (DEMO_MODE) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const updatedDataSource: DataSource = {
+      DatasourceId: dataSourceId,
+      DatasourceName: dataSourceName,
+      TenantId: tenantId,
+      Status: 'Active',
+      CreateTime: new Date().toISOString(),
+      UpdateTime: new Date().toISOString(),
+      _etag: `\"demo-etag-${Date.now()}\"`,
+    };
+    return { ...updatedDataSource };
+  }
+
+  try {
+    // PUT request requires DatasourceId, DatasourceName, and TenantId
+    const requestBody: any = {
+      DatasourceId: dataSourceId,
+      DatasourceName: dataSourceName,
+      TenantId: tenantId || '', // TenantId is required in PUT
+    };
+
+    console.log('📤 PUT Data Source Request:');
+    console.log('  URL:', `${API_BASE_URL}/datasources/${dataSourceId}`);
+    console.log('  Body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(`${API_BASE_URL}/datasources/${dataSourceId}`, {
+      method: "PUT",
+      headers: getHeaders(),
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`API returned ${response.status}: ${errorText}`);
+      }
+      
+      throw new Error(
+        errorData.status?.message || "Failed to update data source",
+      );
+    }
+
+    const responseText = await response.text();
+    console.log('✅ Success response:', responseText);
+    
+    const data: { status: { code: number; message: string }; data: { DataSource: DataSource } } = JSON.parse(responseText);
+    console.log("Updated data source:", data.data.DataSource);
+    return data.data.DataSource;
+  } catch (error) {
+    console.error("Error updating data source:", error);
+    throw error;
+  }
+}
+
 // Delete data source
 export async function deleteDataSource(
   dataSourceId: string,
@@ -1527,98 +1595,6 @@ export async function deleteDataSource(
     }
   } catch (error) {
     console.error("Error deleting data source:", error);
-    throw error;
-  }
-}
-
-// Update data source
-// PUT /datasources/{dataSourceId}
-// Headers: If-Match with ETag value from previous GET/POST
-// Body: { DatasourceId, DatasourceName, Type?, ConnectionString?, Description?, TenantId? }
-// Response: { status: {...}, data: { datasource: {...} } }
-export async function updateDataSource(
-  dataSourceId: string,
-  dataSourceName: string,
-  etag: string,
-  type?: string,
-  connectionString?: string,
-  description?: string,
-  tenantId?: string,
-): Promise<DataSource> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const dataSource: DataSource = {
-      DatasourceId: dataSourceId,
-      DatasourceName: dataSourceName,
-      Type: type,
-      ConnectionString: connectionString,
-      Description: description,
-      TenantId: tenantId,
-      UpdateTime: new Date().toISOString(),
-      _etag: `\"demo-etag-${Date.now()}\"`,
-    };
-    return { ...dataSource };
-  }
-
-  try {
-    const requestBody: any = {
-      DatasourceId: dataSourceId, // Required - like TenantId for Tenant
-      DatasourceName: dataSourceName, // Required
-      TenantId: tenantId || '', // Required by API
-    };
-    
-    // Only include optional fields if they are provided
-    if (type !== undefined && type !== null) {
-      requestBody.Type = type;
-    }
-    if (connectionString !== undefined && connectionString !== null) {
-      requestBody.ConnectionString = connectionString;
-    }
-    if (description !== undefined && description !== null) {
-      requestBody.Description = description;
-    }
-
-    console.log('📝 PUT Data Source Request:');
-    console.log('  DataSourceId:', dataSourceId);
-    console.log('  URL:', `${API_BASE_URL}/datasources/${encodeURIComponent(dataSourceId)}`);
-    console.log('  ETag:', etag);
-    console.log('  Body:', JSON.stringify(requestBody, null, 2));
-
-    const response = await fetch(
-      `${API_BASE_URL}/datasources/${encodeURIComponent(dataSourceId)}`,
-      {
-        method: "PUT",
-        headers: getHeaders(etag),
-        body: JSON.stringify(requestBody),
-      },
-    );
-
-    console.log('📥 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error response:', errorText);
-      
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        throw new Error(`API returned ${response.status}: ${errorText}`);
-      }
-      
-      throw new Error(
-        errorData.status?.message || "Failed to update data source",
-      );
-    }
-
-    const responseText = await response.text();
-    console.log('✅ Success response:', responseText);
-    
-    const data: ApiResponse<{ datasource: DataSource }> = JSON.parse(responseText);
-    console.log("Updated data source:", data.data.datasource);
-    return data.data.datasource;
-  } catch (error) {
-    console.error("Error updating data source:", error);
     throw error;
   }
 }
@@ -2354,15 +2330,51 @@ export interface ApicurioSchemaContent {
   [key: string]: any; // JSON Schema content
 }
 
-// Get all artifacts from Apicurio Registry (v3 API - no groups concept)
+// Get all groups from Apicurio Registry v3 API
 export async function getApicurioGroups(): Promise<ApicurioGroupsList> {
-  // Note: v3 API doesn't have groups, but we return empty to maintain compatibility
-  // Real artifacts are fetched via getApicurioArtifacts()
-  console.log('⚠️ v3 API does not use groups - returning empty list');
-  return {
-    count: 0,
-    groups: []
-  };
+  try {
+    console.log('📡 Fetching all Apicurio groups (v3 API)...');
+    
+    const url = `${APICURIO_REGISTRY_URL}/groups`;
+    console.log(`  URL: ${url}`);
+    
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch groups: ${response.status}`, errorText);
+      throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Found ${data.count} groups in Apicurio Registry`);
+    
+    // Log groups for debugging
+    if (data.groups && data.groups.length > 0) {
+      console.log('  Groups:');
+      data.groups.forEach((g: any) => {
+        console.log(`    - ${g.groupId} (${g.description || 'no description'})`);
+      });
+    }
+    
+    return {
+      count: data.count || 0,
+      groups: data.groups || []
+    };
+  } catch (error) {
+    console.error("❌ Error fetching Apicurio groups:", error);
+    // Return empty list on error to allow UI to continue
+    return {
+      count: 0,
+      groups: []
+    };
+  }
 }
 
 // Get all artifacts from Apicurio Registry v3 API (no groups - returns all artifacts)
@@ -2425,6 +2437,99 @@ export async function getApicurioArtifacts(searchQuery: string = "Value"): Promi
     };
   } catch (error) {
     console.error("❌ Error fetching Apicurio artifacts:", error);
+    throw error;
+  }
+}
+
+// Get ALL artifacts from ALL groups in Apicurio Registry v3 API
+export async function getAllApicurioArtifacts(): Promise<ApicurioArtifactsList> {
+  try {
+    console.log('📡 Fetching ALL Apicurio artifacts from ALL groups (v3 API)...');
+    
+    // Step 1: Get all groups
+    const groupsResponse = await getApicurioGroups();
+    console.log(`  Found ${groupsResponse.count} groups`);
+    
+    if (groupsResponse.count === 0) {
+      console.warn('⚠️ No groups found, returning empty artifact list');
+      return { count: 0, artifacts: [] };
+    }
+    
+    // Step 2: Fetch artifacts from each group
+    const allArtifacts: any[] = [];
+    
+    for (const group of groupsResponse.groups) {
+      const groupId = group.groupId || group.id;
+      console.log(`  📂 Fetching artifacts from group: ${groupId}...`);
+      
+      try {
+        const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts`;
+        console.log(`    URL: ${url}`);
+        
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          console.warn(`    ⚠️ Failed to fetch artifacts from group ${groupId}: ${response.status}`);
+          continue; // Skip this group and continue with others
+        }
+
+        const data = await response.json();
+        const artifacts = data.artifacts || [];
+        
+        console.log(`    ✅ Found ${artifacts.length} artifacts in group ${groupId}`);
+        
+        // Helper function to check if artifactId looks like a UUID or hash
+        const isHashedName = (artifactId: string): boolean => {
+          const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const hashPattern = /^[0-9a-f]{8,}-[0-9a-f]{4,}-[0-9a-f]{4,}-/i;
+          return uuidPattern.test(artifactId) || hashPattern.test(artifactId);
+        };
+        
+        // Transform and add to collection
+        const transformedArtifacts = artifacts
+          .filter((artifact: any) => !isHashedName(artifact.artifactId))
+          .map((artifact: any) => ({
+            ...artifact,
+            id: artifact.artifactId, // Legacy field
+            type: artifact.artifactType, // Legacy field
+            groupId: groupId, // Add groupId to each artifact
+          }));
+        
+        allArtifacts.push(...transformedArtifacts);
+        
+      } catch (error) {
+        console.error(`    ❌ Error fetching artifacts from group ${groupId}:`, error);
+        // Continue with other groups
+      }
+    }
+    
+    console.log(`✅ Total artifacts fetched from all groups: ${allArtifacts.length}`);
+    
+    // Log breakdown by group and type
+    const byGroup: Record<string, number> = {};
+    const byType: Record<string, number> = {};
+    allArtifacts.forEach(a => {
+      const group = a.groupId || 'unknown';
+      const type = a.artifactType || a.type || 'unknown';
+      byGroup[group] = (byGroup[group] || 0) + 1;
+      byType[type] = (byType[type] || 0) + 1;
+    });
+    console.log('  Breakdown by group:', byGroup);
+    console.log('  Breakdown by type:', byType);
+    
+    return {
+      count: allArtifacts.length,
+      artifacts: allArtifacts
+    };
+    
+  } catch (error) {
+    console.error("❌ Error fetching all Apicurio artifacts:", error);
     throw error;
   }
 }

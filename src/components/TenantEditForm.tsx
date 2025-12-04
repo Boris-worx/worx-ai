@@ -70,7 +70,7 @@ export function TenantEditForm({ tenant, open, onOpenChange, onSuccess }: Tenant
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[75vw] min-w-[500px] max-w-[90vw]">
+      <DialogContent className="max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Edit Tenant</DialogTitle>
           <DialogDescription>

@@ -106,26 +106,34 @@ export async function getApicurioGroups(): Promise<ApicurioGroup[]> {
       },
     });
 
+    console.log(`📦 Response status: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error details');
       if (response.status === 403) {
-        console.log('📦 Access forbidden to groups list (using hardcoded groups)');
+        console.warn('📦 Access forbidden to groups list (using hardcoded groups)', errorText);
         // Return only known groups when API is blocked
         return KNOWN_GROUPS;
       }
-      throw new Error(`Failed to fetch groups: ${response.status}`);
+      console.warn(`📦 Failed to fetch groups: ${response.status} - ${errorText}`);
+      return KNOWN_GROUPS;
     }
 
     const data = await response.json();
-    console.log('📦 Fetched groups:', data.groups?.length || 0);
+    console.log('📦 API response data:', { count: data.count, groupsLength: data.groups?.length });
     
-    // Filter to only return our two known groups even if API returns more
     const groups = data.groups || [];
-    const filteredGroups = groups.filter((g: ApicurioGroup) => 
-      KNOWN_GROUPS.some(kg => kg.id === g.id)
-    );
+    console.log('📦 Fetched groups:', groups.length);
     
-    console.log('📦 Filtered to known groups:', filteredGroups.length);
-    return filteredGroups.length > 0 ? filteredGroups : KNOWN_GROUPS;
+    // Log all groups for debugging
+    if (groups.length > 0) {
+      console.log('📦 Available groups:', groups.map((g: ApicurioGroup) => g.id).join(', '));
+      // Log first group structure to see what fields are available
+      console.log('📦 Sample group structure:', groups[0]);
+    }
+    
+    // Return all groups from API (no filtering)
+    return groups.length > 0 ? groups : KNOWN_GROUPS;
   } catch (error) {
     console.error('❌ Error fetching Apicurio groups:', error);
     // Return only known groups on error
@@ -133,42 +141,65 @@ export async function getApicurioGroups(): Promise<ApicurioGroup[]> {
   }
 }
 
-// Get all artifacts from a specific group
+// Get all artifacts from a specific group (with pagination support)
 export async function getGroupArtifacts(groupId: string): Promise<ApicurioArtifact[]> {
   try {
-    const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts?limit=100`;
-    console.log(`📦 Fetching artifacts from group ${groupId}:`, url);
+    const allArtifacts: any[] = [];
+    let offset = 0;
+    const limit = 500; // Fetch up to 500 per request
+    let hasMore = true;
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    });
+    while (hasMore) {
+      const url = `${APICURIO_REGISTRY_URL}/groups/${encodeURIComponent(groupId)}/artifacts?limit=${limit}&offset=${offset}`;
+      console.log(`📦 Fetching artifacts from group ${groupId} (offset ${offset}):`, url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
-      if (response.status === 403) {
-        console.warn(`📦 Access forbidden to group ${groupId}`);
-        return [];
+      if (!response.ok) {
+        if (response.status === 403) {
+          console.warn(`📦 Access forbidden to group ${groupId} (403)`);
+          return allArtifacts;
+        }
+        if (response.status === 404) {
+          console.warn(`📦 Group ${groupId} not found (404)`);
+          return allArtifacts;
+        }
+        const errorText = await response.text().catch(() => 'No error details');
+        console.warn(`📦 Failed to fetch artifacts for group ${groupId}: ${response.status} - ${errorText}`);
+        return allArtifacts;
       }
-      if (response.status === 404) {
-        console.warn(`📦 Group ${groupId} not found`);
-        return [];
+
+      const data = await response.json();
+      const artifacts = data.artifacts || [];
+      
+      console.log(`📦 Response from ${groupId}: ${artifacts.length} artifacts, count: ${data.count || 'unknown'}`);
+      
+      if (artifacts.length === 0) {
+        hasMore = false;
+      } else {
+        allArtifacts.push(...artifacts);
+        offset += artifacts.length;
+        
+        // If we got fewer than the limit, there are no more results
+        if (artifacts.length < limit) {
+          hasMore = false;
+        }
       }
-      throw new Error(`Failed to fetch artifacts for group ${groupId}: ${response.status}`);
     }
-
-    const data = await response.json();
-    const artifacts = data.artifacts || [];
     
     // Add groupId to each artifact
-    const artifactsWithGroup = artifacts.map((artifact: any) => ({
+    const artifactsWithGroup = allArtifacts.map((artifact: any) => ({
       ...artifact,
       groupId: groupId,
     }));
     
-    console.log(`📦 Fetched ${artifactsWithGroup.length} artifacts from group ${groupId}`);
+    console.log(`📦 Fetched ${artifactsWithGroup.length} total artifacts from group ${groupId}`);
     return artifactsWithGroup;
   } catch (error) {
     console.error(`❌ Error fetching artifacts for group ${groupId}:`, error);
@@ -228,8 +259,19 @@ export function getLatestVersion(versions: ApicurioVersion[]): string | null {
 
 // Get friendly display name for a group ID
 export function getGroupDisplayName(groupId: string): string {
+  // Check if we have a hardcoded description first
   const group = KNOWN_GROUPS.find(g => g.id === groupId);
-  return group?.description || groupId;
+  if (group?.description) {
+    return group.description;
+  }
+  
+  // Otherwise, format the groupId nicely
+  // Convert dots to spaces and capitalize words
+  // e.g., "paradigm.bidtools2" -> "Paradigm Bidtools2"
+  return groupId
+    .split('.')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 // Get default version for a group (fallback when API doesn't return versions)
@@ -286,9 +328,41 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     const results = await Promise.all(artifactPromises);
     allArtifacts.push(...results.flat());
 
-    // If no artifacts from any group, throw error
+    // If no artifacts from any group, try alternative search method
     if (allArtifacts.length === 0) {
-      throw new Error('No artifacts available from Apicurio Registry. Please check API access.');
+      console.warn('📦 ⚠️ No artifacts from groups, trying direct search API...');
+      try {
+        const searchUrl = `${APICURIO_REGISTRY_URL}/search/artifacts?limit=500`;
+        console.log(`📦 Trying search endpoint:`, searchUrl);
+        
+        const searchResponse = await fetch(searchUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          const searchArtifacts = searchData.artifacts || [];
+          console.log(`📦 ✅ Found ${searchArtifacts.length} artifacts via search`);
+          allArtifacts.push(...searchArtifacts);
+        } else {
+          console.warn(`📦 Search API returned: ${searchResponse.status}`);
+        }
+      } catch (searchError) {
+        console.warn('📦 Search API also failed:', searchError);
+      }
+      
+      // If still no artifacts, return empty (don't throw error)
+      if (allArtifacts.length === 0) {
+        console.warn('📦 ⚠️ No artifacts available from any method');
+        return {
+          artifacts: [],
+          count: 0
+        };
+      }
     }
 
     const data: ApicurioSearchResponse = {
@@ -311,7 +385,7 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     
     return data;
   } catch (error: any) {
-    console.error('❌ Apicurio Registry error:', error);
+    console.warn('⚠️ Apicurio Registry error:', error);
     
     // If we have cached data, use it even if expired
     if (artifactsCache) {
@@ -319,8 +393,8 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       return artifactsCache;
     }
     
-    // No cache available - return empty result
-    console.error('❌ No artifacts available and no cache. Apicurio Registry is unavailable.');
+    // No cache available - return empty result (don't block UI)
+    console.warn('⚠️ No artifacts available and no cache. Apicurio Registry may be unavailable.');
     return {
       artifacts: [],
       count: 0

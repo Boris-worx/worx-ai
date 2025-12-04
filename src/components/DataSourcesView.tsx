@@ -1252,16 +1252,11 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
     setIsSubmitting(true);
     try {
-      const etag = dataSourceToEdit._etag || '';
       const idToUpdate = getDataSourceId(dataSourceToEdit);
       const updated = await updateDataSource(
         idToUpdate,
         editDataSourceName.trim(),
-        etag,
-        dataSourceToEdit.Type, // preserve type
-        dataSourceToEdit.ConnectionString, // preserve connection string
-        dataSourceToEdit.Description, // preserve description
-        dataSourceToEdit.TenantId, // preserve tenantId - required by API
+        dataSourceToEdit.TenantId, // TenantId is required by PUT API
       );
       
       // Update in list
@@ -1274,8 +1269,10 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       
       toast.success(`Data source "${getDataSourceName(updated)}" updated successfully!`);
       
-      // Refresh data from API
-      refreshData();
+      // Refresh data from API after a short delay
+      setTimeout(() => {
+        refreshData();
+      }, 1000);
     } catch (error: any) {
       toast.error(`Failed to update data source: ${error.message}`);
     } finally {

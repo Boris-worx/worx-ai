@@ -47,6 +47,10 @@ import {
   ChevronsUpDown,
   X,
   RefreshCw,
+  Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DataSource, createDataCaptureSpec } from "../lib/api";
@@ -148,6 +152,10 @@ export function DataCaptureSpecCreateDialog({
   const [selectedArtifact, setSelectedArtifact] =
     useState<string>("");
   const [templateSearchOpen, setTemplateSearchOpen] = useState(false);
+  
+  // Template filtering and sorting states
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [templateSortOrder, setTemplateSortOrder] = useState<'asc' | 'desc'>('asc');
   
   // Track previous isOpen value to detect opening transition
   const prevIsOpen = useRef(false);
@@ -703,6 +711,12 @@ export function DataCaptureSpecCreateDialog({
       }));
     }
     
+    // Reset filters when opening dialog
+    if (isOpening) {
+      setSelectedGroups([]);
+      setTemplateSortOrder('asc');
+    }
+    
     // Update ref for next render
     prevIsOpen.current = isOpen;
   }, [isOpen, selectedDataSource, activeTenantId]); // Safe to include all deps now
@@ -727,6 +741,8 @@ export function DataCaptureSpecCreateDialog({
         containerSchemaText: "",
       });
       setSelectedArtifact("");
+      setSelectedGroups([]);
+      setTemplateSortOrder('asc');
     }
   }, [isOpen]);
 
@@ -1010,64 +1026,165 @@ export function DataCaptureSpecCreateDialog({
                           <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[600px] p-0" align="start">
-                        <Command className="h-auto" shouldFilter={false}>
-                          <CommandInput placeholder="Search templates..." className="h-8 text-xs" />
+                      <PopoverContent className="w-[550px] p-0" align="start">
+                        <div className="border-b p-3">
+                          {/* Search, Filters and Sort Row - All in one line */}
+                          <div className="flex items-center gap-2">
+                            {/* Search Bar */}
+                            <Command className="h-auto border-0 flex-1" shouldFilter={false}>
+                              <CommandInput placeholder="Search templates..." className="h-8 text-xs" />
+                            </Command>
+                            
+                            {/* Group Filter */}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 relative"
+                                >
+                                  <Filter className="h-3.5 w-3.5" />
+                                  {selectedGroups.length > 0 && (
+                                    <Badge variant="secondary" className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]" style={{ borderRadius: '50%' }}>
+                                      {selectedGroups.length}
+                                    </Badge>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[250px] p-2" align="start">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium">Filter by Group</span>
+                                    {selectedGroups.length > 0 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() => setSelectedGroups([])}
+                                      >
+                                        Clear
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {(() => {
+                                    const uniqueGroups = Array.from(
+                                      new Set(apicurioArtifacts.map(a => a.groupId || "other"))
+                                    ).sort();
+                                    return uniqueGroups.map((groupId) => (
+                                      <div key={groupId} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`group-${groupId}`}
+                                          checked={selectedGroups.includes(groupId)}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              setSelectedGroups([...selectedGroups, groupId]);
+                                            } else {
+                                              setSelectedGroups(selectedGroups.filter(g => g !== groupId));
+                                            }
+                                          }}
+                                        />
+                                        <label
+                                          htmlFor={`group-${groupId}`}
+                                          className="text-xs cursor-pointer flex-1"
+                                        >
+                                          {getGroupDisplayName(groupId)}
+                                        </label>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+
+                            {/* Sort Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setTemplateSortOrder(templateSortOrder === 'asc' ? 'desc' : 'asc')}
+                            >
+                              {templateSortOrder === 'asc' ? (
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+
+                            {/* Template Counter */}
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {(() => {
+                                const filtered = selectedGroups.length > 0
+                                  ? apicurioArtifacts.filter(a => selectedGroups.includes(a.groupId || "other"))
+                                  : apicurioArtifacts;
+                                return `${filtered.length} of ${apicurioArtifacts.length} templates`;
+                              })()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Template List */}
+                        <Command className="h-auto border-0" shouldFilter={false}>
                           <CommandList className="max-h-none overflow-visible">
-                            <div className="max-h-[300px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                            <div className="max-h-[280px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                               <CommandEmpty>No templates found.</CommandEmpty>
                               {(() => {
-                              // Group artifacts by groupId
-                              const grouped = apicurioArtifacts.reduce(
-                                (acc, artifact) => {
-                                  const group = artifact.groupId || "other";
-                                  if (!acc[group]) acc[group] = [];
-                                  acc[group].push(artifact);
-                                  return acc;
-                                },
-                                {} as Record<string, typeof apicurioArtifacts>,
-                              );
+                                // Filter by selected groups
+                                let filteredArtifacts = selectedGroups.length > 0
+                                  ? apicurioArtifacts.filter(a => selectedGroups.includes(a.groupId || "other"))
+                                  : apicurioArtifacts;
 
-                              // Sort groups: paradigm.bidtools2 first, then bfs.online, then others
-                              const groupOrder = ["paradigm.bidtools2", "bfs.online"];
-                              const sortedGroups = Object.keys(grouped).sort((a, b) => {
-                                const indexA = groupOrder.indexOf(a);
-                                const indexB = groupOrder.indexOf(b);
-                                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                                if (indexA !== -1) return -1;
-                                if (indexB !== -1) return 1;
-                                return a.localeCompare(b);
-                              });
+                                // Group artifacts by groupId
+                                const grouped = filteredArtifacts.reduce(
+                                  (acc, artifact) => {
+                                    const group = artifact.groupId || "other";
+                                    if (!acc[group]) acc[group] = [];
+                                    acc[group].push(artifact);
+                                    return acc;
+                                  },
+                                  {} as Record<string, typeof apicurioArtifacts>,
+                                );
 
-                              return sortedGroups.map((groupId) => (
-                                <CommandGroup
-                                  key={groupId}
-                                  heading={getGroupDisplayName(groupId)}
-                                >
-                                  {grouped[groupId]
-                                    .slice()
-                                    .sort((a, b) => {
-                                      const nameA = getArtifactDisplayName(a).toLowerCase();
-                                      const nameB = getArtifactDisplayName(b).toLowerCase();
-                                      return nameA.localeCompare(nameB);
-                                    })
-                                    .map((artifact) => (
-                                      <CommandItem
-                                        key={artifact.artifactId}
-                                        value={getArtifactDisplayName(artifact)}
-                                        onSelect={() => {
-                                          setSelectedArtifact(artifact.artifactId);
-                                          handleLoadApicurioTemplate(artifact.artifactId);
-                                          setTemplateSearchOpen(false);
-                                        }}
-                                        className="text-xs pl-2"
-                                      >
-                                        {getArtifactDisplayName(artifact)}
-                                      </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                              ));
-                            })()}
+                                // Sort groups: paradigm.bidtools2 first, then bfs.online, then others
+                                const groupOrder = ["paradigm.bidtools2", "bfs.online"];
+                                const sortedGroups = Object.keys(grouped).sort((a, b) => {
+                                  const indexA = groupOrder.indexOf(a);
+                                  const indexB = groupOrder.indexOf(b);
+                                  if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                                  if (indexA !== -1) return -1;
+                                  if (indexB !== -1) return 1;
+                                  return a.localeCompare(b);
+                                });
+
+                                return sortedGroups.map((groupId) => (
+                                  <CommandGroup
+                                    key={groupId}
+                                    heading={`${getGroupDisplayName(groupId)} (${grouped[groupId].length})`}
+                                  >
+                                    {grouped[groupId]
+                                      .slice()
+                                      .sort((a, b) => {
+                                        const nameA = getArtifactDisplayName(a).toLowerCase();
+                                        const nameB = getArtifactDisplayName(b).toLowerCase();
+                                        const comparison = nameA.localeCompare(nameB);
+                                        return templateSortOrder === 'asc' ? comparison : -comparison;
+                                      })
+                                      .map((artifact) => (
+                                        <CommandItem
+                                          key={artifact.artifactId}
+                                          value={getArtifactDisplayName(artifact)}
+                                          onSelect={() => {
+                                            setSelectedArtifact(artifact.artifactId);
+                                            handleLoadApicurioTemplate(artifact.artifactId);
+                                            setTemplateSearchOpen(false);
+                                          }}
+                                          className="text-xs pl-2"
+                                        >
+                                          {getArtifactDisplayName(artifact)}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                ));
+                              })()}
                             </div>
                           </CommandList>
                         </Command>

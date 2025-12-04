@@ -20,7 +20,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[1400px] max-h-[90vh]">
+      <DialogContent className="max-w-[600px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Transaction Detail

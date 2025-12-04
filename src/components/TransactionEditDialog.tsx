@@ -64,7 +64,7 @@ export function TransactionEditDialog({ transaction, open, onOpenChange, onSubmi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[600px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit {transaction.TxnType} Transaction</DialogTitle>
           <DialogDescription>

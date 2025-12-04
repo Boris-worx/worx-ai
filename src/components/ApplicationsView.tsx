@@ -4,7 +4,8 @@ import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter, Info } from 'lucide-react';
+import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter, Info, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { SearchIcon } from './icons/SearchIcon';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -82,6 +83,12 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
   const [specToDelete, setSpecToDelete] = useState<TransactionSpecification | null>(null);
   const [currentApplicationForSpec, setCurrentApplicationForSpec] = useState<Application | null>(null);
   const [isSubmittingSpec, setIsSubmittingSpec] = useState(false);
+  
+  // Transaction Specifications search, sort, and pagination state
+  const [specificationSearch, setSpecificationSearch] = useState('');
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPagePerApplication, setCurrentPagePerApplication] = useState<{ [key: string]: number }>({});
 
   // Load applications from API when tenant changes
   useEffect(() => {
@@ -667,12 +674,107 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             getRowId={(row) => getApplicationId(row)}
             renderExpandedContent={(row) => {
               const applicationId = getApplicationId(row);
+              const applicationTenantId = row.TenantId;
               const specifications = transactionSpecs.get(applicationId) || [];
+              
+              // Filter specifications by search
+              const searchFilteredSpecs = specifications.filter(spec => 
+                spec.TransactionSpecId?.toLowerCase().includes(specificationSearch.toLowerCase()) ||
+                spec.SpecName?.toLowerCase().includes(specificationSearch.toLowerCase()) ||
+                spec.Version?.toLowerCase().includes(specificationSearch.toLowerCase()) ||
+                spec.ApplicationId?.toLowerCase().includes(specificationSearch.toLowerCase()) ||
+                spec.TenantId?.toLowerCase().includes(specificationSearch.toLowerCase())
+              );
+              
+              // Sort specifications
+              const sortedSpecs = [...searchFilteredSpecs].sort((a, b) => {
+                if (!sortColumn) return 0;
+                
+                let aValue = '';
+                let bValue = '';
+                
+                switch (sortColumn) {
+                  case 'TransactionSpecId':
+                    aValue = a.TransactionSpecId || '';
+                    bValue = b.TransactionSpecId || '';
+                    break;
+                  case 'SpecName':
+                    aValue = a.SpecName || '';
+                    bValue = b.SpecName || '';
+                    break;
+                  case 'Version':
+                    aValue = a.Version || '';
+                    bValue = b.Version || '';
+                    break;
+                  case 'Status':
+                    aValue = a.Status || '';
+                    bValue = b.Status || '';
+                    break;
+                  case 'ApplicationId':
+                    aValue = a.ApplicationId || '';
+                    bValue = b.ApplicationId || '';
+                    break;
+                  case 'TenantId':
+                    aValue = a.TenantId || '';
+                    bValue = b.TenantId || '';
+                    break;
+                  default:
+                    return 0;
+                }
+                
+                if (sortDirection === 'asc') {
+                  return aValue.localeCompare(bValue);
+                } else {
+                  return bValue.localeCompare(aValue);
+                }
+              });
+              
+              // Handle sort column click
+              const handleSort = (column: string) => {
+                if (sortColumn === column) {
+                  // Toggle direction if same column
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                  // New column, default to asc
+                  setSortColumn(column);
+                  setSortDirection('asc');
+                }
+                // Reset to page 1 when sort changes
+                setCurrentPagePerApplication(prev => ({
+                  ...prev,
+                  [applicationId]: 1
+                }));
+              };
+              
+              // Render sort icon
+              const renderSortIcon = (column: string) => {
+                if (sortColumn !== column) {
+                  return <ArrowUpDown className="h-3 w-3 ml-1 inline-block opacity-40" />;
+                }
+                return sortDirection === 'asc' 
+                  ? <ArrowUp className="h-3 w-3 ml-1 inline-block" />
+                  : <ArrowDown className="h-3 w-3 ml-1 inline-block" />;
+              };
+              
+              // Pagination logic
+              const itemsPerPage = 10;
+              const currentPage = currentPagePerApplication[applicationId] || 1;
+              const totalPages = Math.ceil(sortedSpecs.length / itemsPerPage);
+              const startIndex = (currentPage - 1) * itemsPerPage;
+              const endIndex = startIndex + itemsPerPage;
+              const paginatedSpecs = sortedSpecs.slice(startIndex, endIndex);
+              
+              const handlePageChange = (page: number) => {
+                setCurrentPagePerApplication(prev => ({
+                  ...prev,
+                  [applicationId]: page
+                }));
+              };
               
               return (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm">Transaction Specifications:</h4>
+                    <h4 className="text-sm">Transaction Specifications</h4>
                     {canCreate && (
                       <Button 
                         size="sm" 
@@ -683,115 +785,204 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                         }}
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Add Transaction Specification
+                        Add Specification
                       </Button>
                     )}
                   </div>
                   
                   {isLoadingSpecs ? (
-                    <div className="space-y-2">
-                      <Skeleton className="h-8 w-full" />
-                      <Skeleton className="h-8 w-full" />
+                    <div className="space-y-3">
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
                     </div>
                   ) : specifications.length === 0 ? (
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <AppWindow className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         No Transaction Specifications defined
                       </p>
-                      {canCreate && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="mt-3"
-                          onClick={() => {
-                            setCurrentApplicationForSpec(row);
-                            setIsSpecCreateOpen(true);
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Add First Specification
-                        </Button>
-                      )}
                     </div>
                   ) : (
-                    <div className="border rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 border-b">
-                          <tr>
-                            <th className="text-left py-2 px-4">Specification Name</th>
-                            <th className="text-left py-2 px-4">Version</th>
-                            <th className="text-left py-2 px-4">Status</th>
-                            <th className="text-left py-2 px-4">Created</th>
-                            <th className="text-right py-2 px-4">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {specifications.map((spec) => (
-                            <tr key={spec.TransactionSpecId} className="border-b last:border-0 hover:bg-muted/30">
-                              <td className="py-2 px-4 font-medium">{spec.SpecName}</td>
-                              <td className="py-2 px-4">
-                                <Badge variant="outline" className="text-xs">{spec.Version}</Badge>
-                              </td>
-                              <td className="py-2 px-4">
-                                <Badge 
-                                  variant={spec.Status === 'Active' ? 'default' : 'secondary'}
-                                  className="text-xs"
-                                >
-                                  {spec.Status || 'Active'}
-                                </Badge>
-                              </td>
-                              <td className="py-2 px-4 text-xs text-muted-foreground">
-                                {spec.CreateTime ? new Date(spec.CreateTime).toLocaleDateString() : '—'}
-                              </td>
-                              <td className="py-2 px-4">
-                                <div className="flex gap-1 justify-end">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedSpec(spec);
-                                      setIsSpecViewOpen(true);
-                                    }}
-                                    className="h-8 w-8 p-0"
-                                    title="View specification"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  {canEdit && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setSelectedSpec(spec);
-                                        setIsSpecEditOpen(true);
-                                      }}
-                                      className="h-8 w-8 p-0"
-                                      title="Edit specification"
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  {canDelete && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setSpecToDelete(spec);
-                                        setIsSpecDeleteOpen(true);
-                                      }}
-                                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                      title="Delete specification"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </td>
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search specifications..."
+                          value={specificationSearch}
+                          onChange={(e) => {
+                            setSpecificationSearch(e.target.value);
+                            // Reset to page 1 when search changes
+                            setCurrentPagePerApplication(prev => ({
+                              ...prev,
+                              [applicationId]: 1
+                            }));
+                          }}
+                          className="pl-9 h-9"
+                        />
+                      </div>
+                      <div className="border rounded-lg overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 border-b">
+                            <tr>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('TransactionSpecId')}
+                              >
+                                Specification ID{renderSortIcon('TransactionSpecId')}
+                              </th>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('SpecName')}
+                              >
+                                Name{renderSortIcon('SpecName')}
+                              </th>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('Version')}
+                              >
+                                Version{renderSortIcon('Version')}
+                              </th>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('Status')}
+                              >
+                                Status{renderSortIcon('Status')}
+                              </th>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('ApplicationId')}
+                              >
+                                Application ID{renderSortIcon('ApplicationId')}
+                              </th>
+                              <th 
+                                className="text-left py-2 px-4 whitespace-nowrap cursor-pointer hover:bg-muted/70 select-none font-normal"
+                                onClick={() => handleSort('TenantId')}
+                              >
+                                Tenant ID{renderSortIcon('TenantId')}
+                              </th>
+                              <th className="text-right py-2 px-4 whitespace-nowrap font-normal">Action</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="bg-white dark:bg-card">
+                            {paginatedSpecs.length > 0 ? (
+                              paginatedSpecs.map((spec) => (
+                                <tr key={spec.TransactionSpecId} className="border-b last:border-0">
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <div className="max-w-[120px] md:max-w-[180px]">
+                                      <code className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block" title={spec.TransactionSpecId}>
+                                        {spec.TransactionSpecId}
+                                      </code>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-4 whitespace-nowrap">{spec.SpecName}</td>
+                                  <td className="py-2 px-4 whitespace-nowrap">{spec.Version}</td>
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <Badge 
+                                      variant={spec.Status === 'Active' ? 'default' : 'secondary'}
+                                      className={spec.Status === 'Active' ? 'bg-green-600 hover:bg-green-700 text-xs' : 'text-xs'}
+                                    >
+                                      {spec.Status || 'Active'}
+                                    </Badge>
+                                  </td>
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <div className="max-w-[120px] md:max-w-[180px]">
+                                      <code className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block" title={spec.ApplicationId}>
+                                        {spec.ApplicationId}
+                                      </code>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <div className="max-w-[120px] md:max-w-[180px]">
+                                      <code className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block" title={spec.TenantId}>
+                                        {spec.TenantId}
+                                      </code>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-4 whitespace-nowrap">
+                                    <div className="flex gap-1 justify-end">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedSpec(spec);
+                                          setIsSpecViewOpen(true);
+                                        }}
+                                        className="h-8 w-8 p-0"
+                                        title="View specification"
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                      {canEdit && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedSpec(spec);
+                                            setIsSpecEditOpen(true);
+                                          }}
+                                          className="h-8 w-8 p-0"
+                                          title="Edit specification"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      {canDelete && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setSpecToDelete(spec);
+                                            setIsSpecDeleteOpen(true);
+                                          }}
+                                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                          title="Delete specification"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} className="text-center py-8 text-sm text-muted-foreground">
+                                  No specifications found
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-2">
+                          <div className="text-sm text-muted-foreground">
+                            Showing {startIndex + 1} to {Math.min(endIndex, sortedSpecs.length)} of {sortedSpecs.length} specifications
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(currentPage - 1)}
+                              disabled={currentPage === 1}
+                            >
+                              Previous
+                            </Button>
+                            <div className="text-sm">
+                              Page {currentPage} of {totalPages}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(currentPage + 1)}
+                              disabled={currentPage === totalPages}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -873,7 +1064,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
       {/* Create Application Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Create New Application</DialogTitle>
             <DialogDescription>
@@ -979,7 +1170,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
       {/* Edit Application Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Edit Application</DialogTitle>
             <DialogDescription>
