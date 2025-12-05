@@ -209,7 +209,7 @@ export function TransactionsView({
   const getDefaultColumns = (
     txnType?: string,
   ): ColumnConfig[] => {
-    // Core Fields - ALWAYS enabled and locked (cannot be disabled)
+    // Core Fields - Only TxnId is required and locked
     const coreFields: ColumnConfig[] = [
       {
         key: "TxnId",
@@ -217,24 +217,70 @@ export function TransactionsView({
         enabled: true,
         locked: true,
       },
+    ];
+
+    // Optional common fields (can be enabled/disabled)
+    const optionalCommonFields: ColumnConfig[] = [
       {
         key: "TxnType",
         label: "Type",
-        enabled: true,
-        locked: true,
+        enabled: false,
+        locked: false,
       },
       {
         key: "CreateTime",
         label: "Created",
-        enabled: true,
-        locked: true,
+        enabled: false,
+        locked: false,
+      },
+      {
+        key: "UpdateTime",
+        label: "Updated",
+        enabled: false,
+        locked: false,
+      },
+      {
+        key: "TenantId",
+        label: "Tenant ID",
+        enabled: false,
+        locked: false,
+      },
+      {
+        key: "_ts",
+        label: "Timestamp",
+        enabled: false,
+        locked: false,
       },
     ];
+
+    // AR-specific additional columns (first 5 data fields from JSON are locked)
+    if (txnType === "ar") {
+      return [
+        ...coreFields,
+        ...optionalCommonFields,
+        { key: "Txn.arnum", label: "arnum", enabled: true, locked: true },
+        { key: "Txn.arnum2", label: "arnum2", enabled: true, locked: true },
+        { key: "Txn.arnum3", label: "arnum3", enabled: true, locked: true },
+        { key: "Txn.arname", label: "arname", enabled: true, locked: true },
+        { key: "Txn.arlname", label: "arlname", enabled: true, locked: true },
+        { key: "Txn.arfname", label: "arfname", enabled: false },
+        { key: "Txn.artitle", label: "artitle", enabled: false },
+        { key: "Txn.arsort", label: "arsort", enabled: false },
+        { key: "Txn.aradd1", label: "aradd1", enabled: false },
+        { key: "Txn.aradd2", label: "aradd2", enabled: false },
+        { key: "Txn.arcity", label: "arcity", enabled: false },
+        { key: "Txn.arstate", label: "arstate", enabled: false },
+        { key: "Txn.arzip", label: "arzip", enabled: false },
+        { key: "Txn.phone1", label: "phone1", enabled: false },
+        { key: "Txn.phone2", label: "phone2", enabled: false },
+      ];
+    }
 
     // Quote-specific additional columns
     if (txnType === "Quote") {
       return [
         ...coreFields,
+        ...optionalCommonFields,
         {
           key: "Txn.location.Address",
           label: "location Address",
@@ -275,7 +321,6 @@ export function TransactionsView({
           label: "ERP User ID",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -287,9 +332,8 @@ export function TransactionsView({
     ) {
       return [
         ...coreFields,
-        { key: "TenantId", label: "Tenant ID", enabled: true },
+        ...optionalCommonFields,
         { key: "Txn.id", label: "Spec ID", enabled: false },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -297,6 +341,7 @@ export function TransactionsView({
     if (txnType === "LineType" || txnType === "LineTypes") {
       return [
         ...coreFields,
+        ...optionalCommonFields,
         {
           key: "Txn.lineTypeId",
           label: "Line Type ID",
@@ -337,7 +382,6 @@ export function TransactionsView({
         { key: "Txn.isSkuTypeDefault", label: "SKU Type Default", enabled: false },
         { key: "Txn.enforceQuantityOfOne", label: "Enforce Qty of 1", enabled: false },
         { key: "Txn.isInstallOnly", label: "Install Only", enabled: false },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -345,6 +389,7 @@ export function TransactionsView({
     if (txnType === "ReasonCode") {
       return [
         ...coreFields,
+        ...optionalCommonFields,
         {
           key: "Txn.reasonCodeId",
           label: "Reason Code ID",
@@ -365,7 +410,6 @@ export function TransactionsView({
           label: "Active",
           enabled: true,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -373,6 +417,7 @@ export function TransactionsView({
     if (txnType === "QuoteDetail") {
       return [
         ...coreFields,
+        ...optionalCommonFields,
         {
           key: "Txn.quoteDetailId",
           label: "Quote Detail ID",
@@ -468,7 +513,6 @@ export function TransactionsView({
           label: "Tax Amount",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -476,6 +520,7 @@ export function TransactionsView({
     if (txnType === "QuotePack") {
       return [
         ...coreFields,
+        ...optionalCommonFields,
         {
           key: "Txn.quotePackId",
           label: "Quote Pack ID",
@@ -516,7 +561,6 @@ export function TransactionsView({
           label: "Active",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -579,7 +623,6 @@ export function TransactionsView({
           label: "Active",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -637,7 +680,6 @@ export function TransactionsView({
           label: "Notes",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -695,7 +737,6 @@ export function TransactionsView({
           label: "Notes",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
@@ -716,13 +757,13 @@ export function TransactionsView({
           label: "Address",
           enabled: false,
         },
-        { key: "UpdateTime", label: "Updated", enabled: false },
       ];
     }
 
     // Default additional columns for other transaction types
     return [
       ...coreFields,
+      ...optionalCommonFields,
       { key: "Txn.Name", label: "Name", enabled: true },
       { key: "Txn.Status", label: "Status", enabled: true },
       {
@@ -744,15 +785,61 @@ export function TransactionsView({
         label: "Currency",
         enabled: false,
       },
-      { key: "UpdateTime", label: "Updated", enabled: false },
     ];
+  };
+
+  // Generate columns from actual transaction data (shows first 5 fields, rest in filter)
+  const generateColumnsFromData = (transactions: Transaction[], txnType: string): ColumnConfig[] => {
+    if (transactions.length === 0) {
+      return getDefaultColumns(txnType);
+    }
+
+    const firstTxn = transactions[0];
+    const columns: ColumnConfig[] = [];
+
+    // Always add TxnId first (locked)
+    columns.push({
+      key: "TxnId",
+      label: "Txn ID",
+      enabled: true,
+      locked: true,
+    });
+
+    // Extract all fields from Txn object
+    if (firstTxn.Txn && typeof firstTxn.Txn === 'object') {
+      const txnFields = Object.keys(firstTxn.Txn);
+      
+      // Add all Txn fields: first 4 enabled (ID + 4 = 5 total), rest disabled
+      txnFields.forEach((field, index) => {
+        columns.push({
+          key: `Txn.${field}`,
+          label: formatFieldLabel(field),
+          enabled: index < 4, // First 4 fields enabled (with ID makes 5 total)
+          locked: false,
+        });
+      });
+    }
+
+    // Add common system fields (optional, disabled by default)
+    columns.push(
+      { key: "TxnType", label: "Type", enabled: false, locked: false },
+      { key: "CreateTime", label: "Created", enabled: false, locked: false },
+      { key: "UpdateTime", label: "Updated", enabled: false, locked: false },
+      { key: "TenantId", label: "Tenant ID", enabled: false, locked: false },
+      { key: "_ts", label: "Timestamp", enabled: false, locked: false }
+    );
+
+    console.log(`✨ Auto-generated ${columns.length} columns from data for type "${txnType}"`);
+    console.log(`   Enabled columns: ${columns.filter(c => c.enabled).length}`);
+    
+    return columns;
   };
 
   // Column configuration state with localStorage persistence (per transaction type)
   const [columnConfigs, setColumnConfigs] = useState<
     ColumnConfig[]
   >(() => {
-    const STORAGE_VERSION = "11"; // v11: Added QuoteDetail, QuotePack, Quotes, ServiceRequest, WorkflowCustomer specific columns
+    const STORAGE_VERSION = "17"; // v17: Auto-generate first 5 columns visible, rest in filter
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     const saved = localStorage.getItem(storageKey);
     const savedVersion = localStorage.getItem(
@@ -778,9 +865,15 @@ export function TransactionsView({
 
   // Reset columns to default
   const handleResetColumns = () => {
-    const STORAGE_VERSION = "11";
+    const STORAGE_VERSION = "17";
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
-    setColumnConfigs(getDefaultColumns(selectedTxnType));
+    // Regenerate from current transaction data
+    if (transactions.length > 0) {
+      const autoColumns = generateColumnsFromData(transactions, selectedTxnType);
+      setColumnConfigs(autoColumns);
+    } else {
+      setColumnConfigs(getDefaultColumns(selectedTxnType));
+    }
     localStorage.removeItem(storageKey);
     localStorage.setItem(
       `${storageKey}_version`,
@@ -791,7 +884,7 @@ export function TransactionsView({
 
   // Save column configs to localStorage whenever they change (per transaction type)
   useEffect(() => {
-    const STORAGE_VERSION = "11";
+    const STORAGE_VERSION = "14";
     const storageKey = `transactionsViewColumns_${selectedTxnType}`;
     localStorage.setItem(
       storageKey,
@@ -807,7 +900,7 @@ export function TransactionsView({
   const availableFields = useMemo(() => {
     if (transactions.length === 0) return [];
 
-    const fieldsSet = new Set<string>();
+    const fieldsMap = new Map<string, boolean>(); // Preserves insertion order
 
     // Helper to recursively extract fields
     const extractFields = (obj: any, prefix: string = "") => {
@@ -825,11 +918,11 @@ export function TransactionsView({
           !Array.isArray(value)
         ) {
           // For nested objects, add the nested field path
-          fieldsSet.add(fullKey);
+          fieldsMap.set(fullKey, true);
           // Also extract nested fields (e.g., Txn.location.Address)
           extractFields(value, fullKey);
         } else {
-          fieldsSet.add(fullKey);
+          fieldsMap.set(fullKey, true);
         }
       });
     };
@@ -838,7 +931,7 @@ export function TransactionsView({
       // Add top-level fields
       Object.keys(txn).forEach((key) => {
         if (!key.startsWith("_") && key !== "Txn") {
-          fieldsSet.add(key);
+          fieldsMap.set(key, true);
         }
       });
 
@@ -848,7 +941,8 @@ export function TransactionsView({
       }
     });
 
-    return Array.from(fieldsSet).sort();
+    // Return fields in the order they appear in JSON (Map preserves insertion order)
+    return Array.from(fieldsMap.keys());
   }, [transactions]);
 
   // Update column configs when new fields are detected
@@ -956,9 +1050,16 @@ export function TransactionsView({
       setIsLoadingCounts(false);
       
       if (!selectedTxnType) {
-        // Set the first type alphabetically (matching UI sort) - its data will be loaded by the effect below
-        const sortedTypes = [...transactionTypes].sort((a, b) => a.localeCompare(b));
-        setSelectedTxnType(sortedTypes[0]);
+        // Set default type to LineType, or first available if not found
+        const hasLineType = transactionTypes.includes("LineType");
+        if (hasLineType) {
+          setSelectedTxnType("LineType");
+          console.log("📌 Default type set to: LineType");
+        } else {
+          const sortedTypes = [...transactionTypes].sort((a, b) => a.localeCompare(b));
+          setSelectedTxnType(sortedTypes[0]);
+          console.log(`📌 Default type set to: ${sortedTypes[0]} (LineType not available)`);
+        }
       }
       
       // Load all counts in parallel (once)
@@ -1096,6 +1197,12 @@ export function TransactionsView({
       setContinuationToken(response.continuationToken);
       setHasMoreData(response.hasMore);
 
+      // Auto-generate columns from data (shows ALL fields)
+      if (sortedTxns.length > 0 && reset) {
+        const autoColumns = generateColumnsFromData(sortedTxns, txnType);
+        setColumnConfigs(autoColumns);
+      }
+
       if (sortedTxns.length === 0) {
         toast.info(
           `No ${txnType} transactions found. Check browser Console (F12) for API response details.`,
@@ -1205,27 +1312,8 @@ export function TransactionsView({
     }
   };
 
-  // Load columns for selected transaction type
-  useEffect(() => {
-    const STORAGE_VERSION = "11";
-    const storageKey = `transactionsViewColumns_${selectedTxnType}`;
-    const saved = localStorage.getItem(storageKey);
-    const savedVersion = localStorage.getItem(
-      `${storageKey}_version`,
-    );
-
-    if (saved && savedVersion === STORAGE_VERSION) {
-      try {
-        setColumnConfigs(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved columns:", e);
-        setColumnConfigs(getDefaultColumns(selectedTxnType));
-      }
-    } else {
-      // Load default columns for this type
-      setColumnConfigs(getDefaultColumns(selectedTxnType));
-    }
-  }, [selectedTxnType]);
+  // Note: Column loading is now handled automatically in loadTransactionsForType()
+  // which calls generateColumnsFromData() to show ALL fields from actual data
 
   // Handle type selection
   const handleTypeChange = async (value: string) => {
@@ -1574,6 +1662,23 @@ export function TransactionsView({
         };
       }
 
+      if (colConfig.key === "TxnType") {
+        return {
+          key: "TxnType",
+          header: "Type",
+          render: (row: Transaction) => {
+            const txnType = row.TxnType || "-";
+            return (
+              <div className="max-w-[120px] md:max-w-[150px]">
+                <Badge variant="outline" className="text-xs whitespace-nowrap">
+                  {formatTransactionType(txnType)}
+                </Badge>
+              </div>
+            );
+          },
+        };
+      }
+
       if (colConfig.key === "Name") {
         return {
           key: "Name",
@@ -1612,6 +1717,73 @@ export function TransactionsView({
             return (
               <span className="whitespace-nowrap text-xs md:text-sm">
                 {new Date(row.CreateTime).toLocaleDateString()}
+              </span>
+            );
+          },
+        };
+      }
+
+      if (colConfig.key === "UpdateTime") {
+        return {
+          key: "UpdateTime",
+          header: "Updated",
+          render: (row: Transaction) => {
+            if (!row.UpdateTime)
+              return (
+                <span className="text-xs md:text-sm text-muted-foreground">
+                  -
+                </span>
+              );
+            return (
+              <span className="whitespace-nowrap text-xs md:text-sm">
+                {new Date(row.UpdateTime).toLocaleDateString()}
+              </span>
+            );
+          },
+        };
+      }
+
+      if (colConfig.key === "TenantId") {
+        return {
+          key: "TenantId",
+          header: "Tenant ID",
+          render: (row: Transaction) => {
+            const tenantId = getNestedValue(row, "TenantId") || getNestedValue(row, "Txn.tenantId");
+            if (!tenantId)
+              return (
+                <span className="text-xs md:text-sm text-muted-foreground">
+                  -
+                </span>
+              );
+            return (
+              <div className="max-w-[120px] md:max-w-[150px]">
+                <code
+                  className="text-[10px] md:text-[11px] bg-muted px-1 md:px-1.5 py-0.5 rounded truncate block"
+                  title={tenantId}
+                >
+                  {tenantId}
+                </code>
+              </div>
+            );
+          },
+        };
+      }
+
+      if (colConfig.key === "_ts") {
+        return {
+          key: "_ts",
+          header: "Timestamp",
+          render: (row: Transaction) => {
+            if (!row._ts)
+              return (
+                <span className="text-xs md:text-sm text-muted-foreground">
+                  -
+                </span>
+              );
+            // _ts is Unix timestamp in seconds
+            return (
+              <span className="whitespace-nowrap text-xs md:text-sm tabular-nums">
+                {new Date(row._ts * 1000).toLocaleString()}
               </span>
             );
           },

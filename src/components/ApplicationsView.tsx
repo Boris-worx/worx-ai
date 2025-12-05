@@ -1278,7 +1278,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
       {/* View Application Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Application Details</DialogTitle>
             <DialogDescription>

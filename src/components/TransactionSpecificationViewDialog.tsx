@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
@@ -27,6 +27,9 @@ export function TransactionSpecificationViewDialog({
               {specification.Status || 'Active'}
             </Badge>
           </DialogTitle>
+          <DialogDescription>
+            View transaction specification details and JSON schema
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(90vh-8rem)]">

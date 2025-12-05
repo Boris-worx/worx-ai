@@ -961,11 +961,12 @@ export async function getTransactionsByType(
         const rawTxns = responseData.data.Txns;
         const returnedTxnType = responseData.data.TxnType || txnType;
         
-        // Debug logging for Quote and keyi types
-        if (returnedTxnType === 'Quote' || returnedTxnType === 'keyi') {
+        // Debug logging for Quote, keyi and ar types
+        if (returnedTxnType === 'Quote' || returnedTxnType === 'keyi' || returnedTxnType === 'ar') {
           console.log(`📊 BFS API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
           if (rawTxns.length > 0) {
             console.log(`📊 First ${returnedTxnType} transaction full structure:`, JSON.stringify(rawTxns[0], null, 2));
+            console.log(`📊 First ${returnedTxnType} transaction keys:`, Object.keys(rawTxns[0]));
           }
         }
         

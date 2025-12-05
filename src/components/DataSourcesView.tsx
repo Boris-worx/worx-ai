@@ -1950,7 +1950,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Detail View Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Data Source Details</DialogTitle>
             <DialogDescription>
@@ -1960,7 +1960,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
           {selectedDataSource && (
             <div className="space-y-4">
               {Object.entries(selectedDataSource)
-                .filter(([key]) => !key.startsWith('_'))
+                .filter(([key]) => !key.startsWith('_') && key !== 'DatasourceType')
                 .map(([key, value]) => (
                   <div key={key} className="grid grid-cols-3 gap-4">
                     <div className="text-sm text-muted-foreground">{formatFieldLabel(key)}</div>
