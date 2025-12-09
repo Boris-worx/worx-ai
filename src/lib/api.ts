@@ -837,7 +837,7 @@ export async function getTransactionsByType(
     
     if (isBfsOnline) {
       // v1.0 API for BFS Online types
-      url = `${API_BASE_URL}/txns?TxnType=${txnTypeLower}`;
+      url = `${API_BASE_URL}/txns?TxnType=${txnTypeLower}&maxItemCount=100`;
       
       // Add TenantId filter if provided and not global
       if (tenantId && tenantId !== 'global') {
@@ -866,7 +866,7 @@ export async function getTransactionsByType(
       
       // Build URL with filters parameter (v1.1 format)
       const filtersJson = JSON.stringify(filters);
-      url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}`;
+      url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}&maxItemCount=100`;
       
       // Add continuation token if provided (separate query parameter)
       if (continuationToken) {

@@ -250,6 +250,9 @@ function AppContent() {
       if (activeTab === 'datasources' && !apicurioSchemasLoaded) {
         try {
           console.log('📡 Loading Apicurio schemas...');
+          // Clear cache to force reload with updated group filter
+          clearArtifactsCache();
+          console.log('🗑️ Cleared Apicurio artifacts cache');
           const result = await searchApicurioArtifacts('Value');
           setApicurioArtifacts(result.artifacts);
           setApicurioSchemasLoaded(true);
@@ -303,6 +306,9 @@ function AppContent() {
   const refreshApicurioArtifacts = async () => {
     setIsLoadingArtifacts(true);
     try {
+      // Clear cache before refresh
+      clearArtifactsCache();
+      console.log('🗑️ Cleared Apicurio artifacts cache before refresh');
       const response = await searchApicurioArtifacts('Value');
       setApicurioArtifacts(response.artifacts);
       console.log(`✅ Refreshed ${response.count} Apicurio artifacts from registry`);

@@ -156,9 +156,15 @@ export function DataCaptureSpecCreateDialog({
   // Template filtering and sorting states
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [templateSortOrder, setTemplateSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [templateSearchQuery, setTemplateSearchQuery] = useState<string>('');
   
   // Track previous isOpen value to detect opening transition
   const prevIsOpen = useRef(false);
+  
+  // Ref for template dropdown scroll container
+  const templateListRef = useRef<HTMLDivElement>(null);
+  // Ref for selected template item
+  const selectedItemRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     dataCaptureSpecName: "",
@@ -398,8 +404,12 @@ export function DataCaptureSpecCreateDialog({
           specNameSingular = specNameSingular.slice(0, -1);
         }
 
-        // Container Name: keep plural form as-is from artifact (QuoteComponentTypes)
-        containerName = specName;
+        // Container Name: ensure plural form (add 's' if not already plural)
+        if (specName.endsWith("s")) {
+          containerName = specName; // Already plural
+        } else {
+          containerName = specName + "s"; // Make plural by adding 's'
+        }
         
         console.log("  - BidTools/Other template - converting to singular/plural");
       }
@@ -721,6 +731,26 @@ export function DataCaptureSpecCreateDialog({
     prevIsOpen.current = isOpen;
   }, [isOpen, selectedDataSource, activeTenantId]); // Safe to include all deps now
 
+  // Auto-scroll to selected item when template dropdown opens
+  useEffect(() => {
+    if (!templateSearchOpen) return;
+
+    // Wait for DOM to be fully rendered
+    const timeoutId = setTimeout(() => {
+      const item = selectedItemRef.current;
+
+      if (item) {
+        // Use scrollIntoView with nearest block to avoid unnecessary scrolling
+        item.scrollIntoView({
+          behavior: 'auto',
+          block: 'nearest'
+        });
+      }
+    }, 50);
+    
+    return () => clearTimeout(timeoutId);
+  }, [templateSearchOpen]);
+
   // Reset form on close
   useEffect(() => {
     if (!isOpen) {
@@ -1032,7 +1062,12 @@ export function DataCaptureSpecCreateDialog({
                           <div className="flex items-center gap-2">
                             {/* Search Bar */}
                             <Command className="h-auto border-0 flex-1" shouldFilter={false}>
-                              <CommandInput placeholder="Search templates..." className="h-8 text-xs" />
+                              <CommandInput 
+                                placeholder="Search templates..." 
+                                className="h-8 text-xs" 
+                                value={templateSearchQuery}
+                                onValueChange={setTemplateSearchQuery}
+                              />
                             </Command>
                             
                             {/* Group Filter */}
@@ -1113,9 +1148,19 @@ export function DataCaptureSpecCreateDialog({
                             {/* Template Counter */}
                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {(() => {
-                                const filtered = selectedGroups.length > 0
+                                let filtered = selectedGroups.length > 0
                                   ? apicurioArtifacts.filter(a => selectedGroups.includes(a.groupId || "other"))
                                   : apicurioArtifacts;
+                                
+                                // Apply search filter for count
+                                if (templateSearchQuery.trim()) {
+                                  const query = templateSearchQuery.toLowerCase();
+                                  filtered = filtered.filter(a => {
+                                    const displayName = getArtifactDisplayName(a).toLowerCase();
+                                    return displayName.includes(query);
+                                  });
+                                }
+                                
                                 return `${filtered.length} of ${apicurioArtifacts.length} templates`;
                               })()}
                             </span>
@@ -1125,13 +1170,22 @@ export function DataCaptureSpecCreateDialog({
                         {/* Template List */}
                         <Command className="h-auto border-0" shouldFilter={false}>
                           <CommandList className="max-h-none overflow-visible">
-                            <div className="max-h-[280px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                            <div ref={templateListRef} className="max-h-[280px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                               <CommandEmpty>No templates found.</CommandEmpty>
                               {(() => {
                                 // Filter by selected groups
                                 let filteredArtifacts = selectedGroups.length > 0
                                   ? apicurioArtifacts.filter(a => selectedGroups.includes(a.groupId || "other"))
                                   : apicurioArtifacts;
+                                
+                                // Filter by search query
+                                if (templateSearchQuery.trim()) {
+                                  const query = templateSearchQuery.toLowerCase();
+                                  filteredArtifacts = filteredArtifacts.filter(a => {
+                                    const displayName = getArtifactDisplayName(a).toLowerCase();
+                                    return displayName.includes(query);
+                                  });
+                                }
 
                                 // Group artifacts by groupId
                                 const grouped = filteredArtifacts.reduce(
@@ -1168,20 +1222,24 @@ export function DataCaptureSpecCreateDialog({
                                         const comparison = nameA.localeCompare(nameB);
                                         return templateSortOrder === 'asc' ? comparison : -comparison;
                                       })
-                                      .map((artifact) => (
-                                        <CommandItem
-                                          key={artifact.artifactId}
-                                          value={getArtifactDisplayName(artifact)}
-                                          onSelect={() => {
-                                            setSelectedArtifact(artifact.artifactId);
-                                            handleLoadApicurioTemplate(artifact.artifactId);
-                                            setTemplateSearchOpen(false);
-                                          }}
-                                          className="text-xs pl-2"
-                                        >
-                                          {getArtifactDisplayName(artifact)}
-                                        </CommandItem>
-                                      ))}
+                                      .map((artifact) => {
+                                        const isSelected = selectedArtifact === artifact.artifactId;
+                                        return (
+                                          <div key={artifact.artifactId} ref={isSelected ? selectedItemRef : null}>
+                                            <CommandItem
+                                              value={getArtifactDisplayName(artifact)}
+                                              onSelect={() => {
+                                                setSelectedArtifact(artifact.artifactId);
+                                                handleLoadApicurioTemplate(artifact.artifactId);
+                                                setTemplateSearchOpen(false);
+                                              }}
+                                              className={`text-xs pl-2 ${isSelected ? 'bg-accent' : ''}`}
+                                            >
+                                              {getArtifactDisplayName(artifact)}
+                                            </CommandItem>
+                                          </div>
+                                        );
+                                      })}
                                   </CommandGroup>
                                 ));
                               })()}

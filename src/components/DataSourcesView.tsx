@@ -1483,7 +1483,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
               };
               
               // Pagination logic
-              const itemsPerPage = 10;
+              const itemsPerPage = 100;
               const currentPage = currentPagePerDataSource[dataSourceId] || 1;
               const totalPages = Math.ceil(sortedSpecs.length / itemsPerPage);
               const startIndex = (currentPage - 1) * itemsPerPage;

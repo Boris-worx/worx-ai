@@ -300,9 +300,9 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     
     console.log('📦 🎯 DYNAMIC: Fetching groups and artifacts from Apicurio Registry...');
     
-    // STEP 1: Get all groups dynamically (only our two known groups)
-    const groups = await getApicurioGroups();
-    console.log(`📦 🎯 Found ${groups.length} groups:`, groups.map(g => g.id).join(', '));
+    // STEP 1: Use only our two known groups (Bid Tools and BFS Online)
+    const groups = KNOWN_GROUPS;
+    console.log(`📦 🎯 Using ${groups.length} known groups:`, groups.map(g => g.id).join(', '));
     
     // STEP 2: Fetch artifacts from all groups IN PARALLEL for speed
     const allArtifacts: ApicurioArtifact[] = [];
@@ -327,6 +327,48 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
     // Wait for all groups to load in parallel
     const results = await Promise.all(artifactPromises);
     allArtifacts.push(...results.flat());
+
+    console.log(`📦 Total artifacts before deduplication: ${allArtifacts.length}`);
+    
+    // Log all artifacts for debugging
+    const artifactsByName: Record<string, ApicurioArtifact[]> = {};
+    allArtifacts.forEach(artifact => {
+      const name = artifact.artifactId;
+      if (!artifactsByName[name]) {
+        artifactsByName[name] = [];
+      }
+      artifactsByName[name].push(artifact);
+    });
+    
+    // Log duplicates
+    Object.entries(artifactsByName).forEach(([name, artifacts]) => {
+      if (artifacts.length > 1) {
+        console.log(`📦 🔍 Found ${artifacts.length} artifacts with same artifactId "${name}":`, artifacts.map(a => `${a.groupId}:${a.artifactId}`));
+      }
+    });
+
+    // Remove duplicates by artifactId only (regardless of group)
+    // This ensures the same artifact name appears only once even if it exists in multiple groups
+    const uniqueArtifacts = new Map<string, ApicurioArtifact>();
+    allArtifacts.forEach(artifact => {
+      // Use only artifactId as key to deduplicate across groups
+      if (!uniqueArtifacts.has(artifact.artifactId)) {
+        uniqueArtifacts.set(artifact.artifactId, artifact);
+      }
+    });
+    const dedupedArtifacts = Array.from(uniqueArtifacts.values());
+    
+    if (dedupedArtifacts.length < allArtifacts.length) {
+      console.log(`📦 ✅ Removed ${allArtifacts.length - dedupedArtifacts.length} duplicate artifacts (same artifactId in different groups)`);
+    } else {
+      console.log(`📦 ℹ️ No duplicates found (all artifactIds are unique)`);
+    }
+    
+    // Clear and replace with deduped artifacts
+    allArtifacts.length = 0;
+    allArtifacts.push(...dedupedArtifacts);
+    
+    console.log(`📦 Total artifacts after deduplication: ${allArtifacts.length}`);
 
     // If no artifacts from any group, try alternative search method
     if (allArtifacts.length === 0) {
@@ -623,10 +665,19 @@ export function extractArtifactName(artifactId: string): string {
 
 // Get display name for artifact (prefer name field, fallback to artifactId)
 export function getArtifactDisplayName(artifact: ApicurioArtifact): string {
-  if (artifact.name) {
-    return artifact.name;
-  }
-  return extractArtifactName(artifact.artifactId);
+  let displayName = artifact.name || artifact.artifactId;
+  
+  // Clean up common prefixes from display name
+  displayName = displayName
+    .replace(/^TxServices_SQLServer_/, '')
+    .replace(/^TxServices_Informix_/, '')
+    .replace(/^TxServices_/, '')
+    .replace(/^CDC_SQLServer_/, '')
+    .replace(/\.response$/, '')
+    .replace(/\.request$/, '')
+    .replace(/\.Value$/, '');
+  
+  return displayName;
 }
 
 // Process schema - handle both JSON Schema and AVRO formats
