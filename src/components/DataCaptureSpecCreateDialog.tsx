@@ -1051,7 +1051,12 @@ export function DataCaptureSpecCreateDialog({
                                   : "Select template...";
                               })()
                             : isLoadingArtifacts
-                              ? "Loading templates..."
+                              ? (
+                                <span className="flex items-center gap-1.5">
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                  Loading templates...
+                                </span>
+                              )
                               : "Select a Apicurio Template"}
                           <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                         </Button>
@@ -1262,7 +1267,7 @@ export function DataCaptureSpecCreateDialog({
                       disabled={isLoadingArtifacts}
                       title="Refresh templates from Apicurio Registry"
                     >
-                      <RefreshCw className="h-3.5 w-3.5" />
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingArtifacts ? 'animate-spin' : ''}`} />
                     </Button>
                   </div>
 

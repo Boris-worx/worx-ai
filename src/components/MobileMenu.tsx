@@ -7,7 +7,7 @@ import { ListIcon } from './icons/ListIcon';
 import { BugIcon } from './icons/BugIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { SunIcon } from './icons/SunIcon';
-import { Menu, Receipt, LogOut, UserCircle, RefreshCw, AppWindow, Database } from 'lucide-react';
+import { Menu, Receipt, LogOut, UserCircle, RefreshCw, AppWindow, Database, Info } from 'lucide-react';
 import { Separator } from './ui/separator';
 import { useAuth } from './AuthContext';
 import { RoleTestDialog } from './RoleTestDialog';
@@ -19,10 +19,11 @@ interface MobileMenuProps {
   theme: 'light' | 'dark';
   onThemeChange: (theme: 'light' | 'dark') => void;
   onBugReportClick: () => void;
+  onTutorialClick: () => void;
   onApicurioTestClick: () => void;
 }
 
-export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBugReportClick, onApicurioTestClick }: MobileMenuProps) {
+export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBugReportClick, onTutorialClick, onApicurioTestClick }: MobileMenuProps) {
   const { user, logout, hasAccessTo } = useAuth();
   const [open, setOpen] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
@@ -171,6 +172,19 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   <Database className="h-4 w-4 mr-3" />
                   Test API Connections
                 </Button> */}
+
+                {/* Tutorial */}
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    onTutorialClick();
+                    setOpen(false);
+                  }}
+                  className="w-full justify-start"
+                >
+                  <Info className="h-4 w-4 mr-3" />
+                  Tutorial
+                </Button>
 
                 {/* Report a Bug */}
                 <Button

@@ -10,6 +10,9 @@ import { ModelSchemaView } from './components/ModelSchemaView';
 import { DataSourcesView } from './components/DataSourcesView';
 import { ApplicationsView } from './components/ApplicationsView';
 import { BugReportDialog } from './components/BugReportDialog';
+import { TutorialDialog } from './components/TutorialDialog';
+import { InteractiveTutorial } from './components/InteractiveTutorial';
+import { getTutorialSteps, getTutorialName } from './components/tutorial-steps';
 import { ApicurioTestDialog } from './components/ApicurioTestDialog';
 import { MobileMenu } from './components/MobileMenu';
 import { ImageWithFallback } from './components/figma/ImageWithFallback';
@@ -25,7 +28,7 @@ import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
 import { LoginDialog } from './components/LoginDialog';
 import { UserMenu } from './components/UserMenu';
-import { searchApicurioArtifacts, ApicurioArtifact, clearArtifactsCache } from './lib/apicurio';
+import { searchApicurioArtifacts, ApicurioArtifact, clearArtifactsCache, hasApicurioCachedData } from './lib/apicurio';
 import { useDataPreloader } from './lib/useDataPreloader';
 
 function AppContent() {
@@ -119,6 +122,9 @@ function AppContent() {
 
   // Bug report dialog state
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
+  
+  // Tutorial dialog state
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   
   // Apicurio connection test dialog state
   const [apicurioTestOpen, setApicurioTestOpen] = useState(false);
@@ -234,6 +240,43 @@ function AppContent() {
   // Track if Apicurio schemas have been loaded at least once
   const [apicurioSchemasLoaded, setApicurioSchemasLoaded] = useState(false);
 
+  // Background load Apicurio schemas immediately on app mount (don't wait for datasources tab)
+  useEffect(() => {
+    const loadApicurioSchemas = async () => {
+      if (!apicurioSchemasLoaded && isAuthenticated) {
+        // Check if we have cached data first
+        const hasCached = hasApicurioCachedData();
+        
+        if (hasCached) {
+          console.log('📦 [Background] Apicurio templates available from cache - loading instantly');
+        } else {
+          console.log('📡 [Background] No cache - fetching Apicurio templates from API...');
+          setIsLoadingArtifacts(true);
+        }
+        
+        try {
+          const result = await searchApicurioArtifacts('Value');
+          setApicurioArtifacts(result.artifacts);
+          setApicurioSchemasLoaded(true);
+          
+          if (hasCached) {
+            console.log(`✅ [Background] ${result.count} Apicurio templates ready (from cache)`);
+          } else {
+            console.log(`✅ [Background] Loaded ${result.count} Apicurio templates from API`);
+          }
+        } catch (error) {
+          console.error('[Background] Failed to load Apicurio schemas:', error);
+          // Don't block the UI if Apicurio fails
+          setApicurioSchemasLoaded(true); // Mark as loaded to avoid retry loops
+        } finally {
+          setIsLoadingArtifacts(false);
+        }
+      }
+    };
+    
+    loadApicurioSchemas();
+  }, [apicurioSchemasLoaded, isAuthenticated]);
+
   // Lazy load data sources when user opens datasources or transactions tab
   useEffect(() => {
     const needsDataSources = (activeTab === 'datasources' || activeTab === 'transactions');
@@ -243,30 +286,6 @@ function AppContent() {
       setDataSourcesLoaded(true);
     }
   }, [activeTab, activeTenantId, tenants, dataSourcesLoaded]);
-  
-  // Lazy load Apicurio schemas when user opens datasources tab (for Data Capture Spec creation)
-  useEffect(() => {
-    const loadApicurioSchemas = async () => {
-      if (activeTab === 'datasources' && !apicurioSchemasLoaded) {
-        try {
-          console.log('📡 Loading Apicurio schemas...');
-          // Clear cache to force reload with updated group filter
-          clearArtifactsCache();
-          console.log('🗑️ Cleared Apicurio artifacts cache');
-          const result = await searchApicurioArtifacts('Value');
-          setApicurioArtifacts(result.artifacts);
-          setApicurioSchemasLoaded(true);
-          console.log(`✅ Loaded ${result.count} Apicurio schema(s)`);
-        } catch (error) {
-          console.error('Failed to load Apicurio schemas:', error);
-          // Don't block the UI if Apicurio fails
-          setApicurioSchemasLoaded(true); // Mark as loaded to avoid retry loops
-        }
-      }
-    };
-    
-    loadApicurioSchemas();
-  }, [activeTab, apicurioSchemasLoaded]);
 
   // Reload data sources when active tenant changes (only if already loaded once)
   useEffect(() => {
@@ -441,6 +460,17 @@ function AppContent() {
                   <Database className="h-5 w-5" />
                 </Button> */}
 
+                {/* Tutorial Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setTutorialOpen(true)}
+                  className="shrink-0"
+                  title="Tutorial - How to use this app"
+                >
+                  <Info className="h-5 w-5" />
+                </Button>
+
                 {/* Bug Report Button */}
                 <Button
                   variant="ghost"
@@ -477,6 +507,7 @@ function AppContent() {
                 onTabChange={setActiveTab}
                 theme={theme}
                 onThemeChange={setTheme}
+                onTutorialClick={() => setTutorialOpen(true)}
                 onBugReportClick={() => setBugDialogOpen(true)}
                 onApicurioTestClick={() => setApicurioTestOpen(true)}
               />
@@ -593,6 +624,17 @@ function AppContent() {
           </div>
         </div>
       </footer>
+
+      {/* Tutorial Dialog - Old version */}
+      {/* <TutorialDialog open={tutorialOpen} onOpenChange={setTutorialOpen} /> */}
+      
+      {/* Interactive Tutorial - Context-aware for each tab */}
+      <InteractiveTutorial 
+        open={tutorialOpen} 
+        onOpenChange={setTutorialOpen}
+        steps={getTutorialSteps(activeTab)}
+        tabName={getTutorialName(activeTab)}
+      />
 
       {/* Bug Report Dialog */}
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />

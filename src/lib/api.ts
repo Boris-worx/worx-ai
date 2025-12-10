@@ -828,56 +828,33 @@ export async function getTransactionsByType(
   }
 
   try {
-    // BFS Online types use v1.0 API with simple TxnType parameter (lowercase)
-    const bfsOnlineTypes = ['keyi', 'inv', 'inv1', 'inv2', 'inv3', 'invap', 'invdes', 'invloc', 'loc', 'loc1', 'stocode'];
-    const txnTypeLower = txnType.toLowerCase();
-    const isBfsOnline = bfsOnlineTypes.includes(txnTypeLower);
+    // Use v1.1 API with filters parameter to get actual transaction data
+    // v1.0 API only returns count (TxnTotalCount) but empty Txns array
     
-    let url: string;
+    // Build filters object
+    const filters: any = {
+      "TxnType": txnType
+    };
     
-    if (isBfsOnline) {
-      // v1.0 API for BFS Online types
-      url = `${API_BASE_URL}/txns?TxnType=${txnTypeLower}&maxItemCount=100`;
-      
-      // Add TenantId filter if provided and not global
-      if (tenantId && tenantId !== 'global') {
-        url += `&TenantId=${tenantId}`;
-      }
-      
-      // Add continuation token if provided
-      if (continuationToken) {
-        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
-      }
-      
-      console.log('🌐 Data Plane API Request (v1.0 - BFS Online):');
-      console.log('  URL:', url);
-      console.log('  TxnType:', txnTypeLower);
-      console.log('  TenantId:', tenantId || 'global');
-    } else {
-      // v1.1 API for Bid Tools types
-      const filters: any = {
-        TxnType: txnType
-      };
-      
-      // Add TenantId filter if provided and not global
-      if (tenantId && tenantId !== 'global') {
-        filters.TenantId = tenantId;
-      }
-      
-      // Build URL with filters parameter (v1.1 format)
-      const filtersJson = JSON.stringify(filters);
-      url = `${API_BASE_URL_V11}/txns?filters=${encodeURIComponent(filtersJson)}&maxItemCount=100`;
-      
-      // Add continuation token if provided (separate query parameter)
-      if (continuationToken) {
-        url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
-      }
-      
-      console.log('🌐 Data Plane API Request (v1.1 - Bid Tools):');
-      console.log('  URL:', url);
-      console.log('  Filters:', filters);
-      console.log('  TenantId:', tenantId || 'global');
+    // Add TenantId filter if provided and not global
+    if (tenantId && tenantId !== 'global') {
+      filters.TenantId = tenantId;
     }
+    
+    // Build URL with filters parameter
+    // Note: BFS API does not support maxItemCount parameter - returns 400 BAD REQUEST
+    const filtersParam = encodeURIComponent(JSON.stringify(filters));
+    let url = `${API_BASE_URL_V11}/txns?filters=${filtersParam}`;
+    
+    // Add continuation token if provided
+    if (continuationToken) {
+      url += `&continuationToken=${encodeURIComponent(continuationToken)}`;
+    }
+    
+    console.log('🌐 Data Plane API Request (v1.1):');
+    console.log('  URL:', url);
+    console.log('  Filters:', filters);
+    console.log('  TenantId:', tenantId || 'global');
     
     const headers = getHeaders();
     
@@ -894,10 +871,17 @@ export async function getTransactionsByType(
     if (!response.ok) {
       const errorText = await response.text();
       
+      console.log(`❌ API Error Response [${txnType}]:`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText.substring(0, 500) // Log first 500 chars
+      });
+      
       let errorData;
       try {
         errorData = JSON.parse(errorText);
       } catch {
+        console.warn(`⚠️ Failed to parse error response for ${txnType}, returning empty`);
         // Silently return empty for parse errors (likely unsupported types)
         return {
           transactions: [],
@@ -914,7 +898,7 @@ export async function getTransactionsByType(
           errorData.status?.message?.includes('No Cosmos container configured') ||
           response.status === 400 ||
           response.status === 500) {
-        // Silently return empty array for unsupported types - no console logs
+        console.log(`ℹ️ Type ${txnType} not supported or no data: ${errorData.status?.message || response.status}`);
         return {
           transactions: [],
           continuationToken: null,
@@ -940,7 +924,14 @@ export async function getTransactionsByType(
       hasTxns: !!responseData.data?.Txns,
       txnsCount: responseData.data?.Txns?.length || 0,
       totalCount: totalCount,
+      responseKeys: Object.keys(responseData),
+      dataKeys: responseData.data ? Object.keys(responseData.data) : [],
+      txnsType: responseData.data?.Txns ? typeof responseData.data.Txns : 'N/A',
+      txnsIsArray: responseData.data?.Txns ? Array.isArray(responseData.data.Txns) : false
     });
+    
+    // Log first 500 chars of response for debugging
+    console.log(`📄 Raw response [${txnType}]:`, responseText.substring(0, 500));
     
     // Extract continuation token from response (check various possible locations)
     let nextToken: string | null = null;
@@ -953,25 +944,39 @@ export async function getTransactionsByType(
     }
     
     // Handle BFS API response format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
+    // v1.1 API may return data directly or in responseData.data
     let txns: Transaction[] = [];
     
+    // Try to get Txns from various possible locations
+    let rawTxns: any[] = [];
+    let returnedTxnType = txnType;
+    
     if (responseData.status && responseData.data) {
-      // BFS API returns: data.Txns array
+      // BFS API v1.0/v1.1 format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
       if (responseData.data.Txns && Array.isArray(responseData.data.Txns)) {
-        const rawTxns = responseData.data.Txns;
-        const returnedTxnType = responseData.data.TxnType || txnType;
-        
-        // Debug logging for Quote, keyi and ar types
-        if (returnedTxnType === 'Quote' || returnedTxnType === 'keyi' || returnedTxnType === 'ar') {
-          console.log(`📊 BFS API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
-          if (rawTxns.length > 0) {
-            console.log(`📊 First ${returnedTxnType} transaction full structure:`, JSON.stringify(rawTxns[0], null, 2));
-            console.log(`📊 First ${returnedTxnType} transaction keys:`, Object.keys(rawTxns[0]));
-          }
-        }
-        
-        // Transform each raw transaction to our Transaction format
-        txns = rawTxns.map((rawTxn: any, index: number) => {
+        rawTxns = responseData.data.Txns;
+        returnedTxnType = responseData.data.TxnType || txnType;
+      }
+      // Fallback: data is array directly
+      else if (Array.isArray(responseData.data)) {
+        rawTxns = responseData.data;
+      }
+    }
+    // Direct array format
+    else if (Array.isArray(responseData)) {
+      rawTxns = responseData;
+    }
+    
+    // Debug logging - only for types with data
+    if (rawTxns.length > 0) {
+      console.log(`📊 BFS API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
+      console.log(`📊 First ${returnedTxnType} transaction sample:`, rawTxns[0]);
+      console.log(`📊 First ${returnedTxnType} transaction keys:`, Object.keys(rawTxns[0]));
+    }
+    
+    // Transform each raw transaction to our Transaction format
+    if (rawTxns.length > 0) {
+      txns = rawTxns.map((rawTxn: any, index: number) => {
           // Get the entity ID from the transaction based on type
           let entityId = rawTxn.id;
           
@@ -1033,15 +1038,6 @@ export async function getTransactionsByType(
             _attachments: rawTxn._attachments,
           };
         });
-      }
-      // Fallback: data is array directly
-      else if (Array.isArray(responseData.data)) {
-        txns = responseData.data;
-      }
-    }
-    // Direct array format
-    else if (Array.isArray(responseData)) {
-      txns = responseData;
     }
     
     return {

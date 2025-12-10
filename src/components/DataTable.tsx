@@ -28,6 +28,8 @@ interface DataTableProps<T> {
   expandable?: boolean;
   renderExpandedContent?: (item: T) => React.ReactNode;
   getRowId?: (item: T) => string;
+  // Tour support
+  searchTourId?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -39,11 +41,12 @@ export function DataTable<T extends Record<string, any>>({
   emptyMessage = 'No data available.',
   searchPlaceholder = 'Search...',
   searchKeys = [],
-  defaultPageSize = 10,
+  defaultPageSize = 100,
   showPagination = true,
   expandable = false,
   renderExpandedContent,
   getRowId,
+  searchTourId,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{
@@ -261,7 +264,7 @@ export function DataTable<T extends Record<string, any>>({
     <div className="space-y-4">
       {/* Search Bar */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+        <div className="relative flex-1" data-tour-id={searchTourId}>
           <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={searchPlaceholder}

@@ -627,12 +627,14 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Left: Tenant + Filter */}
           <div className="flex items-center gap-2">
-            <TenantSelector
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={onTenantChange}
-              isSuperUser={userRole === 'superuser'}
-            />
+            <div data-tour-id="tenant-selector">
+              <TenantSelector
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={onTenantChange}
+                isSuperUser={userRole === 'superuser'}
+              />
+            </div>
             <ColumnSelector
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
@@ -643,6 +645,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
           {canCreate && (
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
+              data-tour-id="create-application-btn"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Application
@@ -667,11 +670,15 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             No applications available
           </div>
         ) : (
-          <DataTable
-            data={applications}
-            columns={columns}
-            expandable={true}
-            getRowId={(row) => getApplicationId(row)}
+          <div data-tour-id="applications-table">
+            <DataTable
+              data={applications}
+              columns={columns}
+              expandable={true}
+              getRowId={(row) => getApplicationId(row)}
+              searchPlaceholder="Search applications..."
+              searchKeys={['ApplicationName', 'ApplicationId', 'Version', 'Status', 'Description']}
+              searchTourId="search-applications"
             renderExpandedContent={(row) => {
               const applicationId = getApplicationId(row);
               const applicationTenantId = row.TenantId;
@@ -1058,7 +1065,8 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
                 )}
               </div>
             )}
-          />
+            />
+          </div>
         )}
       </CardContent>
 

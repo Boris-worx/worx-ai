@@ -171,6 +171,7 @@ export function TransactionsView({
   >(null);
   const [hasMoreData, setHasMoreData] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // State for sorting transaction types
   type SortMode = 'name-asc' | 'name-desc' | 'count-asc' | 'count-desc';
@@ -1077,6 +1078,10 @@ export function TransactionsView({
       try {
         const sources = await getAllDataSources(activeTenantId === 'global' ? undefined : activeTenantId);
         setDataSources(sources);
+        console.log(`📂 Loaded ${sources.length} Data Sources:`, sources.map(ds => ({
+          id: ds.DatasourceId || ds.DataSourceId,
+          name: ds.DatasourceName || ds.DataSourceName
+        })));
       } catch (error) {
         console.error('Failed to load data sources:', error);
       }
@@ -1315,10 +1320,41 @@ export function TransactionsView({
   // Note: Column loading is now handled automatically in loadTransactionsForType()
   // which calls generateColumnsFromData() to show ALL fields from actual data
 
+  // Handle refresh - reload all counts and current type's transactions
+  const handleRefresh = async () => {
+    if (isRefreshing) return; // Prevent multiple simultaneous refreshes
+    
+    console.log('🔄 Refreshing Data Plane data...');
+    setIsRefreshing(true);
+    
+    try {
+      // Clear all counts to force reload
+      setTypeCounts({});
+      loadingCountsRef.current.clear();
+      countsLoadStartedRef.current = false;
+      
+      // Reload all counts in parallel
+      await loadAllTypeCounts();
+      
+      // Reload transactions for current type if one is selected
+      if (selectedTxnType) {
+        await loadTransactionsForType(selectedTxnType);
+      }
+      
+      toast.success('Data refreshed successfully!');
+    } catch (error: any) {
+      console.error('Error refreshing data:', error);
+      toast.error('Failed to refresh data');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Handle type selection
   const handleTypeChange = async (value: string) => {
+    console.log(`🔄 handleTypeChange called with type: ${value}`);
     setSelectedTxnType(value);
-    setSearchTerm(""); // Reset search when changing type
+    // Note: Don't reset searchTerm here as it's used for searching transaction types in sidebar
     
     // Load count for this type in background (non-blocking)
     loadTypeCount(value);
@@ -1472,10 +1508,10 @@ export function TransactionsView({
       );
     }
     
-    // Filter out types with 0 count (only show types with data)
+    // Filter out types with 0 count - only show types with data
     types = types.filter((type) => {
       const count = typeCounts[type];
-      // Keep types that are either unloaded (undefined) or have count > 0
+      // Show types that are still loading (undefined) or have count > 0
       return count === undefined || count > 0;
     });
     
@@ -1511,6 +1547,21 @@ export function TransactionsView({
     });
   }, [filteredTypes, typeCounts, sortMode]);
   
+  // Auto-switch to first available type if current type is filtered out (has 0 count)
+  useEffect(() => {
+    if (selectedTxnType && sortedFilteredTypes.length > 0) {
+      // Check if current type is still in the filtered list
+      const isCurrentTypeAvailable = sortedFilteredTypes.includes(selectedTxnType);
+      
+      if (!isCurrentTypeAvailable) {
+        // Current type was filtered out (has 0 count), switch to first available
+        const firstAvailableType = sortedFilteredTypes[0];
+        console.log(`⚠️ Current type "${selectedTxnType}" has 0 transactions, switching to "${firstAvailableType}"`);
+        setSelectedTxnType(firstAvailableType);
+      }
+    }
+  }, [selectedTxnType, sortedFilteredTypes]);
+  
   // Group types by their group
   const groupedTypes = useMemo(() => {
     const groups: Record<string, string[]> = {};
@@ -1536,20 +1587,27 @@ export function TransactionsView({
     return groupNames.filter(name => !closedGroups.has(name));
   }, [groupNames, closedGroups]);
 
-  // Filter Data Sources to show only those with transaction types that have data
+  // Show all Data Sources that have at least one transaction type defined
   const filteredDataSources = useMemo(() => {
-    return dataSources.filter((ds) => {
+    const filtered = dataSources.filter((ds) => {
       const dsId = ds.DatasourceId || ds.DataSourceId;
-      // Check if this Data Source has at least one type with count > 0
+      // Check if this Data Source has at least one transaction type
       return transactionTypes.some((type) => {
         const typeInfo = TRANSACTION_TYPES_INFO.find(t => t.name === type);
-        if (typeInfo?.dataSourceId === dsId) {
-          const count = typeCounts[type];
-          return count !== undefined && count > 0;
-        }
-        return false;
+        return typeInfo?.dataSourceId === dsId;
       });
     });
+    
+    console.log(`📊 Filtered Data Sources (${filtered.length}):`, filtered.map(ds => ({
+      id: ds.DatasourceId || ds.DataSourceId,
+      name: ds.DatasourceName || ds.DataSourceName,
+      typeCount: transactionTypes.filter(type => {
+        const typeInfo = TRANSACTION_TYPES_INFO.find(t => t.name === type);
+        return typeInfo?.dataSourceId === (ds.DatasourceId || ds.DataSourceId);
+      }).length
+    })));
+    
+    return filtered;
   }, [dataSources, transactionTypes, typeCounts]);
 
   // Helper function to get nested value from object
@@ -2027,7 +2085,7 @@ export function TransactionsView({
                 Transaction Types
               </h3>
               <Badge variant="secondary">
-                {transactionTypes.length}
+                {filteredTypes.length}
               </Badge>
             </div>
 
@@ -2064,7 +2122,7 @@ export function TransactionsView({
 
               <div className="flex items-center justify-between gap-3">
                 {/* Desktop type display */}
-                <div className="hidden md:flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2" data-tour-id="transaction-type-selector">
                   <h3 className="text-base md:text-lg">
                     {formatTransactionType(selectedTxnType)}
                   </h3>
@@ -2075,34 +2133,60 @@ export function TransactionsView({
 
                 {/* Desktop View - All buttons visible */}
                 <div className="hidden md:flex gap-2">
-                  <TenantSelector
-                    tenants={tenants}
-                    activeTenantId={activeTenantId}
-                    onTenantChange={onTenantChange}
-                    isSuperUser={userRole === "superuser"}
-                  />
-                  <ColumnSelector
-                    columns={enrichedColumnConfigs}
-                    onColumnsChange={setColumnConfigs}
-                    availableFields={availableFields}
-                    onReset={handleResetColumns}
-                  />
+                  {(userRole === "superuser" ||
+                    userRole === "admin" ||
+                    userRole === "developer") && (
+                    <Button
+                      onClick={() => setIsCreateDialogOpen(true)}
+                      data-tour-id="create-transaction-btn"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    data-tour-id="refresh-data-btn"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                  <div data-tour-id="tenant-selector">
+                    <TenantSelector
+                      tenants={tenants}
+                      activeTenantId={activeTenantId}
+                      onTenantChange={onTenantChange}
+                      isSuperUser={userRole === "superuser"}
+                    />
+                  </div>
+                  <div data-tour-id="column-selector-btn">
+                    <ColumnSelector
+                      columns={enrichedColumnConfigs}
+                      onColumnsChange={setColumnConfigs}
+                      availableFields={availableFields}
+                      onReset={handleResetColumns}
+                    />
+                  </div>
                 </div>
 
                 {/* Mobile View - Dropdown Menu - Second row on mobile */}
                 <div className="flex md:hidden items-center gap-2 justify-end ml-auto">
                   {/* Tenant Selector */}
-                  <TenantSelector
-                    tenants={tenants}
-                    activeTenantId={activeTenantId}
-                    onTenantChange={onTenantChange}
-                    isSuperUser={userRole === "superuser"}
-                  />
+                  <div data-tour-id="tenant-selector">
+                    <TenantSelector
+                      tenants={tenants}
+                      activeTenantId={activeTenantId}
+                      onTenantChange={onTenantChange}
+                      isSuperUser={userRole === "superuser"}
+                    />
+                  </div>
 
                   {/* Dropdown Menu with other actions */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon">
+                      <Button variant="outline" size="icon" data-tour-id="mobile-actions-menu">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -2118,12 +2202,22 @@ export function TransactionsView({
                             onClick={() =>
                               setIsCreateDialogOpen(true)
                             }
+                            data-tour-id="create-transaction-btn"
                           >
                             <Plus className="h-4 w-4 mr-2" />
                             Create Transaction
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                         </>
                       )}
+                      <DropdownMenuItem
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        data-tour-id="refresh-data-btn"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onSelect={(e) => {
@@ -2155,7 +2249,7 @@ export function TransactionsView({
                 value={selectedDataSourceId}
                 onValueChange={setSelectedDataSourceId}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" data-tour-id="datasource-filter">
                   <SelectValue placeholder="Filter by Data Source" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2173,7 +2267,7 @@ export function TransactionsView({
 
               {/* Search Types and Sort */}
               <div className="flex gap-2">
-                <div className="relative flex-1">
+                <div className="relative flex-1" data-tour-id="search-types">
                   <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search types..."
@@ -2217,7 +2311,7 @@ export function TransactionsView({
               </div>
 
               {/* Types List - Grouped by Source */}
-              <Card className="border rounded-[10px]">
+              <Card className="border rounded-[10px]" data-tour-id="transaction-types-list">
                 <ScrollArea className="h-[600px]">
                   {isLoadingCounts ? (
                     <div className="space-y-2 p-2">
@@ -2310,14 +2404,17 @@ export function TransactionsView({
               {/* Data Table */}
               {transactions.length > 0 && !isLoadingType && (
                 <>
-                  <DataTable
-                    data={transactions}
-                    columns={columns}
-                    actions={renderActions}
-                    actionsCompact={renderActionsCompact}
-                    searchPlaceholder="Search transactions..."
-                    emptyMessage={`No ${selectedTxnType} transactions found`}
-                  />
+                  <div data-tour-id="transactions-table">
+                    <DataTable
+                      data={transactions}
+                      columns={columns}
+                      actions={renderActions}
+                      actionsCompact={renderActionsCompact}
+                      searchPlaceholder="Search transactions..."
+                      searchTourId="search-transactions"
+                      emptyMessage={`No ${selectedTxnType} transactions found`}
+                    />
+                  </div>
 
                   {/* Load More Button */}
                   {hasMoreData && (

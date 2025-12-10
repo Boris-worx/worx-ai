@@ -437,23 +437,27 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             {/* Left: Tenant + Filter */}
             <div className="flex items-center gap-2">
-              <TenantSelector
-                tenants={tenants}
-                activeTenantId={activeTenantId}
-                onTenantChange={onTenantChange}
-                isSuperUser={userRole === 'superuser'}
-              />
-              <ColumnSelector
-                columns={enrichedColumnConfigs}
-                onColumnsChange={setColumnConfigs}
-                availableFields={availableFields}
-                onReset={handleResetColumns}
-              />
+              <div data-tour-id="tenant-selector">
+                <TenantSelector
+                  tenants={tenants}
+                  activeTenantId={activeTenantId}
+                  onTenantChange={onTenantChange}
+                  isSuperUser={userRole === 'superuser'}
+                />
+              </div>
+              <div data-tour-id="view-toggle-btn">
+                <ColumnSelector
+                  columns={enrichedColumnConfigs}
+                  onColumnsChange={setColumnConfigs}
+                  availableFields={availableFields}
+                  onReset={handleResetColumns}
+                />
+              </div>
             </div>
 
             {/* Right: Add Button */}
             {canCreate && (
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Button onClick={() => setIsCreateDialogOpen(true)} data-tour-id="create-tenant-btn">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
@@ -470,83 +474,16 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
             /* Full Functionality - Show after tenants are imported */
             <>
               {/* Tenants Table */}
-              <DataTable
-                data={filteredTenants}
-                columns={columns}
-                searchPlaceholder="Search tenants..."
-                searchKeys={['TenantId', 'TenantName']}
-                emptyMessage="No tenants found. Click 'Add New Tenant' to create one."
-                actions={(tenant) => (
-                  <div className="flex gap-1 justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTenantIdClick(tenant)}
-                      className="h-8 w-8 p-0"
-                      title="View tenant"
-                    >
-                      <ViewIcon className="h-4 w-4" />
-                    </Button>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(tenant)}
-                        className="h-8 w-8 p-0"
-                        title="Edit tenant"
-                      >
-                        <EditIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDeleteDialog(tenant)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                        title="Delete tenant"
-                      >
-                        <DeleteIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                )}
-                actionsCompact={(tenant) => (
-                  <div className="flex gap-1 justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTenantIdClick(tenant)}
-                      className="h-8 w-8 p-0"
-                      title="View tenant"
-                    >
-                      <ViewIcon className="h-4 w-4" />
-                    </Button>
-                    {canEdit && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(tenant)}
-                        className="h-8 w-8 p-0"
-                        title="Edit tenant"
-                      >
-                        <EditIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDeleteDialog(tenant)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                        title="Delete tenant"
-                      >
-                        <DeleteIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                )}
-              />
+              <div data-tour-id="tenant-card">
+                <DataTable
+                  data={filteredTenants}
+                  columns={columns}
+                  searchPlaceholder="Search tenants..."
+                  searchKeys={['TenantId', 'TenantName']}
+                  emptyMessage="No tenants found. Click 'Add New Tenant' to create one."
+                  searchTourId="search-tenants"
+                />
+              </div>
             </>
           )}
         </CardContent>

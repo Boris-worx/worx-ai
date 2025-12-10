@@ -1352,12 +1352,14 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Left: Tenant + Filter */}
           <div className="flex items-center gap-2">
-            <TenantSelector
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={onTenantChange}
-              isSuperUser={userRole === 'superuser'}
-            />
+            <div data-tour-id="tenant-selector">
+              <TenantSelector
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={onTenantChange}
+                isSuperUser={userRole === 'superuser'}
+              />
+            </div>
             <ColumnSelector
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
@@ -1369,6 +1371,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             {canCreate && (
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
+                data-tour-id="create-datasource-btn"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Data Source
@@ -1392,11 +1395,15 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             No data sources available
           </div>
         ) : (
-          <DataTable
-            data={dataSources}
-            columns={columns}
-            expandable={true}
-            getRowId={(row) => getDataSourceId(row)}
+          <div data-tour-id="datasources-table">
+            <DataTable
+              data={dataSources}
+              columns={columns}
+              expandable={true}
+              getRowId={(row) => getDataSourceId(row)}
+              searchPlaceholder="Search data sources..."
+              searchKeys={['DatasourceName', 'DataSourceName', 'DatasourceId', 'DataSourceId', 'TenantId']}
+              searchTourId="search-datasource"
             renderExpandedContent={(row) => {
               const dataSourceId = getDataSourceId(row);
               const dataSourceTenantId = row.TenantId;
@@ -1771,7 +1778,8 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                 )}
               </div>
             )} className="text-[16px] p-[0px] rounded-[10px]"
-          />
+            />
+          </div>
         )}
       </CardContent>
 

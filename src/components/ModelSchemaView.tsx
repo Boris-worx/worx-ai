@@ -486,12 +486,14 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Left: Tenant + Filter */}
           <div className="flex items-center gap-2">
-            <TenantSelector
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={onTenantChange}
-              isSuperUser={userRole === 'superuser'}
-            />
+            <div data-tour-id="tenant-selector">
+              <TenantSelector
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={onTenantChange}
+                isSuperUser={userRole === 'superuser'}
+              />
+            </div>
             <ColumnSelector
               columns={enrichedColumnConfigs}
               onColumnsChange={setColumnConfigs}
@@ -502,6 +504,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
           {canCreate && (
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
+              data-tour-id="create-modelschema-btn"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Schema
@@ -524,166 +527,171 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             No schemas available
           </div>
         ) : (
-          <DataTable
-            data={enrichedSchemas}
-            columns={columns}
-            actions={(row) => {
-              const isProtected = isProtectedType(row.model);
-              return (
-                <div className="flex gap-1 justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewClick(row)}
-                    className="h-8 w-8 p-0"
-                    title="View schema"
-                  >
-                    <ViewIcon className="h-4 w-4" />
-                  </Button>
-                  {canEdit && !isProtected && (
+          <div data-tour-id="modelschema-table">
+            <DataTable
+              data={enrichedSchemas}
+              columns={columns}
+              searchPlaceholder="Search schemas..."
+              searchKeys={['model', 'state', 'semver']}
+              searchTourId="search-modelschema"
+              actions={(row) => {
+                const isProtected = isProtectedType(row.model);
+                return (
+                  <div className="flex gap-1 justify-end">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleEditClick(row)}
+                      onClick={() => handleViewClick(row)}
                       className="h-8 w-8 p-0"
-                      title="Edit schema"
+                      title="View schema"
                     >
-                      <EditIcon className="h-4 w-4" />
+                      <ViewIcon className="h-4 w-4" />
                     </Button>
-                  )}
-                  {canEdit && isProtected && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="h-8 w-8 p-0 cursor-not-allowed"
-                            title="Protected system type"
-                          >
-                            <EditIcon className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Protected system type - cannot be edited</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  {canDelete && !isProtected && (
+                    {canEdit && !isProtected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditClick(row)}
+                        className="h-8 w-8 p-0"
+                        title="Edit schema"
+                      >
+                        <EditIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && isProtected && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 w-8 p-0 cursor-not-allowed"
+                              title="Protected system type"
+                            >
+                              <EditIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Protected system type - cannot be edited</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {canDelete && !isProtected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(row)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        title="Delete schema"
+                      >
+                        <DeleteIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete && isProtected && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 w-8 p-0 cursor-not-allowed"
+                              title="Protected system type"
+                            >
+                              <DeleteIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Protected system type - cannot be deleted</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                );
+              }}
+              actionsCompact={(row) => {
+                const isProtected = isProtectedType(row.model);
+                return (
+                  <div className="flex gap-1 justify-end">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDeleteClick(row)}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      title="Delete schema"
-                    >
-                      <DeleteIcon className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canDelete && isProtected && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="h-8 w-8 p-0 cursor-not-allowed"
-                            title="Protected system type"
-                          >
-                            <DeleteIcon className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Protected system type - cannot be deleted</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              );
-            }}
-            actionsCompact={(row) => {
-              const isProtected = isProtectedType(row.model);
-              return (
-                <div className="flex gap-1 justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewClick(row)}
-                    className="h-8 w-8 p-0"
-                    title="View schema"
-                  >
-                    <ViewIcon className="h-4 w-4" />
-                  </Button>
-                  {canEdit && !isProtected && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditClick(row)}
+                      onClick={() => handleViewClick(row)}
                       className="h-8 w-8 p-0"
-                      title="Edit schema"
+                      title="View schema"
                     >
-                      <EditIcon className="h-4 w-4" />
+                      <ViewIcon className="h-4 w-4" />
                     </Button>
-                  )}
-                  {canEdit && isProtected && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="h-8 w-8 p-0 cursor-not-allowed"
-                            title="Protected system type"
-                          >
-                            <EditIcon className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Protected system type - cannot be edited</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  {canDelete && !isProtected && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(row)}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      title="Delete schema"
-                    >
-                      <DeleteIcon className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canDelete && isProtected && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                            className="h-8 w-8 p-0 cursor-not-allowed"
-                            title="Protected system type"
-                          >
-                            <DeleteIcon className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Protected system type - cannot be deleted</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              );
-            }}
-          />
+                    {canEdit && !isProtected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditClick(row)}
+                        className="h-8 w-8 p-0"
+                        title="Edit schema"
+                      >
+                        <EditIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canEdit && isProtected && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 w-8 p-0 cursor-not-allowed"
+                              title="Protected system type"
+                            >
+                              <EditIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Protected system type - cannot be edited</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {canDelete && !isProtected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteClick(row)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        title="Delete schema"
+                      >
+                        <DeleteIcon className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete && isProtected && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled
+                              className="h-8 w-8 p-0 cursor-not-allowed"
+                              title="Protected system type"
+                            >
+                              <DeleteIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Protected system type - cannot be deleted</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                );
+              }}
+            />
+          </div>
         )}
       </CardContent>
 

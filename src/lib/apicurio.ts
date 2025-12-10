@@ -32,7 +32,9 @@ function initializeCache() {
       if ((now - timestamp) < CACHE_DURATION_MS) {
         artifactsCache = JSON.parse(cachedData);
         artifactsCacheTimestamp = timestamp;
-        console.log('📦 Loaded Apicurio artifacts from localStorage (age:', Math.round((now - timestamp) / 1000), 'seconds)');
+        const ageSeconds = Math.round((now - timestamp) / 1000);
+        const count = artifactsCache?.count || 0;
+        console.log(`📦 ✅ Loaded ${count} Apicurio artifacts from localStorage cache (age: ${ageSeconds}s)`);
       } else {
         // Cache expired, clear it
         localStorage.removeItem(CACHE_KEY);
@@ -58,6 +60,12 @@ export function clearArtifactsCache() {
     console.warn('Failed to clear localStorage cache:', error);
   }
   console.log('📦 Apicurio artifacts cache cleared');
+}
+
+// Check if artifacts are already cached (for instant availability)
+export function hasApicurioCachedData(): boolean {
+  const now = Date.now();
+  return !!(artifactsCache && (now - artifactsCacheTimestamp) < CACHE_DURATION_MS);
 }
 
 export interface ApicurioArtifact {
@@ -294,7 +302,9 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
   try {
     // Check cache first
     if (artifactsCache && (now - artifactsCacheTimestamp) < CACHE_DURATION_MS) {
-      console.log('📦 Using cached Apicurio artifacts (age:', Math.round((now - artifactsCacheTimestamp) / 1000), 'seconds)');
+      const ageSeconds = Math.round((now - artifactsCacheTimestamp) / 1000);
+      const count = artifactsCache.count || 0;
+      console.log(`📦 ⚡ Using cached ${count} Apicurio artifacts (age: ${ageSeconds}s, cache valid for ${Math.round((CACHE_DURATION_MS - (now - artifactsCacheTimestamp)) / 60000)}min)`);
       return artifactsCache;
     }
     
