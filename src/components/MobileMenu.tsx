@@ -173,18 +173,20 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   Test API Connections
                 </Button> */}
 
-                {/* Tutorial */}
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    onTutorialClick();
-                    setOpen(false);
-                  }}
-                  className="w-full justify-start"
-                >
-                  <Info className="h-4 w-4 mr-3" />
-                  Tutorial
-                </Button>
+                {/* Tutorial - Only for Tenants tab */}
+                {activeTab === 'tenants' && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      onTutorialClick();
+                      setOpen(false);
+                    }}
+                    className="w-full justify-start"
+                  >
+                    <Info className="h-4 w-4 mr-3" />
+                    Tutorial
+                  </Button>
+                )}
 
                 {/* Report a Bug */}
                 <Button

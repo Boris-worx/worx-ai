@@ -7,6 +7,8 @@ const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.az
 const KNOWN_GROUPS = [
   { id: 'paradigm.bidtools2', description: 'Bid Tools Templates' },
   { id: 'bfs.online', description: 'BFS Online Templates' },
+  { id: 'bfs.trend', description: 'BFS Trend' },
+  { id: 'builderProfile', description: 'Builder Profile' },
 ];
 
 // Cache for artifacts search results (avoid repeated API calls)
@@ -288,6 +290,8 @@ export function getDefaultVersionForGroup(groupId: string): string {
   const defaultVersions: Record<string, string> = {
     'paradigm.bidtools2': '1',
     'bfs.online': '1.0.0',
+    'bfs.trend': '1.0.0',
+    'builderProfile': '1.0.0',
   };
   
   return defaultVersions[groupId] || '1.0.0'; // Default to 1.0.0 for unknown groups
@@ -350,28 +354,29 @@ export async function searchApicurioArtifacts(namePattern: string = 'Value'): Pr
       artifactsByName[name].push(artifact);
     });
     
-    // Log duplicates
+    // Log artifacts with same artifactId from different groups
     Object.entries(artifactsByName).forEach(([name, artifacts]) => {
       if (artifacts.length > 1) {
         console.log(`📦 🔍 Found ${artifacts.length} artifacts with same artifactId "${name}":`, artifacts.map(a => `${a.groupId}:${a.artifactId}`));
       }
     });
 
-    // Remove duplicates by artifactId only (regardless of group)
-    // This ensures the same artifact name appears only once even if it exists in multiple groups
+    // Remove duplicates by groupId:artifactId combination
+    // This keeps artifacts with same name but from different groups
     const uniqueArtifacts = new Map<string, ApicurioArtifact>();
     allArtifacts.forEach(artifact => {
-      // Use only artifactId as key to deduplicate across groups
-      if (!uniqueArtifacts.has(artifact.artifactId)) {
-        uniqueArtifacts.set(artifact.artifactId, artifact);
+      // Use groupId:artifactId as key to keep artifacts from different groups
+      const key = `${artifact.groupId}:${artifact.artifactId}`;
+      if (!uniqueArtifacts.has(key)) {
+        uniqueArtifacts.set(key, artifact);
       }
     });
     const dedupedArtifacts = Array.from(uniqueArtifacts.values());
     
     if (dedupedArtifacts.length < allArtifacts.length) {
-      console.log(`📦 ✅ Removed ${allArtifacts.length - dedupedArtifacts.length} duplicate artifacts (same artifactId in different groups)`);
+      console.log(`📦 ✅ Removed ${allArtifacts.length - dedupedArtifacts.length} duplicate artifacts (exact same groupId:artifactId)`);
     } else {
-      console.log(`📦 ℹ️ No duplicates found (all artifactIds are unique)`);
+      console.log(`📦 ℹ️ No duplicates found (all groupId:artifactId combinations are unique)`);
     }
     
     // Clear and replace with deduped artifacts

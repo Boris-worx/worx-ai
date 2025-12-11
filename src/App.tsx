@@ -460,16 +460,18 @@ function AppContent() {
                   <Database className="h-5 w-5" />
                 </Button> */}
 
-                {/* Tutorial Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setTutorialOpen(true)}
-                  className="shrink-0"
-                  title="Tutorial - How to use this app"
-                >
-                  <Info className="h-5 w-5" />
-                </Button>
+                {/* Tutorial Button - Only for Tenants tab */}
+                {activeTab === 'tenants' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTutorialOpen(true)}
+                    className="shrink-0"
+                    title="Tutorial - How to use this app"
+                  >
+                    <Info className="h-5 w-5" />
+                  </Button>
+                )}
 
                 {/* Bug Report Button */}
                 <Button

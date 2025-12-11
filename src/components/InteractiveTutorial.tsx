@@ -77,8 +77,20 @@ export function InteractiveTutorial({
 
   // Update highlight and tooltip position when step changes
   useEffect(() => {
-    if (!open || !step.targetSelector) {
+    if (!open) {
       setHighlightedElement(null);
+      return;
+    }
+
+    // If step has no target selector (like intro/outro steps), center the tooltip
+    if (!step.targetSelector) {
+      setHighlightedElement(null);
+      // Use calculateTooltipPosition for consistent center positioning
+      const centerPosition = calculateTooltipPosition(
+        document.body, // dummy element, won't be used for 'center' position
+        'center'
+      );
+      setTooltipPosition(centerPosition);
       return;
     }
 
@@ -101,10 +113,11 @@ export function InteractiveTutorial({
       } else {
         setHighlightedElement(null);
         // Center tooltip if element not found
-        setTooltipPosition({
-          top: window.innerHeight / 2 - 100,
-          left: window.innerWidth / 2 - 200
-        });
+        const centerPosition = calculateTooltipPosition(
+          document.body, // dummy element, won't be used for 'center' position
+          'center'
+        );
+        setTooltipPosition(centerPosition);
       }
     };
 
@@ -115,16 +128,26 @@ export function InteractiveTutorial({
 
   // Update position on window resize
   useEffect(() => {
-    if (!highlightedElement || !open) return;
+    if (!open) return;
 
     const handleResize = () => {
-      const position = calculateTooltipPosition(highlightedElement, step.position || 'bottom');
-      setTooltipPosition(position);
+      if (highlightedElement) {
+        // Recalculate position for highlighted elements
+        const position = calculateTooltipPosition(highlightedElement, step.position || 'bottom');
+        setTooltipPosition(position);
+      } else if (!step.targetSelector) {
+        // Recalculate center position for intro/outro steps
+        const centerPosition = calculateTooltipPosition(
+          document.body, // dummy element, won't be used for 'center' position
+          'center'
+        );
+        setTooltipPosition(centerPosition);
+      }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [highlightedElement, step.position, calculateTooltipPosition, open]);
+  }, [highlightedElement, step.position, step.targetSelector, calculateTooltipPosition, open]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {

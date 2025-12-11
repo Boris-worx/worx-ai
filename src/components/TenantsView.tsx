@@ -418,8 +418,51 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
           );
         },
       };
-    });
-  }, [enrichedColumnConfigs, tenants]);
+    }).concat([
+      // Add Actions column at the end
+      {
+        key: 'actions',
+        header: 'Actions',
+        render: (tenant: Tenant) => (
+          <div className="flex gap-1 justify-end">
+            {canView && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleTenantIdClick(tenant)}
+                className="h-8 w-8 p-0"
+                title="View tenant details"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEdit(tenant)}
+                className="h-8 w-8 p-0"
+                title="Edit tenant"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openDeleteDialog(tenant)}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                title="Delete tenant"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ]);
+  }, [enrichedColumnConfigs, tenants, canView, canEdit, canDelete]);
 
   // Filter tenants based on active tenant selection
   const filteredTenants = useMemo(() => {

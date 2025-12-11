@@ -51,6 +51,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { DataSource, createDataCaptureSpec } from "../lib/api";
@@ -157,6 +158,7 @@ export function DataCaptureSpecCreateDialog({
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [templateSortOrder, setTemplateSortOrder] = useState<'asc' | 'desc'>('asc');
   const [templateSearchQuery, setTemplateSearchQuery] = useState<string>('');
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]); // Track which groups are expanded
   
   // Track previous isOpen value to detect opening transition
   const prevIsOpen = useRef(false);
@@ -368,12 +370,14 @@ export function DataCaptureSpecCreateDialog({
       // Detect template type by groupId
       const isBidTools = artifact.groupId === "paradigm.bidtools2";
       const isBfsOnline = artifact.groupId === "bfs.online";
+      const isBfsTrend = artifact.groupId === "bfs.trend";
+      const isBuilderProfile = artifact.groupId === "builderProfile";
 
-      // For BidTools and BFS Online templates, remove TxServices_ prefix
-      if (isBidTools || isBfsOnline) {
+      // For BidTools, BFS Online, BFS Trend, and Builder Profile templates, remove TxServices_ prefix
+      if (isBidTools || isBfsOnline || isBfsTrend || isBuilderProfile) {
         const beforeTrim = specName;
         specName = specName.replace(/^TxServices_/, "");
-        console.log(`  - ${isBfsOnline ? 'BFS Online' : 'BidTools'} detected - removing TxServices_ prefix`);
+        console.log(`  - ${isBfsOnline ? 'BFS Online' : isBfsTrend ? 'BFS Trend' : isBuilderProfile ? 'Builder Profile' : 'BidTools'} detected - removing TxServices_ prefix`);
         console.log("    Before:", beforeTrim);
         console.log("    After:", specName);
       }
@@ -382,8 +386,8 @@ export function DataCaptureSpecCreateDialog({
       let specNameSingular: string;
       let containerName: string;
 
-      if (isBfsOnline) {
-        // BFS Online: specName is already processed (e.g., "inv", "stcode", "loc1")
+      if (isBfsOnline || isBfsTrend || isBuilderProfile) {
+        // BFS Online, BFS Trend, and Builder Profile: specName is already processed (e.g., "inv", "stcode", "loc1")
         // Examples: 
         //   - inv.response → inv (Spec Name: inv, Container Name: invs)
         //   - TxServices_Informix_stcode.response → stcode (Spec Name: stcode, Container Name: stcodes)
@@ -395,7 +399,7 @@ export function DataCaptureSpecCreateDialog({
         // Container Name: add 's' to make plural (inv -> invs, stcode -> stcodes, loc1 -> loc1s)
         containerName = specName + "s";
         
-        console.log("  - BFS Online detected - keeping spec name as-is, adding 's' for container");
+        console.log(`  - ${isBfsTrend ? 'BFS Trend' : isBuilderProfile ? 'Builder Profile' : 'BFS Online'} detected - keeping spec name as-is, adding 's' for container`);
       } else {
         // BidTools and other templates: assume plural in artifact name
         // Spec Name: singular form (QuoteComponentTypes -> QuoteComponentType)
@@ -725,11 +729,14 @@ export function DataCaptureSpecCreateDialog({
     if (isOpening) {
       setSelectedGroups([]);
       setTemplateSortOrder('asc');
+      // Expand all groups by default when opening
+      const allGroupIds = Array.from(new Set(apicurioArtifacts.map(a => a.groupId || "other")));
+      setExpandedGroups(allGroupIds);
     }
     
     // Update ref for next render
     prevIsOpen.current = isOpen;
-  }, [isOpen, selectedDataSource, activeTenantId]); // Safe to include all deps now
+  }, [isOpen, selectedDataSource, activeTenantId, apicurioArtifacts]); // Safe to include all deps now
 
   // Auto-scroll to selected item when template dropdown opens
   useEffect(() => {
@@ -750,6 +757,27 @@ export function DataCaptureSpecCreateDialog({
     
     return () => clearTimeout(timeoutId);
   }, [templateSearchOpen]);
+
+  // Auto-expand groups when searching
+  useEffect(() => {
+    if (templateSearchQuery.trim()) {
+      // When user is searching, expand all groups that have matching results
+      const query = templateSearchQuery.toLowerCase();
+      const matchingGroups = apicurioArtifacts
+        .filter(a => {
+          const displayName = getArtifactDisplayName(a).toLowerCase();
+          return displayName.includes(query);
+        })
+        .map(a => a.groupId || "other");
+      
+      const uniqueMatchingGroups = Array.from(new Set(matchingGroups));
+      setExpandedGroups(uniqueMatchingGroups);
+    } else {
+      // When search is cleared, expand all groups again
+      const allGroupIds = Array.from(new Set(apicurioArtifacts.map(a => a.groupId || "other")));
+      setExpandedGroups(allGroupIds);
+    }
+  }, [templateSearchQuery, apicurioArtifacts]);
 
   // Reset form on close
   useEffect(() => {
@@ -773,6 +801,7 @@ export function DataCaptureSpecCreateDialog({
       setSelectedArtifact("");
       setSelectedGroups([]);
       setTemplateSortOrder('asc');
+      setExpandedGroups([]);
     }
   }, [isOpen]);
 
@@ -1203,8 +1232,8 @@ export function DataCaptureSpecCreateDialog({
                                   {} as Record<string, typeof apicurioArtifacts>,
                                 );
 
-                                // Sort groups: paradigm.bidtools2 first, then bfs.online, then others
-                                const groupOrder = ["paradigm.bidtools2", "bfs.online"];
+                                // Sort groups: paradigm.bidtools2 first, then bfs.online, then bfs.trend, then builderProfile, then others
+                                const groupOrder = ["paradigm.bidtools2", "bfs.online", "bfs.trend", "builderProfile"];
                                 const sortedGroups = Object.keys(grouped).sort((a, b) => {
                                   const indexA = groupOrder.indexOf(a);
                                   const indexB = groupOrder.indexOf(b);
@@ -1214,39 +1243,65 @@ export function DataCaptureSpecCreateDialog({
                                   return a.localeCompare(b);
                                 });
 
-                                return sortedGroups.map((groupId) => (
-                                  <CommandGroup
-                                    key={groupId}
-                                    heading={`${getGroupDisplayName(groupId)} (${grouped[groupId].length})`}
-                                  >
-                                    {grouped[groupId]
-                                      .slice()
-                                      .sort((a, b) => {
-                                        const nameA = getArtifactDisplayName(a).toLowerCase();
-                                        const nameB = getArtifactDisplayName(b).toLowerCase();
-                                        const comparison = nameA.localeCompare(nameB);
-                                        return templateSortOrder === 'asc' ? comparison : -comparison;
-                                      })
-                                      .map((artifact) => {
-                                        const isSelected = selectedArtifact === artifact.artifactId;
-                                        return (
-                                          <div key={artifact.artifactId} ref={isSelected ? selectedItemRef : null}>
-                                            <CommandItem
-                                              value={getArtifactDisplayName(artifact)}
-                                              onSelect={() => {
-                                                setSelectedArtifact(artifact.artifactId);
-                                                handleLoadApicurioTemplate(artifact.artifactId);
-                                                setTemplateSearchOpen(false);
-                                              }}
-                                              className={`text-xs pl-2 ${isSelected ? 'bg-accent' : ''}`}
-                                            >
-                                              {getArtifactDisplayName(artifact)}
-                                            </CommandItem>
-                                          </div>
-                                        );
-                                      })}
-                                  </CommandGroup>
-                                ));
+                                return sortedGroups.map((groupId) => {
+                                  const isExpanded = expandedGroups.includes(groupId);
+                                  return (
+                                    <div key={groupId} className="overflow-hidden border-b border-border/50 last:border-b-0">
+                                      {/* Group Header - Clickable */}
+                                      <div
+                                        className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold cursor-pointer hover:bg-accent/50 transition-colors"
+                                        onClick={() => {
+                                          setExpandedGroups(prev => 
+                                            prev.includes(groupId)
+                                              ? prev.filter(g => g !== groupId)
+                                              : [...prev, groupId]
+                                          );
+                                        }}
+                                      >
+                                        <span className="text-muted-foreground">
+                                          {getGroupDisplayName(groupId)} ({grouped[groupId].length})
+                                        </span>
+                                        <ChevronDown 
+                                          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                                            isExpanded ? '' : 'transform -rotate-90'
+                                          }`} 
+                                        />
+                                      </div>
+                                      
+                                      {/* Group Items - Collapsible */}
+                                      {isExpanded && (
+                                        <div className="pl-0">
+                                          {grouped[groupId]
+                                            .slice()
+                                            .sort((a, b) => {
+                                              const nameA = getArtifactDisplayName(a).toLowerCase();
+                                              const nameB = getArtifactDisplayName(b).toLowerCase();
+                                              const comparison = nameA.localeCompare(nameB);
+                                              return templateSortOrder === 'asc' ? comparison : -comparison;
+                                            })
+                                            .map((artifact) => {
+                                              const isSelected = selectedArtifact === artifact.artifactId;
+                                              return (
+                                                <div key={artifact.artifactId} ref={isSelected ? selectedItemRef : null}>
+                                                  <CommandItem
+                                                    value={getArtifactDisplayName(artifact)}
+                                                    onSelect={() => {
+                                                      setSelectedArtifact(artifact.artifactId);
+                                                      handleLoadApicurioTemplate(artifact.artifactId);
+                                                      setTemplateSearchOpen(false);
+                                                    }}
+                                                    className={`text-xs pl-4 ${isSelected ? 'bg-accent' : ''}`}
+                                                  >
+                                                    {getArtifactDisplayName(artifact)}
+                                                  </CommandItem>
+                                                </div>
+                                              );
+                                            })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                });
                               })()}
                             </div>
                           </CommandList>

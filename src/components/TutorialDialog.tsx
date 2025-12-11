@@ -120,7 +120,7 @@ const tutorialSteps: TutorialStep[] = [
     tips: [
       'Apicurio Templates are preloaded on application start',
       'Data Capture Spec becomes a Transaction Type in Data Plane',
-      'Use "Bid Tools Templates" and "BFS Online Templates" groups',
+      'Use templates from "Bid Tools Templates", "BFS Online Templates", "BFS Trend", and "Builder Profile" groups',
       'Templates automatically populate ModelSchemaId, SourceName, and other fields'
     ]
   },

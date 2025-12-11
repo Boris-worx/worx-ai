@@ -15,6 +15,8 @@ export function getAllArtifactsForDataSource(
     'BFS': 'bfs.online',
     'BFS.online': 'bfs.online',
     'bfs.online': 'bfs.online',
+    'BFS.trend': 'bfs.trend',
+    'bfs.trend': 'bfs.trend',
     'Bidtools': 'paradigm.mybldr.bidtools',
     'BIDTOOLS': 'paradigm.mybldr.bidtools',
     'bidtools': 'paradigm.mybldr.bidtools',

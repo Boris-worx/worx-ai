@@ -159,7 +159,7 @@ export const dataSourcesTutorialSteps: TutorialStep[] = [
   {
     id: 'datasources-templates',
     title: 'Apicurio Templates',
-    description: 'When creating a new spec, you\'ll see templates from "Bid Tools Templates" and "BFS Online Templates" groups. These templates automatically fill in ModelSchemaId, SourceName, and field mappings.',
+    description: 'When creating a new spec, you\'ll see templates from \"Bid Tools Templates\", \"BFS Online Templates\", \"BFS Trend\", and \"Builder Profile\" groups. These templates automatically fill in ModelSchemaId, SourceName, and field mappings.',
     targetSelector: 'create-datasource-btn',
     position: 'bottom',
     action: 'Templates are loaded from Apicurio Registry at startup',
