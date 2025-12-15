@@ -460,8 +460,8 @@ function AppContent() {
                   <Database className="h-5 w-5" />
                 </Button> */}
 
-                {/* Tutorial Button - Only for Tenants tab */}
-                {activeTab === 'tenants' && (
+                {/* Tutorial Button - Only for Tenants and Transaction Onboarding */}
+                {(activeTab === 'tenants' || activeTab === 'modelschema') && (
                   <Button
                     variant="ghost"
                     size="icon"

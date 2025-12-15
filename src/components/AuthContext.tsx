@@ -115,12 +115,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      // Default: Create guest user with viewer role
+      // Default: Create guest user with superuser role
       const guestUser: User = {
         username: 'guest',
-        role: 'viewer',
+        role: 'superuser',
         isAzureAuth: false,
-        access: ['Transactions', 'Data Plane'], // Guest has no tenant access
+        access: 'All', // SuperUser has access to all sections
       };
       setUser(guestUser);
       setIsLoadingAuth(false);

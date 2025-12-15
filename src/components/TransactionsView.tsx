@@ -97,6 +97,12 @@ interface TransactionsViewProps {
   onTenantChange: (tenantId: string) => void;
 }
 
+// Format number with thousand separators (e.g., 41609423 → 41,609,423)
+const formatNumber = (num: number | undefined): string => {
+  if (num === undefined) return '—';
+  return num.toLocaleString('en-US');
+};
+
 // Memoized transaction type button for better performance with large lists
 const TransactionTypeButton = memo(({ 
   type, 
@@ -113,14 +119,14 @@ const TransactionTypeButton = memo(({
   isLoadingThisCount: boolean;
   onClick: () => void;
 }) => {
-  const displayCount = isCountLoaded ? count : (isLoadingThisCount ? '...' : '—');
+  const displayCount = isCountLoaded ? formatNumber(count) : (isLoadingThisCount ? '...' : '—');
   
   return (
     <Button
       variant={isActive ? "default" : "ghost"}
       className="w-full justify-between text-left h-auto py-1.5 px-3 gap-2"
       onClick={onClick}
-      title={isCountLoaded ? `${count} transaction(s)` : 'Click to load'}
+      title={isCountLoaded ? `${formatNumber(count)} transaction(s)` : 'Click to load'}
     >
       <span className="text-sm truncate flex-1">
         {formatTransactionType(type)}
@@ -2085,7 +2091,7 @@ export function TransactionsView({
                 Transaction Types
               </h3>
               <Badge variant="secondary">
-                {filteredTypes.length}
+                {formatNumber(filteredTypes.length)}
               </Badge>
             </div>
 
@@ -2110,7 +2116,7 @@ export function TransactionsView({
                           </div>
                           {groupedTypes[groupName].map((type) => (
                             <SelectItem key={type} value={type}>
-                              {formatTransactionType(type)} ({typeCounts[type] || 0})
+                              {formatTransactionType(type)} ({formatNumber(typeCounts[type] || 0)})
                             </SelectItem>
                           ))}
                         </div>
@@ -2127,7 +2133,7 @@ export function TransactionsView({
                     {formatTransactionType(selectedTxnType)}
                   </h3>
                   <Badge variant="secondary">
-                    {transactions.length}
+                    {formatNumber(transactions.length)}
                   </Badge>
                 </div>
 

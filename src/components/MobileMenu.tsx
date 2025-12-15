@@ -12,6 +12,7 @@ import { Separator } from './ui/separator';
 import { useAuth } from './AuthContext';
 import { RoleTestDialog } from './RoleTestDialog';
 import { ProfileDialog } from './ProfileDialog';
+import { getTutorialSteps } from './tutorial-steps';
 
 interface MobileMenuProps {
   activeTab: string;
@@ -173,8 +174,8 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   Test API Connections
                 </Button> */}
 
-                {/* Tutorial - Only for Tenants tab */}
-                {activeTab === 'tenants' && (
+                {/* Tutorial - Only for Tenants and Transaction Onboarding */}
+                {(activeTab === 'tenants' || activeTab === 'modelschema') && (
                   <Button
                     variant="ghost"
                     onClick={() => {
