@@ -174,8 +174,8 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
                   Test API Connections
                 </Button> */}
 
-                {/* Tutorial - Only for Tenants and Transaction Onboarding */}
-                {(activeTab === 'tenants' || activeTab === 'modelschema') && (
+                {/* Tutorial - Available for all tabs with tutorials */}
+                {(activeTab === 'tenants' || activeTab === 'modelschema' || activeTab === 'datasources' || activeTab === 'applications' || activeTab === 'transactions') && (
                   <Button
                     variant="ghost"
                     onClick={() => {

@@ -2139,26 +2139,8 @@ export function TransactionsView({
 
                 {/* Desktop View - All buttons visible */}
                 <div className="hidden md:flex gap-2">
-                  {(userRole === "superuser" ||
-                    userRole === "admin" ||
-                    userRole === "developer") && (
-                    <Button
-                      onClick={() => setIsCreateDialogOpen(true)}
-                      data-tour-id="create-transaction-btn"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    data-tour-id="refresh-data-btn"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                  </Button>
+                
+                  
                   <div data-tour-id="tenant-selector">
                     <TenantSelector
                       tenants={tenants}
@@ -2175,6 +2157,26 @@ export function TransactionsView({
                       onReset={handleResetColumns}
                     />
                   </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    data-tour-id="refresh-data-btn"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                    {(userRole === "superuser" ||
+                    userRole === "admin" ||
+                    userRole === "developer") && (
+                    <Button
+                      onClick={() => setIsCreateDialogOpen(true)}
+                      data-tour-id="create-transaction-btn"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create
+                    </Button>
+                  )}
                 </div>
 
                 {/* Mobile View - Dropdown Menu - Second row on mobile */}
