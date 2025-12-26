@@ -384,33 +384,6 @@ export async function getTenantById(
 
 // Get all global Model Schemas (not tenant-specific)
 export async function getAllModelSchemas(): Promise<ModelSchema[]> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    // Return demo schema for Location
-    return [
-      {
-        id: "Location:1",
-        model: "Location",
-        version: 1,
-        state: "active",
-        semver: "1.0.0",
-        jsonSchema: {
-          "$id": "https://yourco/schemas/Location/1",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "Location",
-          "type": "object",
-          "required": ["LocationId", "Name"],
-          "properties": {
-            "LocationId": { "type": "string" },
-            "Name": { "type": "string" }
-          }
-        },
-        CreateTime: new Date().toISOString(),
-        UpdateTime: new Date().toISOString()
-      }
-    ];
-  }
-
   try {
     const url = buildTxnsUrl({ TxnType: 'ModelSchema' });
     const headers = getHeaders();
@@ -525,33 +498,6 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
 
 // Get Model Schemas for a specific tenant
 export async function getModelSchemasForTenant(tenantId: string): Promise<ModelSchema[]> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    // Return demo schema for Location
-    return [
-      {
-        id: "Location:1",
-        model: "Location",
-        version: 1,
-        state: "active",
-        semver: "1.0.0",
-        jsonSchema: {
-          "$id": "https://yourco/schemas/Location/1",
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "title": "Location",
-          "type": "object",
-          "required": ["LocationId", "Name"],
-          "properties": {
-            "LocationId": { "type": "string" },
-            "Name": { "type": "string" }
-          }
-        },
-        CreateTime: new Date().toISOString(),
-        UpdateTime: new Date().toISOString()
-      }
-    ];
-  }
-
   try {
     // Use v1.1 endpoint with filters
     const url = buildTxnsUrl({ TxnType: 'ModelSchema', TenantId: tenantId });
@@ -1689,6 +1635,73 @@ export async function getDataCaptureSpecs(
   }
 }
 
+// Get ALL Data Capture Specifications with pagination (loads all pages)
+export async function getAllDataCaptureSpecs(
+  tenantId?: string,
+  dataSourceId?: string
+): Promise<DataCaptureSpec[]> {
+  try {
+    const allSpecs: DataCaptureSpec[] = [];
+    let continuationToken: string | null = null;
+    let pageCount = 0;
+    
+    console.log('🔄 Loading ALL Data Capture Specs with pagination...');
+    console.log('  tenantId:', tenantId || 'all');
+    console.log('  dataSourceId:', dataSourceId || 'all');
+    
+    do {
+      let url = `${API_BASE_URL}/data-capture-specs`;
+      
+      // Build filters if provided
+      const params = new URLSearchParams();
+      if (tenantId || dataSourceId) {
+        const filters: any = {};
+        if (tenantId) filters.tenantId = tenantId;
+        if (dataSourceId) filters.dataSourceId = dataSourceId;
+        params.append('Filters', JSON.stringify(filters));
+      }
+      
+      // Add continuation token if exists
+      if (continuationToken) {
+        params.append('continuationToken', continuationToken);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      pageCount++;
+      console.log(`📄 Fetching page ${pageCount}... (continuation: ${continuationToken ? 'yes' : 'no'})`);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData: ApiResponse<any> = await response.json();
+        throw new Error(errorData.status?.message || "Failed to fetch data capture specs");
+      }
+
+      const data: ApiResponse<{ DataCaptureSpecs: DataCaptureSpec[] }> = await response.json();
+      const specs = data.data.DataCaptureSpecs || [];
+      
+      allSpecs.push(...specs);
+      console.log(`  ✅ Page ${pageCount}: ${specs.length} specs (total so far: ${allSpecs.length})`);
+      
+      // Check for continuation token in response
+      continuationToken = (data as any).continuationToken || null;
+      
+    } while (continuationToken);
+    
+    console.log(`✅ Loaded ALL ${allSpecs.length} Data Capture Specs in ${pageCount} page(s)`);
+    return allSpecs;
+  } catch (error) {
+    console.error("Error fetching all data capture specs:", error);
+    throw error;
+  }
+}
+
 // Get single Data Capture Specification by ID (with full containerSchema)
 export async function getDataCaptureSpec(
   dataCaptureSpecId: string
@@ -1963,11 +1976,6 @@ export async function deleteDataCaptureSpec(
 
 // Get Model Schema by ID
 export async function getModelSchemaById(schemaId: string): Promise<ModelSchema> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    throw new Error(`Model Schema with ID ${schemaId} not found`);
-  }
-
   try {
     const response = await fetch(`${API_BASE_URL}/txns/${encodeURIComponent(schemaId)}`, {
       method: "GET",
@@ -1995,22 +2003,6 @@ export async function createModelSchema(schemaData: {
   semver: string;
   jsonSchema: any;
 }): Promise<ModelSchema> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const newSchema: ModelSchema = {
-      id: `${schemaData.model}:${schemaData.version}`,
-      model: schemaData.model,
-      version: schemaData.version,
-      state: schemaData.state,
-      semver: schemaData.semver,
-      jsonSchema: schemaData.jsonSchema,
-      CreateTime: new Date().toISOString(),
-      UpdateTime: new Date().toISOString(),
-      _etag: `"demo-etag-${Date.now()}"`,
-    };
-    return { ...newSchema };
-  }
-
   try {
     const url = `${API_BASE_URL}/txns`;
     const headers = getHeaders();
@@ -2069,22 +2061,6 @@ export async function updateModelSchema(
   },
   etag: string,
 ): Promise<ModelSchema> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const updatedSchema: ModelSchema = {
-      id: schemaId,
-      model: schemaData.model,
-      version: schemaData.version,
-      state: schemaData.state,
-      semver: schemaData.semver,
-      jsonSchema: schemaData.jsonSchema,
-      CreateTime: new Date().toISOString(),
-      UpdateTime: new Date().toISOString(),
-      _etag: `"demo-etag-${Date.now()}"`,
-    };
-    return { ...updatedSchema };
-  }
-
   try {
     // Extract the id without ModelSchema prefix for Txn object
     // schemaId could be "ModelSchema:Location:1" or just "Location:1"
@@ -2152,11 +2128,6 @@ export async function updateModelSchema(
 
 // Delete Model Schema
 export async function deleteModelSchema(schemaId: string, etag: string): Promise<void> {
-  if (DEMO_MODE) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return;
-  }
-
   try {
     // Construct the full TxnId with ModelSchema prefix if not already present
     const txnId = schemaId.startsWith('ModelSchema:') ? schemaId : `ModelSchema:${schemaId}`;
@@ -2705,56 +2676,6 @@ function getMockApplications(tenantId?: string): Application[] {
       Status: 'Active',
       CreateTime: '2025-10-15T10:00:00Z',
       UpdateTime: '2025-11-10T14:30:00Z',
-    },
-    {
-      ApplicationId: 'app-002',
-      ApplicationName: 'Will Call',
-      TenantId: 'BFS',
-      Version: '1.5.2',
-      Description: 'Will call order management system',
-      Status: 'Active',
-      CreateTime: '2025-09-20T08:00:00Z',
-      UpdateTime: '2025-11-05T16:45:00Z',
-    },
-    {
-      ApplicationId: 'app-003',
-      ApplicationName: 'Inventory Hub',
-      TenantId: 'PIM',
-      Version: '3.0.1',
-      Description: 'Real-time inventory tracking and management',
-      Status: 'Active',
-      CreateTime: '2025-08-10T12:00:00Z',
-      UpdateTime: '2025-11-01T09:15:00Z',
-    },
-    {
-      ApplicationId: 'app-004',
-      ApplicationName: 'Analytics Portal',
-      TenantId: 'PIM',
-      Version: '1.0.0',
-      Description: 'Business intelligence and analytics dashboard',
-      Status: 'Inactive',
-      CreateTime: '2025-07-05T15:30:00Z',
-      UpdateTime: '2025-10-20T11:00:00Z',
-    },
-    {
-      ApplicationId: 'app-005',
-      ApplicationName: 'Project Manager',
-      TenantId: 'Smith Douglas',
-      Version: '2.3.0',
-      Description: 'Construction project management and scheduling',
-      Status: 'Active',
-      CreateTime: '2025-06-15T09:00:00Z',
-      UpdateTime: '2025-11-08T13:20:00Z',
-    },
-    {
-      ApplicationId: 'app-006',
-      ApplicationName: 'Design Studio',
-      TenantId: 'Meritage',
-      Version: '1.8.5',
-      Description: 'Home design customization and visualization tool',
-      Status: 'Active',
-      CreateTime: '2025-05-20T11:30:00Z',
-      UpdateTime: '2025-11-12T10:45:00Z',
     },
   ];
 

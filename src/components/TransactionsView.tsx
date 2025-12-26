@@ -171,6 +171,7 @@ export function TransactionsView({
     Record<string, number>
   >({});
   const [isLoadingCounts, setIsLoadingCounts] = useState(true);
+  const [allCountsLoaded, setAllCountsLoaded] = useState(false); // Track when all counts are fully loaded
   const loadingCountsRef = useRef<Set<string>>(new Set()); // Track which counts are currently loading
   const [continuationToken, setContinuationToken] = useState<
     string | null
@@ -985,6 +986,7 @@ export function TransactionsView({
   // Initialize with first transaction type when types are available
   const initialLoadDoneRef = useRef(false);
   const countsLoadStartedRef = useRef(false);
+  const defaultTypeSetRef = useRef(false); // Track if default type was set after counts loaded
   
   // Load counts for all transaction types in parallel (with batching)
   const loadAllTypeCounts = async () => {
@@ -1050,33 +1052,24 @@ export function TransactionsView({
     
     const endTime = performance.now();
     console.log(`✅ All counts loaded in ${Math.round(endTime - startTime)}ms`);
+    
+    // Mark all counts as loaded
+    setAllCountsLoaded(true);
   };
   
   useEffect(() => {
     if (transactionTypes.length > 0) {
       setIsLoadingCounts(false);
       
-      if (!selectedTxnType) {
-        // Set default type to LineType, or first available if not found
-        const hasLineType = transactionTypes.includes("LineType");
-        if (hasLineType) {
-          setSelectedTxnType("LineType");
-          console.log("📌 Default type set to: LineType");
-        } else {
-          const sortedTypes = [...transactionTypes].sort((a, b) => a.localeCompare(b));
-          setSelectedTxnType(sortedTypes[0]);
-          console.log(`📌 Default type set to: ${sortedTypes[0]} (LineType not available)`);
-        }
-      }
-      
       // Load all counts in parallel (once)
+      // After counts are loaded, the default type will be set by the other useEffect
       if (!countsLoadStartedRef.current) {
         countsLoadStartedRef.current = true;
         console.log(`🚀 Starting parallel count loading for ${transactionTypes.length} types...`);
         loadAllTypeCounts();
       }
     }
-  }, [transactionTypes, selectedTxnType]);
+  }, [transactionTypes]);
 
   // Load Data Sources for filtering
   useEffect(() => {
@@ -1095,6 +1088,30 @@ export function TransactionsView({
     
     loadDataSources();
   }, [activeTenantId]);
+
+  // Reset state when tenant changes
+  useEffect(() => {
+    console.log(`🔄 Tenant changed to: ${activeTenantId}, resetting state...`);
+    setAllCountsLoaded(false);
+    defaultTypeSetRef.current = false;
+    countsLoadStartedRef.current = false;
+    initialLoadDoneRef.current = false; // Reset initial load flag
+    setTypeCounts({});
+    setSelectedTxnType('');
+  }, [activeTenantId]);
+
+  // Auto-load AR type after 2 seconds when tenant changes or component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!defaultTypeSetRef.current && transactionTypes.includes('ar')) {
+        console.log(`⏰ Auto-loading AR type after 2 seconds`);
+        setSelectedTxnType('ar');
+        defaultTypeSetRef.current = true;
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [activeTenantId, transactionTypes]); // Restart timer on tenant change
 
   // Auto-load data when selectedTxnType changes
   useEffect(() => {
@@ -1555,7 +1572,7 @@ export function TransactionsView({
   
   // Auto-switch to first available type if current type is filtered out (has 0 count)
   useEffect(() => {
-    if (selectedTxnType && sortedFilteredTypes.length > 0) {
+    if (sortedFilteredTypes.length > 0 && selectedTxnType) {
       // Check if current type is still in the filtered list
       const isCurrentTypeAvailable = sortedFilteredTypes.includes(selectedTxnType);
       

@@ -10,7 +10,7 @@ import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Upload, Eye, MoreVertical, Filter } from 'lucide-react';
+import { Plus, Trash2, Pencil, Upload, Eye, MoreVertical, Filter, RefreshCw } from 'lucide-react';
 import { Tenant, createTenant, deleteTenant } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
@@ -498,13 +498,24 @@ export function TenantsView({ tenants, setTenants, isLoading, refreshData, userR
               </div>
             </div>
 
-            {/* Right: Add Button */}
-            {canCreate && (
-              <Button onClick={() => setIsCreateDialogOpen(true)} data-tour-id="create-tenant-btn">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Tenant
+            {/* Right: Refresh + Add Button */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshData}
+                disabled={isLoading}
+                title="Refresh tenants"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
-            )}
+              {canCreate && (
+                <Button onClick={() => setIsCreateDialogOpen(true)} data-tour-id="create-tenant-btn">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Tenant
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

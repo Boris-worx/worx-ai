@@ -4,13 +4,14 @@ import { ViewIcon } from './icons/ViewIcon';
 import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter, Info, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, Eye, AppWindow, MoreVertical, Filter, Info, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import { SearchIcon } from './icons/SearchIcon';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
 import { TenantSelector } from './TenantSelector';
-import { Tenant, Application, getApplications, createApplication, updateApplication, deleteApplication, TransactionSpecification, getTransactionSpecifications, createTransactionSpecification, updateTransactionSpecification, deleteTransactionSpecification } from '../lib/api';
+import { Tenant, Application, createApplication, updateApplication, deleteApplication, TransactionSpecification, createTransactionSpecification, updateTransactionSpecification, deleteTransactionSpecification } from '../lib/api';
+import { getCachedApplications, getCachedTransactionSpecs } from '../lib/cachedApi';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Separator } from './ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -90,18 +91,26 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPagePerApplication, setCurrentPagePerApplication] = useState<{ [key: string]: number }>({});
 
-  // Load applications from API when tenant changes
+  // Track if applications have been loaded at least once
+  const [applicationsLoaded, setApplicationsLoaded] = useState(false);
+
+  // Load applications from API on demand
   useEffect(() => {
-    loadApplications();
-  }, [activeTenantId]);
+    if (!applicationsLoaded) {
+      setApplicationsLoaded(true);
+      // Load in background without blocking UI
+      loadApplications();
+    }
+  }, [activeTenantId]); // Only reload when tenant changes
 
   const loadApplications = async () => {
-    setIsLoading(true);
+    // Only show loading if we have no data yet
+    if (applications.length === 0) {
+      setIsLoading(true);
+    }
     setIsUsingMockData(false); // Reset flag
     try {
-      const data = await getApplications(
-        activeTenantId === 'global' ? undefined : activeTenantId
-      );
+      const data = await getCachedApplications(activeTenantId, false);
       
       // Check if we got mock data by looking at the application IDs
       // Mock data typically has IDs like 'app-001', 'app-002', etc.
@@ -136,7 +145,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
         apps.map(async (app) => {
           try {
             const appId = getApplicationId(app);
-            const specs = await getTransactionSpecifications(appId, activeTenantId === 'global' ? undefined : activeTenantId);
+            const specs = await getCachedTransactionSpecs(appId, activeTenantId, false);
             
             // Check if specs have mock pattern (txspec-xxx format)
             if (specs.some(spec => /^txspec-\d{3,}$/.test(spec.TransactionSpecId || ''))) {
@@ -641,16 +650,27 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
             />
           </div>
 
-          {/* Right: Add Button */}
-          {canCreate && (
+          {/* Right: Refresh + Add Button */}
+          <div className="flex items-center gap-2">
             <Button
-              onClick={() => setIsCreateDialogOpen(true)}
-              data-tour-id="create-application-btn"
+              variant="outline"
+              size="sm"
+              onClick={loadApplications}
+              disabled={isLoading}
+              title="Refresh applications"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Application
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
-          )}
+            {canCreate && (
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                data-tour-id="create-application-btn"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Application
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>

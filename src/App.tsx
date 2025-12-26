@@ -1,14 +1,27 @@
-import { useState, useEffect } from 'react';
+/**
+ * BFS ERP Management Portal
+ * 
+ * Hidden Dashboard Access:
+ * - Dashboard is hidden from navigation menu but remains accessible
+ * - To open Dashboard, use one of these methods:
+ *   1. URL query parameter: ?tab=dashboard
+ *   2. URL hash: #dashboard
+ *   3. Browser console: window.location.hash = 'dashboard'
+ */
+import { useState, useEffect, lazy, Suspense } from 'react';
 import './styles/globals.css';
 import { Alert, AlertDescription } from './components/ui/alert';
 import { Button } from './components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Toaster } from './components/ui/sonner';
+import { Skeleton } from './components/ui/skeleton';
+import { DashboardView } from './components/DashboardView';
 import { TenantsView } from './components/TenantsView';
 import { TransactionsView } from './components/TransactionsView';
-import { ModelSchemaView } from './components/ModelSchemaView';
-import { DataSourcesView } from './components/DataSourcesView';
-import { ApplicationsView } from './components/ApplicationsView';
+// Lazy load heavy components
+const ModelSchemaView = lazy(() => import('./components/ModelSchemaView').then(m => ({ default: m.ModelSchemaView })));
+const DataSourcesView = lazy(() => import('./components/DataSourcesView').then(m => ({ default: m.DataSourcesView })));
+const ApplicationsView = lazy(() => import('./components/ApplicationsView').then(m => ({ default: m.ApplicationsView })));
 import { BugReportDialog } from './components/BugReportDialog';
 import { TutorialDialog } from './components/TutorialDialog';
 import { InteractiveTutorial } from './components/InteractiveTutorial';
@@ -22,7 +35,7 @@ import { ListIcon } from './components/icons/ListIcon';
 import { BugIcon } from './components/icons/BugIcon';
 import { MoonIcon } from './components/icons/MoonIcon';
 import { SunIcon } from './components/icons/SunIcon';
-import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun, AppWindow, Database } from 'lucide-react';
+import { Info, RefreshCw, Building2, Receipt, FileJson, Bug, Moon, Sun, AppWindow, Database, LayoutDashboard } from 'lucide-react';
 import { getAllTenants, getAllTransactions, getAllDataSources, loadTransactionTypes, Tenant, Transaction, DataSource } from './lib/api';
 import { toast } from 'sonner@2.0.3';
 import { AuthProvider, useAuth } from './components/AuthContext';
@@ -37,12 +50,22 @@ function AppContent() {
   // Data preloader
   const { state: preloadState, data: preloadedData, retry: retryPreload } = useDataPreloader();
   
-  // Active tab
+  // Active tab - start with 'tenants' since dashboard is hidden
   const [activeTab, setActiveTab] = useState('tenants');
   
   // Build navigation tabs based on user permissions
   const getNavigationTabs = () => {
     const tabs = [];
+    
+    // Dashboard tab - hidden from menu but accessible via direct navigation
+    tabs.push({
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
+      title: 'Dashboard',
+      subtitle: 'Overview of your data and activities',
+      hidden: true // Hide from navigation menu
+    });
     
     // Tenants tab: Global users see "Tenants", tenant-specific users see "My Tenant"
     if (hasAccessTo('Tenants') || user?.tenantId) {
@@ -151,6 +174,18 @@ function AppContent() {
     localStorage.removeItem('bfs_nav_order');
   }, []);
 
+  // Check URL for dashboard access (hidden tab that can be accessed directly)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.replace('#', '');
+    
+    // Allow opening dashboard via ?tab=dashboard or #dashboard
+    if (urlParams.get('tab') === 'dashboard' || hash === 'dashboard') {
+      setActiveTab('dashboard');
+      console.log('🔓 Dashboard opened via URL');
+    }
+  }, []);
+
   // Load active tenant from localStorage on mount or set from user
   useEffect(() => {
     // Tenant-specific users: lock to their tenant
@@ -200,7 +235,7 @@ function AppContent() {
       'transactions': 'Data Plane',
     };
 
-    // Check if user has access to current tab
+    // Check if user has access to current tab (skip for dashboard - it's hidden)
     const currentTabSection = tabMapping[activeTab];
     if (currentTabSection && !hasAccessTo(currentTabSection)) {
       // Redirect to first accessible tab
@@ -240,52 +275,60 @@ function AppContent() {
   // Track if Apicurio schemas have been loaded at least once
   const [apicurioSchemasLoaded, setApicurioSchemasLoaded] = useState(false);
 
-  // Background load Apicurio schemas immediately on app mount (don't wait for datasources tab)
-  useEffect(() => {
-    const loadApicurioSchemas = async () => {
-      if (!apicurioSchemasLoaded && isAuthenticated) {
-        // Check if we have cached data first
-        const hasCached = hasApicurioCachedData();
-        
-        if (hasCached) {
-          console.log('📦 [Background] Apicurio templates available from cache - loading instantly');
-        } else {
-          console.log('📡 [Background] No cache - fetching Apicurio templates from API...');
-          setIsLoadingArtifacts(true);
-        }
-        
-        try {
-          const result = await searchApicurioArtifacts('Value');
-          setApicurioArtifacts(result.artifacts);
-          setApicurioSchemasLoaded(true);
-          
-          if (hasCached) {
-            console.log(`✅ [Background] ${result.count} Apicurio templates ready (from cache)`);
-          } else {
-            console.log(`✅ [Background] Loaded ${result.count} Apicurio templates from API`);
-          }
-        } catch (error) {
-          console.error('[Background] Failed to load Apicurio schemas:', error);
-          // Don't block the UI if Apicurio fails
-          setApicurioSchemasLoaded(true); // Mark as loaded to avoid retry loops
-        } finally {
-          setIsLoadingArtifacts(false);
-        }
-      }
-    };
-    
-    loadApicurioSchemas();
-  }, [apicurioSchemasLoaded, isAuthenticated]);
-
-  // Lazy load data sources when user opens datasources or transactions tab
-  useEffect(() => {
-    const needsDataSources = (activeTab === 'datasources' || activeTab === 'transactions');
-    
-    if (needsDataSources && !dataSourcesLoaded && activeTenantId && tenants.length > 0) {
-      refreshDataSources();
+  // Load data sources on demand (called when datasources or dashboard tab opens)
+  const loadDataSourcesIfNeeded = async () => {
+    if (!dataSourcesLoaded) {
+      console.log('📡 [Lazy Load] Loading data sources on demand...');
+      await refreshDataSources();
       setDataSourcesLoaded(true);
     }
-  }, [activeTab, activeTenantId, tenants, dataSourcesLoaded]);
+  };
+
+  // Load Apicurio schemas on demand (called when datasources tab opens)
+  const loadApicurioSchemasIfNeeded = async () => {
+    if (!apicurioSchemasLoaded) {
+      // Check if we have cached data first
+      const hasCached = hasApicurioCachedData();
+      
+      if (hasCached) {
+        console.log('📦 [Lazy Load] Apicurio templates available from cache - loading instantly');
+      } else {
+        console.log('📡 [Lazy Load] No cache - fetching Apicurio templates from API...');
+        setIsLoadingArtifacts(true);
+      }
+      
+      try {
+        const result = await searchApicurioArtifacts('Value');
+        setApicurioArtifacts(result.artifacts);
+        setApicurioSchemasLoaded(true);
+        
+        if (hasCached) {
+          console.log(`✅ [Lazy Load] ${result.count} Apicurio templates ready (from cache)`);
+        } else {
+          console.log(`✅ [Lazy Load] Loaded ${result.count} Apicurio templates from API`);
+        }
+      } catch (error) {
+        console.error('[Lazy Load] Failed to load Apicurio schemas:', error);
+        // Don't block the UI if Apicurio fails
+        setApicurioSchemasLoaded(true); // Mark as loaded to avoid retry loops
+      } finally {
+        setIsLoadingArtifacts(false);
+      }
+    }
+  };
+
+  // Load data when tab changes
+  useEffect(() => {
+    if (!isAuthenticated || !tenants.length) return;
+
+    if (activeTab === 'dashboard' || activeTab === 'datasources') {
+      loadDataSourcesIfNeeded();
+    }
+    
+    if (activeTab === 'datasources') {
+      loadApicurioSchemasIfNeeded();
+    }
+  }, [activeTab, isAuthenticated, tenants]);
 
   // Reload data sources when active tenant changes (only if already loaded once)
   useEffect(() => {
@@ -433,7 +476,7 @@ function AppContent() {
 
             {/* Center - Navigation (Desktop only) */}
             <nav className="hidden md:flex items-center gap-1">
-              {getNavigationTabs().map((tab) => (
+              {getNavigationTabs().filter(tab => !tab.hidden).map((tab) => (
                 <Button
                   key={tab.id}
                   variant={activeTab === tab.id ? 'default' : 'ghost'}
@@ -529,6 +572,17 @@ function AppContent() {
 
         {/* Tabs Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="dashboard">
+            <DashboardView
+              tenants={tenants}
+              dataSources={dataSources}
+              activeTenantId={activeTenantId}
+              isLoadingTenants={isLoadingTenants}
+              isLoadingDataSources={isLoadingDataSources}
+              userRole={user?.role || 'viewer'}
+            />
+          </TabsContent>
+
           <TabsContent value="tenants">
             <TenantsView
               tenants={tenants}
@@ -555,37 +609,58 @@ function AppContent() {
           </TabsContent>
 
           <TabsContent value="modelschema">
-            <ModelSchemaView 
-              userRole={user?.role || 'viewer'}
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={handleTenantChange}
-            />
+            <Suspense fallback={
+              <div className="w-full max-w-[1440px] mx-auto space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-96 w-full" />
+              </div>
+            }>
+              <ModelSchemaView 
+                userRole={user?.role || 'viewer'}
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={handleTenantChange}
+              />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="datasources">
-            <DataSourcesView
-              dataSources={dataSources}
-              setDataSources={setDataSources}
-              isLoading={isLoadingDataSources}
-              refreshData={refreshDataSources}
-              userRole={user?.role || 'viewer'}
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={handleTenantChange}
-              apicurioArtifacts={apicurioArtifacts}
-              isLoadingArtifacts={isLoadingArtifacts}
-              onRefreshArtifacts={forceRefreshApicurioArtifacts}
-            />
+            <Suspense fallback={
+              <div className="w-full max-w-[1440px] mx-auto space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-96 w-full" />
+              </div>
+            }>
+              <DataSourcesView
+                dataSources={dataSources}
+                setDataSources={setDataSources}
+                isLoading={isLoadingDataSources}
+                refreshData={refreshDataSources}
+                userRole={user?.role || 'viewer'}
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={handleTenantChange}
+                apicurioArtifacts={apicurioArtifacts}
+                isLoadingArtifacts={isLoadingArtifacts}
+                onRefreshArtifacts={forceRefreshApicurioArtifacts}
+              />
+            </Suspense>
           </TabsContent>
 
           <TabsContent value="applications">
-            <ApplicationsView
-              userRole={user?.role || 'viewer'}
-              tenants={tenants}
-              activeTenantId={activeTenantId}
-              onTenantChange={handleTenantChange}
-            />
+            <Suspense fallback={
+              <div className="w-full max-w-[1440px] mx-auto space-y-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-96 w-full" />
+              </div>
+            }>
+              <ApplicationsView
+                userRole={user?.role || 'viewer'}
+                tenants={tenants}
+                activeTenantId={activeTenantId}
+                onTenantChange={handleTenantChange}
+              />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </main>
@@ -621,7 +696,7 @@ function AppContent() {
             
             {/* Right - Copyright */}
             <p className="text-xs text-muted-foreground">
-              ©2025 WTS Paradigm, LLC. All rights reserved. • v5.1.10
+              ©2025 WTS Paradigm, LLC. All rights reserved. • v5.2.0
             </p>
           </div>
         </div>

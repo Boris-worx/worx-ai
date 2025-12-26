@@ -13,8 +13,8 @@ import { EditIcon } from './icons/EditIcon';
 import { DeleteIcon } from './icons/DeleteIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { Skeleton } from './ui/skeleton';
-import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, Check, X } from 'lucide-react';
-import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, getDataCaptureSpec, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
+import { Plus, Trash2, Pencil, Eye, Database, MoreVertical, Filter, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, Check, X, RefreshCw } from 'lucide-react';
+import { DataSource, createDataSource, deleteDataSource, updateDataSource, DataCaptureSpec, getDataCaptureSpecs, getAllDataCaptureSpecs, getDataCaptureSpec, createDataCaptureSpec, updateDataCaptureSpec, deleteDataCaptureSpec } from '../lib/api';
 import { ColumnSelector, ColumnConfig } from './ColumnSelector';
 import { toast } from 'sonner@2.0.3';
 import { Badge } from './ui/badge';
@@ -590,6 +590,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPagePerDataSource, setCurrentPagePerDataSource] = useState<Record<string, number>>({});
   
+  // State for Data Capture Spec counts per Data Source
+  const [specsCountPerDataSource, setSpecsCountPerDataSource] = useState<Record<string, number>>({});
+  
   // Create Data Capture Spec form state
   const [createSpecForm, setCreateSpecForm] = useState({
     dataCaptureSpecName: '',
@@ -680,6 +683,38 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       setFullSpecData(null);
     }
   }, [isSpecViewOpen]);
+
+  // Function to reload Data Capture Specs counts
+  const loadSpecsCounts = async () => {
+    console.log('📊 Loading Data Capture Specs counts for all data sources...');
+    try {
+      // Load all specs (respects tenant isolation)
+      const allSpecs = await getAllDataCaptureSpecs(
+        activeTenantId === 'global' ? undefined : activeTenantId
+      );
+      
+      console.log('✅ Loaded', allSpecs.length, 'Data Capture Specs');
+      
+      // Count specs per data source
+      const counts: Record<string, number> = {};
+      allSpecs.forEach(spec => {
+        const dsId = spec.dataSourceId || spec.DataSourceId || '';
+        if (dsId) {
+          counts[dsId] = (counts[dsId] || 0) + 1;
+        }
+      });
+      
+      console.log('📊 Specs counts per Data Source:', counts);
+      setSpecsCountPerDataSource(counts);
+    } catch (error) {
+      console.error('❌ Failed to load specs counts:', error);
+    }
+  };
+
+  // Load all Data Capture Specs to count them per Data Source
+  useEffect(() => {
+    loadSpecsCounts();
+  }, [activeTenantId]); // Only reload when tenant changes, manual reload after CRUD operations
 
   // Load selected spec data into edit form when dialog opens (fetch full spec from API)
   useEffect(() => {
@@ -803,6 +838,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const getDefaultColumns = (): ColumnConfig[] => [
     { key: 'DatasourceId', label: 'Data Source ID', enabled: true, locked: true },
     { key: 'DatasourceName', label: 'Name', enabled: true },
+    { key: 'SpecsCount', label: 'Specs Count', enabled: true }, // New column for Data Capture Spec counts
     { key: 'TenantId', label: 'Tenant ID', enabled: true },
     { key: 'DatasourceType', label: 'Type', enabled: true },
     { key: 'Type', label: 'Type (Legacy)', enabled: false },
@@ -815,7 +851,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
   // Column configuration state with localStorage persistence
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>(() => {
-    const STORAGE_VERSION = '5'; // Increment when changing default columns
+    const STORAGE_VERSION = '6'; // Increment when changing default columns (Added Specs Count)
     const saved = localStorage.getItem('dataSourcesViewColumns');
     const savedVersion = localStorage.getItem('dataSourcesViewColumnsVersion');
     
@@ -835,7 +871,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
   // Save column configs to localStorage whenever they change
   useEffect(() => {
-    const STORAGE_VERSION = '5';
+    const STORAGE_VERSION = '6';
     localStorage.setItem('dataSourcesViewColumns', JSON.stringify(columnConfigs));
     localStorage.setItem('dataSourcesViewColumnsVersion', STORAGE_VERSION);
   }, [columnConfigs]);
@@ -1070,6 +1106,14 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     }
     
     return columnConfigs.map(col => {
+      // SpecsCount is a computed column, always has data
+      if (col.key === 'SpecsCount') {
+        return {
+          ...col,
+          isEmpty: false
+        };
+      }
+      
       // Check if column has any non-empty values
       const hasData = col.locked || dataSources.some(row => {
         let value: any;
@@ -1131,13 +1175,25 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             const name = getDataSourceName(row);
             return name || '—';
           }
+          if (colConfig.key === 'SpecsCount') {
+            const dsId = getDataSourceId(row);
+            const count = specsCountPerDataSource[dsId] || 0;
+            return (
+              <Badge 
+                variant={count > 0 ? "default" : "secondary"} 
+                className={`text-xs ${count > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : ''}`}
+              >
+                {count}
+              </Badge>
+            );
+          }
           
           // Get the value using the config key
           const value = row[colConfig.key as keyof DataSource];
           return formatCellValue(value, colConfig.key);
         },
       }));
-  }, [enrichedColumnConfigs, dataSources]);
+  }, [enrichedColumnConfigs, dataSources, specsCountPerDataSource]);
 
   // Create data source handler
   const handleCreate = async () => {
@@ -1366,8 +1422,17 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
             />
           </div>
 
-          {/* Right: Action Buttons */}
+          {/* Right: Refresh + Action Buttons */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshData}
+              disabled={isLoading}
+              title="Refresh data sources"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
             {canCreate && (
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
@@ -2136,6 +2201,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
         activeTenantId={activeTenantId}
         onSuccess={async () => {
           await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+          await loadSpecsCounts(); // Reload counts after creating a spec
         }}
         apicurioArtifacts={apicurioArtifacts}
         isLoadingArtifacts={isLoadingArtifacts}
@@ -2795,8 +2861,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   toast.success(`Data Capture Specification "${editSpecForm.dataCaptureSpecName}" updated successfully!`);
                   setIsSpecEditOpen(false);
                   
-                  // Reload specs
+                  // Reload specs and counts
                   await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+                  await loadSpecsCounts(); // Reload counts after updating a spec (in case dataSourceId changed)
                 } catch (error: any) {
                   console.error('Failed to update spec:', error);
                   toast.error(error.message || 'Failed to update data capture specification');
@@ -2867,8 +2934,9 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
                   );
                   toast.success(`Specification for ${specToDelete.table} deleted successfully!`);
                   
-                  // Reload specs
+                  // Reload specs and counts
                   await loadDataCaptureSpecs(activeTenantId !== 'global' ? activeTenantId : undefined);
+                  await loadSpecsCounts(); // Reload counts after deleting a spec
                 } catch (error: any) {
                   console.error('Failed to delete spec:', error);
                   toast.error(error.message || 'Failed to delete specification');

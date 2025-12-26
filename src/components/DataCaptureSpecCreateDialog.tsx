@@ -541,73 +541,12 @@ export function DataCaptureSpecCreateDialog({
         requiredFieldsList,
       );
 
-      // Build containerSchema with proper structure and order
-      const containerSchema = {
-        schemaVersion: artifact.version || "1",
-        type: "object",
-        properties: {
-          id: {
-            type: "string",
-            description: "Document ID. developer/integrator sets it from webapp. Source primary key value in case of one source or combination, also mapped to id if needed"
-          },
-          partitionKey: {
-            type: "string",
-            description: "container partition key. developer/integrator sets it from webapp. For data landing in common area empty"
-          },
-          ...extractedProperties, // Add extracted schema properties
-          metaData: {
-            type: "object",
-            properties: {
-              sources: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    sourceDatabase: {
-                      type: "string"
-                    },
-                    sourceTable: {
-                      type: "string"
-                    },
-                    sourcePrimaryKeyField: {
-                      type: "string"
-                    },
-                    sourcePrimaryKeyFields: {
-                      type: "array",
-                      items: {
-                        type: "string"
-                      }
-                    },
-                    sourceCreateTime: {
-                      type: ["string", "null"],
-                      format: "date-time"
-                    },
-                    sourceUpdateTime: {
-                      type: ["string", "null"],
-                      format: "date-time"
-                    },
-                    sourceEtag: {
-                      type: ["string", "null"]
-                    }
-                  }
-                }
-              }
-            }
-          },
-          createTime: {
-            type: ["string", "null"],
-            format: "date-time",
-            description: "populated by txservices"
-          },
-          updateTime: {
-            type: ["string", "null"],
-            format: "date-time",
-            description: "populated by txservices"
-          }
-        },
-        required: requiredFieldsList,
-        unevaluatedProperties: true
-      };
+      // Use the original schema from Apicurio for Container Schema
+      // This ensures we get the exact schema structure from the registry
+      const containerSchema = schema;
+
+      console.log("📦 Using original Apicurio schema for Container Schema");
+      console.log("📦 Schema keys:", Object.keys(containerSchema).join(', '));
 
       // Auto-populate form - CLEAR OLD DATA FIRST
       console.log("🎯 Setting formData from template:");

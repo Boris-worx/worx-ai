@@ -23,7 +23,8 @@ import {
   Lock,
   Globe,
   Key,
-  CheckCircle2
+  CheckCircle2,
+  LayoutDashboard
 } from 'lucide-react';
 import { Separator } from './ui/separator';
 
@@ -59,6 +60,25 @@ const tutorialSteps: TutorialStep[] = [
       'Use the tenant selector in the top right corner to switch between tenants',
       'Global tenant has access to data from all tenants',
       'Each tab adapts to your role and access permissions'
+    ]
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard - Overview',
+    icon: <LayoutDashboard className="h-8 w-8" />,
+    description: 'Get a comprehensive overview of your data and activities across all modules.',
+    features: [
+      'View total counts for Tenants, Transactions, Data Sources, and Capture Specs',
+      'Interactive charts showing top Transaction Types',
+      'Transaction distribution pie chart',
+      'Data Sources breakdown by type',
+      'Activity summary with visual progress bars'
+    ],
+    tips: [
+      'Dashboard automatically updates when switching tenants',
+      'Charts display only non-zero transaction types',
+      'All numbers are formatted with thousand separators for readability',
+      'Dashboard respects tenant isolation - you only see your data'
     ]
   },
   {

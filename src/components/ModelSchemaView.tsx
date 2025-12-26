@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ModelSchema, getAllModelSchemas, createModelSchema, updateModelSchema, deleteModelSchema } from '../lib/api';
+import { ModelSchema, createModelSchema, updateModelSchema, deleteModelSchema } from '../lib/api';
+import { getCachedModelSchemas } from '../lib/cachedApi';
 import { toast } from 'sonner@2.0.3';
 import { UserRole } from './AuthContext';
 import { DataTable } from './DataTable';
@@ -18,7 +19,7 @@ import { Textarea } from './ui/textarea';
 import { ScrollArea } from './ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Eye as ViewIcon, Edit2 as EditIcon, Trash2 as DeleteIcon, Lock } from 'lucide-react';
+import { Plus, Eye as ViewIcon, Edit2 as EditIcon, Trash2 as DeleteIcon, Lock, RefreshCw } from 'lucide-react';
 
 interface ModelSchemaViewProps {
   userRole: UserRole;
@@ -295,18 +296,28 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
     }));
   }, [globalSchemas]);
 
-  // Load schemas on mount
+  // Track if schemas have been loaded at least once
+  const [schemasLoaded, setSchemasLoaded] = useState(false);
+
+  // Load schemas on first access
   useEffect(() => {
-    loadGlobalSchemas();
+    if (!schemasLoaded) {
+      setSchemasLoaded(true);
+      // Load in background without blocking UI
+      loadGlobalSchemas();
+    }
   }, []);
 
   // Load global ModelSchemas
   const loadGlobalSchemas = async () => {
-    setIsLoadingSchemas(true);
+    // Only show loading if we have no data yet
+    if (globalSchemas.length === 0) {
+      setIsLoadingSchemas(true);
+    }
     setSchemaError(null);
     try {
       console.log('🔄 Loading global schemas...');
-      const schemas = await getAllModelSchemas();
+      const schemas = await getCachedModelSchemas();
       console.log(`📦 Loaded ${schemas.length} schema(s) from API`);
       
       // Filter out deleted schemas (soft delete)
@@ -500,16 +511,27 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             />
           </div>
 
-          {/* Right: Add Button */}
-          {canCreate && (
+          {/* Right: Refresh + Add Button */}
+          <div className="flex items-center gap-2">
             <Button
-              onClick={() => setIsCreateDialogOpen(true)}
-              data-tour-id="create-modelschema-btn"
+              variant="outline"
+              size="sm"
+              onClick={loadGlobalSchemas}
+              disabled={isLoadingSchemas}
+              title="Refresh schemas"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Schema
+              <RefreshCw className={`h-4 w-4 ${isLoadingSchemas ? 'animate-spin' : ''}`} />
             </Button>
-          )}
+            {canCreate && (
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                data-tour-id="create-modelschema-btn"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Schema
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>

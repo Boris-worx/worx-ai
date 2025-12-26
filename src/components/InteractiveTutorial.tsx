@@ -102,7 +102,7 @@ export function InteractiveTutorial({
 
   // Update highlight and tooltip position when step changes
   useEffect(() => {
-    if (!open) {
+    if (!open || !step) {
       setHighlightedElement(null);
       return;
     }
@@ -153,14 +153,14 @@ export function InteractiveTutorial({
 
   // Update position on window resize
   useEffect(() => {
-    if (!open) return;
+    if (!open || !step) return;
 
     const handleResize = () => {
-      if (highlightedElement) {
+      if (highlightedElement && step) {
         // Recalculate position for highlighted elements
         const position = calculateTooltipPosition(highlightedElement, step.position || 'bottom');
         setTooltipPosition(position);
-      } else if (!step.targetSelector) {
+      } else if (step && !step.targetSelector) {
         // Recalculate center position for intro/outro steps
         const centerPosition = calculateTooltipPosition(
           document.body, // dummy element, won't be used for 'center' position
@@ -172,7 +172,7 @@ export function InteractiveTutorial({
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [highlightedElement, step.position, step.targetSelector, calculateTooltipPosition, open]);
+  }, [highlightedElement, step, calculateTooltipPosition, open]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -196,7 +196,7 @@ export function InteractiveTutorial({
     handleClose();
   };
 
-  if (!open) return null;
+  if (!open || !step) return null;
 
   // Calculate highlighted element position for spotlight
   const highlightRect = highlightedElement?.getBoundingClientRect();

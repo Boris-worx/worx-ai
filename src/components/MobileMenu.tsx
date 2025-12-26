@@ -7,7 +7,7 @@ import { ListIcon } from './icons/ListIcon';
 import { BugIcon } from './icons/BugIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { SunIcon } from './icons/SunIcon';
-import { Menu, Receipt, LogOut, UserCircle, RefreshCw, AppWindow, Database, Info } from 'lucide-react';
+import { Menu, Receipt, LogOut, UserCircle, RefreshCw, AppWindow, Database, Info, LayoutDashboard } from 'lucide-react';
 import { Separator } from './ui/separator';
 import { useAuth } from './AuthContext';
 import { RoleTestDialog } from './RoleTestDialog';
@@ -59,6 +59,15 @@ export function MobileMenu({ activeTab, onTabChange, theme, onThemeChange, onBug
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Navigation</p>
               <nav className="space-y-1">
+                {/* Dashboard - hidden from menu but accessible via direct navigation */}
+                {/* <Button
+                  variant={activeTab === 'dashboard' ? 'default' : 'ghost'}
+                  onClick={() => handleTabClick('dashboard')}
+                  className="w-full justify-start hidden"
+                >
+                  <LayoutDashboard className="h-4 w-4 mr-3" />
+                  Dashboard
+                </Button> */}
                 {hasAccessTo('Tenants') && (
                   <Button
                     variant={activeTab === 'tenants' ? 'default' : 'ghost'}
