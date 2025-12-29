@@ -154,7 +154,7 @@ export function TransactionsView({
   onTenantChange,
 }: TransactionsViewProps) {
   const [selectedTxnType, setSelectedTxnType] =
-    useState<string>(""); // Will be set to first type when loaded
+    useState<string>("Customer"); // Default to Customer type
   const [isLoadingType, setIsLoadingType] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
@@ -817,12 +817,12 @@ export function TransactionsView({
     if (firstTxn.Txn && typeof firstTxn.Txn === 'object') {
       const txnFields = Object.keys(firstTxn.Txn);
       
-      // Add all Txn fields: first 4 enabled (ID + 4 = 5 total), rest disabled
+      // Add all Txn fields: ALL ENABLED by default
       txnFields.forEach((field, index) => {
         columns.push({
           key: `Txn.${field}`,
           label: formatFieldLabel(field),
-          enabled: index < 4, // First 4 fields enabled (with ID makes 5 total)
+          enabled: true, // All fields enabled by default
           locked: false,
         });
       });
@@ -1097,7 +1097,7 @@ export function TransactionsView({
     countsLoadStartedRef.current = false;
     initialLoadDoneRef.current = false; // Reset initial load flag
     setTypeCounts({});
-    setSelectedTxnType('');
+    setSelectedTxnType('Customer'); // Reset to default Customer type
   }, [activeTenantId]);
 
   // Auto-load AR type after 2 seconds when tenant changes or component mounts
@@ -1508,7 +1508,7 @@ export function TransactionsView({
     }
     // Fallback to old logic if Data Source not found
     const firstChar = type.charAt(0);
-    return firstChar === firstChar.toLowerCase() ? 'BFS Online' : 'Paradigm BigTools';
+    return firstChar === firstChar.toLowerCase() ? 'BFS Online' : 'NexusFlow BigTools';
   };
 
   // Filter types by search term and Data Source
@@ -2107,7 +2107,7 @@ export function TransactionsView({
               <h3 className="text-base md:text-lg">
                 Transaction Types
               </h3>
-              <Badge variant="secondary">
+              <Badge variant="secondary" style={{ borderRadius: '100px' }} className="min-w-[28px] h-[28px] flex items-center justify-center px-2">
                 {formatNumber(filteredTypes.length)}
               </Badge>
             </div>
@@ -2149,7 +2149,7 @@ export function TransactionsView({
                   <h3 className="text-base md:text-lg">
                     {formatTransactionType(selectedTxnType)}
                   </h3>
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" style={{ borderRadius: '100px' }} className="rounded-lg min-w-[28px] h-[28px] flex items-center justify-center px-2">
                     {formatNumber(transactions.length)}
                   </Badge>
                 </div>
@@ -2366,7 +2366,7 @@ export function TransactionsView({
                             <AccordionTrigger className="px-3 py-2 hover:no-underline text-sm">
                               <div className="flex items-center gap-2">
                                 <span>{groupName}</span>
-                                <Badge variant="secondary" className="text-xs">
+                                <Badge variant="secondary" className="text-xs min-w-[24px] h-[24px] flex items-center justify-center px-2" style={{ borderRadius: '100px' }}>
                                   {groupedTypes[groupName].length}
                                 </Badge>
                               </div>

@@ -436,111 +436,170 @@ const mockDataCaptureSchemas = {
   }
 };
 
-// Mock Data Capture Specifications - Quote with multiple tenant IDs
+// Mock Data Capture Specifications - Multiple types for different data sources
 const getMockSpecifications = (dataSourceName: string): DataCaptureSpecification[] => {
-  if (dataSourceName === 'Bidtools') {
-    const quoteSchema = mockDataCaptureSchemas.Quote;
-    const version = '1.0.0';
-    
-    // Mock tenant names
-    const tenantData = [
-      { id: 'BFS', name: 'BFS' },
-      { id: 'Meritage', name: 'Meritage' },
-      { id: 'Smith Douglas', name: 'Smith Douglas' },
-      { id: 'PIM', name: 'PIM' },
-      { id: 'BFS', name: 'BFS' },
-      { id: 'Meritage', name: 'Meritage' },
-      { id: 'Smith Douglas', name: 'Smith Douglas' },
-      { id: 'PIM', name: 'PIM' },
-      { id: 'BFS', name: 'BFS' },
-      { id: 'Meritage', name: 'Meritage' },
-      { id: 'Smith Douglas', name: 'Smith Douglas' },
-      { id: 'PIM', name: 'PIM' }
-    ];
-    
-    // Create Quote specifications for each tenant
-    return tenantData.map((tenant, index) => ({
-      id: `Quote:${index + 1}`,
-      table: quoteSchema.model,
-      version: String(quoteSchema.version),
+  const createSpec = (
+    model: string,
+    tenantId: string,
+    tenantName: string,
+    dataSourceId: string,
+    dataSourceName: string,
+    index: number
+  ): DataCaptureSpecification => {
+    const schema = mockDataCaptureSchemas[model as keyof typeof mockDataCaptureSchemas] || mockDataCaptureSchemas.Quote;
+    return {
+      id: `${model}:${index}`,
+      table: model,
+      version: '1',
       date: '11/05/2025',
-      schema: quoteSchema.jsonSchema, // Keep for backward compatibility
-      modelSchemaId: `Quote:${index + 1}`,
-      model: quoteSchema.model,
-      state: quoteSchema.state,
-      semver: version,
-      profile: quoteSchema.profile,
-      tenantId: tenant.id,
-      dataSourceId: 'bidtools',
-      title: quoteSchema.jsonSchema.title,
-      tenantName: tenant.name,
-      dataSourceName: 'Bidtools',
-      // Real Data Capture Spec fields
-      dataCaptureSpecId: `Quote:${index + 1}`,
-      dataCaptureSpecName: 'Quote',
+      schema: schema.jsonSchema,
+      modelSchemaId: `${model}:${index}`,
+      model: model,
+      state: 'ENABLED',
+      semver: '1.0.0',
+      profile: 'v1.0',
+      tenantId: tenantId,
+      dataSourceId: dataSourceId.toLowerCase().replace(/\s+/g, '-'),
+      title: model,
+      tenantName: tenantName,
+      dataSourceName: dataSourceName,
+      dataCaptureSpecId: `${model}:${index}`,
+      dataCaptureSpecName: model,
       isActive: true,
-      sourcePrimaryKeyField: 'quoteId',
+      sourcePrimaryKeyField: `${model.toLowerCase()}Id`,
       partitionKeyField: 'partitionKey',
-      partitionKeyValue: `${tenant.id}-bidtools`,
-      allowedFilters: [
-        'quoteId',
-        'customerId',
-        'quoteStatus',
-        'isPublished',
-        'isAutoMergeFailed',
-        'isLinkedQuote',
-        'isNewVersionNeeded',
-        'isSentToErp',
-        'useErpTaxes',
-        'isEditRestrictionEnabled',
-        'isPartialPackOrderingEnabled',
-        'isImportedByJson'
-      ],
-      requiredFields: ['quoteId', 'customerId'],
+      partitionKeyValue: `${tenantId}-${dataSourceId.toLowerCase().replace(/\s+/g, '-')}`,
+      allowedFilters: [`${model.toLowerCase()}Id`, 'status', 'createTime', 'updateTime'],
+      requiredFields: [`${model.toLowerCase()}Id`],
       containerSchema: {
         schemaVersion: 1,
         type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            description: 'Cosmos DB document id, mapped from quoteId for point lookups'
-          },
-          quoteId: {
-            type: 'string',
-            description: 'Source primary key, also mapped to id'
-          },
-          partitionKey: {
-            type: 'string',
-            description: 'Partition key value, set to partitionKeyValue from spec'
-          },
-          ...quoteSchema.jsonSchema.properties,
-          metaData: {
-            type: 'object',
-            properties: {
-              sources: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    sourceDatabase: { type: 'string' },
-                    sourceTable: { type: 'string' },
-                    sourceCreateTime: { type: ['string', 'null'], format: 'date-time' },
-                    sourceUpdateTime: { type: ['string', 'null'], format: 'date-time' },
-                    sourceEtag: { type: ['string', 'null'] }
-                  }
-                }
-              }
-            }
-          }
-        },
-        required: ['id', 'quoteId', 'partitionKey'],
+        properties: schema.jsonSchema.properties || {},
+        required: ['id', 'partitionKey'],
         unevaluatedProperties: true
       },
       createTime: '2025-11-05T10:00:00Z',
       updateTime: '2025-11-05T10:00:00Z'
-    }));
-  }
-  return [];
+    };
+  };
+
+  // Define different specs for different data sources
+  const specsConfig: Record<string, Array<{ model: string; tenants: Array<{ id: string; name: string }> }>> = {
+    'Bidtools': [
+      { 
+        model: 'Quote', 
+        tenants: [
+          { id: 'BFS', name: 'BFS' },
+          { id: 'Meritage', name: 'Meritage' },
+          { id: 'Smith Douglas', name: 'Smith Douglas' }
+        ]
+      }
+    ],
+    'SAP ECC Production': [
+      { 
+        model: 'Customer', 
+        tenants: [
+          { id: 'tenant-001', name: 'Acme Corporation' },
+          { id: 'tenant-002', name: 'Northwind Traders' }
+        ]
+      },
+      { 
+        model: 'Invoice', 
+        tenants: [
+          { id: 'tenant-001', name: 'Acme Corporation' }
+        ]
+      },
+      { 
+        model: 'Order', 
+        tenants: [
+          { id: 'tenant-001', name: 'Acme Corporation' }
+        ]
+      }
+    ],
+    'Oracle Financials': [
+      { 
+        model: 'Payment', 
+        tenants: [
+          { id: 'tenant-002', name: 'Northwind Traders' }
+        ]
+      },
+      { 
+        model: 'Invoice', 
+        tenants: [
+          { id: 'tenant-002', name: 'Northwind Traders' }
+        ]
+      }
+    ],
+    'Microsoft Dynamics 365': [
+      { 
+        model: 'Customer', 
+        tenants: [
+          { id: 'tenant-003', name: 'Contoso Ltd' }
+        ]
+      },
+      { 
+        model: 'Product', 
+        tenants: [
+          { id: 'tenant-003', name: 'Contoso Ltd' }
+        ]
+      },
+      { 
+        model: 'Location', 
+        tenants: [
+          { id: 'tenant-003', name: 'Contoso Ltd' }
+        ]
+      }
+    ],
+    'SAP S/4HANA Cloud': [
+      { 
+        model: 'Order', 
+        tenants: [
+          { id: 'tenant-004', name: 'Fabrikam Inc' }
+        ]
+      },
+      { 
+        model: 'Shipment', 
+        tenants: [
+          { id: 'tenant-004', name: 'Fabrikam Inc' }
+        ]
+      }
+    ],
+    'NetSuite ERP': [
+      { 
+        model: 'Customer', 
+        tenants: [
+          { id: 'tenant-005', name: 'Adventure Works' }
+        ]
+      },
+      { 
+        model: 'Quote', 
+        tenants: [
+          { id: 'tenant-005', name: 'Adventure Works' }
+        ]
+      }
+    ]
+  };
+
+  const config = specsConfig[dataSourceName];
+  if (!config) return [];
+
+  const specs: DataCaptureSpecification[] = [];
+  let index = 1;
+
+  config.forEach(({ model, tenants }) => {
+    tenants.forEach(tenant => {
+      specs.push(createSpec(
+        model,
+        tenant.id,
+        tenant.name,
+        dataSourceName.replace(/\s+/g, '-').toLowerCase(),
+        dataSourceName,
+        index++
+      ));
+    });
+  });
+
+  return specs;
 };
 
 // Get unique models from specifications
@@ -684,20 +743,69 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
     }
   }, [isSpecViewOpen]);
 
+  // Generate mock DataCaptureSpec[] from all data sources
+  const generateMockDataCaptureSpecs = (): DataCaptureSpec[] => {
+    const mockSpecs: DataCaptureSpec[] = [];
+    
+    console.log('🔧 generateMockDataCaptureSpecs called, dataSources.length:', dataSources.length);
+    
+    // For each data source, generate its specs
+    dataSources.forEach(ds => {
+      const dsName = ds.DatasourceName || ds.DataSourceName || '';
+      const dsId = ds.DatasourceId || ds.DataSourceId || '';
+      const dsTenantId = ds.TenantId || '';
+      
+      console.log('  Processing DS:', dsName, 'ID:', dsId);
+      
+      const specifications = getMockSpecifications(dsName);
+      
+      console.log('    Generated', specifications.length, 'specs for', dsName);
+      
+      specifications.forEach(spec => {
+        mockSpecs.push({
+          dataCaptureSpecId: spec.dataCaptureSpecId,
+          dataCaptureSpecName: spec.dataCaptureSpecName,
+          containerName: spec.model.toLowerCase(),
+          tenantId: spec.tenantId,
+          dataSourceId: dsId,
+          isActive: spec.isActive,
+          version: parseInt(spec.version) || 1,
+          profile: spec.profile,
+          sourcePrimaryKeyField: spec.sourcePrimaryKeyField,
+          partitionKeyField: spec.partitionKeyField,
+          partitionKeyValue: spec.partitionKeyValue,
+          allowedFilters: spec.allowedFilters,
+          requiredFields: spec.requiredFields,
+          containerSchema: spec.containerSchema,
+          createTime: spec.createTime,
+          updateTime: spec.updateTime,
+          _etag: `mock-etag-${spec.id}`
+        });
+      });
+    });
+    
+    console.log('🔧 Total mock specs generated:', mockSpecs.length);
+    
+    return mockSpecs;
+  };
+
   // Function to reload Data Capture Specs counts
   const loadSpecsCounts = async () => {
     console.log('📊 Loading Data Capture Specs counts for all data sources...');
     try {
-      // Load all specs (respects tenant isolation)
-      const allSpecs = await getAllDataCaptureSpecs(
-        activeTenantId === 'global' ? undefined : activeTenantId
-      );
+      // Use mock data directly
+      console.log('📝 Using mock data for counts');
+      const mockSpecs = generateMockDataCaptureSpecs();
       
-      console.log('✅ Loaded', allSpecs.length, 'Data Capture Specs');
+      // Filter by tenant if needed
+      let filteredSpecs = mockSpecs;
+      if (activeTenantId && activeTenantId !== 'global') {
+        filteredSpecs = mockSpecs.filter(s => s.tenantId === activeTenantId);
+      }
       
       // Count specs per data source
       const counts: Record<string, number> = {};
-      allSpecs.forEach(spec => {
+      filteredSpecs.forEach(spec => {
         const dsId = spec.dataSourceId || spec.DataSourceId || '';
         if (dsId) {
           counts[dsId] = (counts[dsId] || 0) + 1;
@@ -708,6 +816,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       setSpecsCountPerDataSource(counts);
     } catch (error) {
       console.error('❌ Failed to load specs counts:', error);
+      setSpecsCountPerDataSource({});
     }
   };
 
@@ -963,11 +1072,24 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
   const loadDataCaptureSpecs = async (tenantId?: string, dataSourceId?: string) => {
     try {
       setIsLoadingSpecs(true);
-      const specs = await getDataCaptureSpecs(tenantId, dataSourceId);
-      setDataCaptureSpecs(specs);
+      
+      // Use mock data directly
+      console.log('📝 Using mock data for Data Capture Specs');
+      const mockSpecs = generateMockDataCaptureSpecs();
+      
+      // Filter by tenant if needed
+      let filteredMockSpecs = mockSpecs;
+      if (tenantId && tenantId !== 'global') {
+        filteredMockSpecs = mockSpecs.filter(s => s.tenantId === tenantId);
+      }
+      if (dataSourceId) {
+        filteredMockSpecs = filteredMockSpecs.filter(s => s.dataSourceId === dataSourceId);
+      }
+      
+      setDataCaptureSpecs(filteredMockSpecs);
     } catch (error) {
       console.error('Failed to load data capture specs:', error);
-      toast.error('Failed to load data capture specifications');
+      setDataCaptureSpecs([]);
     } finally {
       setIsLoadingSpecs(false);
     }
@@ -982,6 +1104,16 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
       loadDataCaptureSpecs();
     }
   }, [activeTenantId]);
+
+  // Reload specs when dataSources change (to regenerate mock data with correct IDs)
+  useEffect(() => {
+    if (dataSources.length > 0) {
+      loadSpecsCounts();
+      if (activeTenantId) {
+        loadDataCaptureSpecs(activeTenantId === 'global' ? undefined : activeTenantId);
+      }
+    }
+  }, [dataSources]);
 
   // Auto-select current tenant when opening create dialog
   useEffect(() => {
@@ -2023,7 +2155,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Detail View Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[600px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Data Source Details</DialogTitle>
             <DialogDescription>
@@ -2054,7 +2186,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Data Capture Specification View Dialog */}
       <Dialog open={isSpecViewOpen} onOpenChange={setIsSpecViewOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl overflow-hidden">
           <DialogHeader>
             <DialogTitle>Data Capture Specification</DialogTitle>
             <DialogDescription>
@@ -2212,7 +2344,7 @@ export function DataSourcesView({ dataSources, setDataSources, isLoading, refres
 
       {/* Data Capture Specification Edit Dialog */}
       <Dialog open={isSpecEditOpen} onOpenChange={setIsSpecEditOpen}>
-        <DialogContent className="max-w-[700px] max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-[700px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Edit Data Capture Specification</DialogTitle>
             <DialogDescription>

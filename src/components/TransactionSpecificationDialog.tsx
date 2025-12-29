@@ -143,7 +143,7 @@ export function TransactionSpecificationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create' ? 'Create Transaction Specification' : 'Edit Transaction Specification'}
@@ -248,7 +248,7 @@ export function TransactionSpecificationDialog({
           </div>
 
           {mode === 'create' && (
-            <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+            <div className="bg-[#ffffff] border p-3 rounded-lg text-sm space-y-1">
               <p><strong>Application:</strong> {applicationId}</p>
               <p><strong>Tenant:</strong> {tenantId}</p>
             </div>

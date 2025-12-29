@@ -688,7 +688,25 @@ export let TRANSACTION_TYPES_INFO: TransactionTypeInfo[] = [];
 
 // Load transaction types from data-capture-specs API
 export async function loadTransactionTypes(): Promise<string[]> {
+  // ALWAYS use mock data instead of real API
+  console.log('🔄 Loading mock transaction types');
+  const { getMockTransactionTypes } = await import('./mockData');
+  
+  const mockTypes = getMockTransactionTypes();
+  TRANSACTION_TYPES = mockTypes;
+  
+  // Build TRANSACTION_TYPES_INFO from mock types
+  TRANSACTION_TYPES_INFO = mockTypes.map(type => ({
+    name: type,
+    dataSourceId: 'mock-datasource-001'
+  }));
+  
+  console.log(`✅ Loaded ${mockTypes.length} mock transaction types`);
+  return mockTypes;
+  
+  // Old API code below is now unused but kept for reference
   const startTime = performance.now();
+  if (false) {
   try {
     console.log('📡 Loading transaction types from data-capture-specs API...');
     
@@ -741,6 +759,7 @@ export async function loadTransactionTypes(): Promise<string[]> {
     TRANSACTION_TYPES_INFO = [];
     return FALLBACK_TRANSACTION_TYPES;
   }
+  }
 }
 
 // Format transaction type display name
@@ -764,7 +783,45 @@ export async function getTransactionsByType(
   continuationToken?: string,
   tenantId?: string
 ): Promise<PaginatedTransactionsResponse> {
-  if (DEMO_MODE) {
+  // ALWAYS use mock data instead of real API
+  console.log(`🔄 Loading mock transactions for ${txnType}`);
+  const { getMockDataByType } = await import('./mockData');
+  
+  // Simulate slight delay for realism
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  
+  const mockData = await getMockDataByType(txnType, tenantId);
+  const pageSize = 100; // Items per page
+  
+  // Simple pagination based on continuation token
+  if (continuationToken) {
+    const offset = parseInt(continuationToken, 10);
+    const paginatedData = mockData.slice(offset, offset + pageSize);
+    const hasMore = offset + pageSize < mockData.length;
+    const nextToken = hasMore ? String(offset + pageSize) : null;
+    
+    return {
+      transactions: paginatedData,
+      continuationToken: nextToken,
+      hasMore: hasMore,
+      totalCount: mockData.length
+    };
+  }
+  
+  // First page
+  const paginatedData = mockData.slice(0, pageSize);
+  const hasMore = pageSize < mockData.length;
+  const nextToken = hasMore ? String(pageSize) : null;
+  
+  return {
+    transactions: paginatedData,
+    continuationToken: nextToken,
+    hasMore: hasMore,
+    totalCount: mockData.length
+  };
+  
+  // Old API code below is now unused but kept for reference
+  if (false && DEMO_MODE) {
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
       transactions: demoTransactions.filter(t => t.TxnType === txnType),
@@ -2003,6 +2060,14 @@ export async function createModelSchema(schemaData: {
   semver: string;
   jsonSchema: any;
 }): Promise<ModelSchema> {
+  // ALWAYS use mock data instead of real API
+  console.log('✅ Creating mock model schema:', schemaData.model);
+  const { createMockModelSchema } = await import('./mockData');
+  const newSchema = await createMockModelSchema(schemaData);
+  return newSchema;
+  
+  // Old API code below - unused
+  if (false) {
   try {
     const url = `${API_BASE_URL}/txns`;
     const headers = getHeaders();
@@ -2047,6 +2112,7 @@ export async function createModelSchema(schemaData: {
     console.error("createModelSchema error:", error);
     throw error;
   }
+  }
 }
 
 // Update Model Schema
@@ -2061,6 +2127,14 @@ export async function updateModelSchema(
   },
   etag: string,
 ): Promise<ModelSchema> {
+  // ALWAYS use mock data instead of real API
+  console.log('✅ Updating mock model schema:', schemaId);
+  const { updateMockModelSchema } = await import('./mockData');
+  const updatedSchema = await updateMockModelSchema(schemaId, schemaData);
+  return updatedSchema;
+  
+  // Old API code below - unused
+  if (false) {
   try {
     // Extract the id without ModelSchema prefix for Txn object
     // schemaId could be "ModelSchema:Location:1" or just "Location:1"
@@ -2124,10 +2198,19 @@ export async function updateModelSchema(
     console.error("updateModelSchema error:", error);
     throw error;
   }
+  }
 }
 
 // Delete Model Schema
 export async function deleteModelSchema(schemaId: string, etag: string): Promise<void> {
+  // ALWAYS use mock data instead of real API
+  console.log('✅ Deleting mock model schema:', schemaId);
+  const { deleteMockModelSchema } = await import('./mockData');
+  await deleteMockModelSchema(schemaId);
+  return;
+  
+  // Old API code below - unused
+  if (false) {
   try {
     // Construct the full TxnId with ModelSchema prefix if not already present
     const txnId = schemaId.startsWith('ModelSchema:') ? schemaId : `ModelSchema:${schemaId}`;
@@ -2250,6 +2333,7 @@ export async function deleteModelSchema(schemaId: string, etag: string): Promise
     // Ensure error message is clear
     const errorMessage = error.message || String(error);
     throw new Error(errorMessage);
+  }
   }
 }
 

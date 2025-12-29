@@ -46,7 +46,7 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: 'intro',
-    title: 'Welcome to Paradigm Transaction Gateway Management',
+    title: 'Welcome to NexusFlow RT',
     icon: <Home className="h-8 w-8" />,
     description: 'This is a management application for tenants and ERP transactions on the BFS platform with Cosmos DB API integration.',
     features: [
@@ -271,7 +271,7 @@ export function TutorialDialog({ open, onOpenChange }: TutorialDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl overflow-hidden">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg text-primary">

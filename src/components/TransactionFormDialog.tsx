@@ -113,7 +113,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
               </Select>
             </div>
           ) : (
-            <div className="bg-muted rounded-lg p-4 text-center">
+            <div className="bg-[#ffffff] border rounded-lg p-4 text-center">
               <div className="text-sm text-muted-foreground mb-1">Creating transaction for:</div>
               <div className="text-lg font-medium">{txnType}</div>
             </div>
@@ -170,7 +170,7 @@ export function TransactionFormDialog({ open, onOpenChange, onSubmit, defaultTxn
           {txnType === 'Customer' && (
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Example JSON format:</Label>
-              <div className="bg-muted rounded-lg p-3">
+              <div className="bg-[#ffffff] border rounded-lg p-3">
                 <pre className="text-xs overflow-auto">
 {`{
   "CustomerId": "CUST123",

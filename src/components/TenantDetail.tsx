@@ -76,7 +76,7 @@ export function TenantDetail({ tenant, open, onOpenChange }: TenantDetailProps) 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[75vw] min-w-[500px] max-w-[90vw] max-h-[85vh]">
+        <DialogContent className="w-full max-w-[600px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>{tenant.TenantName}</DialogTitle>
             <DialogDescription>
@@ -84,8 +84,8 @@ export function TenantDetail({ tenant, open, onOpenChange }: TenantDetailProps) 
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="h-[calc(85vh-150px)] pr-4">
-            <div className="space-y-6">
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-6 pb-6">
               {/* Primary Information */}
               <div>
                 <h3 className="mb-3">Primary Information</h3>
@@ -183,9 +183,9 @@ export function TenantDetail({ tenant, open, onOpenChange }: TenantDetailProps) 
       {/* Schema Detail Dialog */}
       {selectedSchema && (
         <Dialog open={isSchemaDetailOpen} onOpenChange={setIsSchemaDetailOpen}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] w-[1200px]">
+          <DialogContent className="max-w-[90vw] w-[1200px] overflow-hidden">
             {/* Header with metadata in horizontal layout */}
-            <div className="space-y-4 pb-4 border-b">
+            <div className="space-y-4 pb-4 border-b flex-shrink-0">
               <div>
                 <DialogTitle className="text-2xl mb-1">
                   {selectedSchema.model} - v{selectedSchema.version} ({selectedSchema.semver})
@@ -237,11 +237,11 @@ export function TenantDetail({ tenant, open, onOpenChange }: TenantDetailProps) 
             </div>
 
             {/* Two equal columns */}
-            <div className="grid grid-cols-2 gap-6 h-[calc(90vh-280px)]">
+            <div className="grid grid-cols-2 gap-6 flex-1 overflow-hidden">
               {/* Left Column - JSON Schema (50%) */}
               <div className="overflow-y-auto pr-2">
                 <h4 className="mb-3">JSON Schema:</h4>
-                <ScrollArea className="h-[calc(90vh-340px)] border rounded-md bg-muted p-3">
+                <ScrollArea className="h-full border rounded-md bg-[#ffffff] p-3">
                   <pre className="text-xs font-mono leading-relaxed">
                     {JSON.stringify(selectedSchema.jsonSchema, null, 2)}
                   </pre>
@@ -258,7 +258,7 @@ export function TenantDetail({ tenant, open, onOpenChange }: TenantDetailProps) 
                 </div>
 
                 {/* Properties Table - Compact */}
-                <div className="border rounded-lg overflow-hidden h-[calc(90vh-340px)]">
+                <div className="border rounded-lg overflow-hidden h-full">
                   <ScrollArea className="h-full">
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-muted/50">

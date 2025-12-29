@@ -20,7 +20,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[600px] max-h-[90vh]">
+      <DialogContent className="max-w-[600px] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Transaction Detail
@@ -31,8 +31,8 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-140px)]">
-          <div className="space-y-4 pr-4">
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-4 pb-6">
             {/* Metadata - Always Visible */}
             <Card>
               <CardHeader>
@@ -42,7 +42,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <div className="text-muted-foreground mb-1">Transaction ID</div>
-                    <code className="text-xs bg-muted px-2 py-1 rounded block">
+                    <code className="text-xs bg-[#ffffff] border px-2 py-1 rounded block">
                       {transaction.TxnId || 'N/A'}
                     </code>
                   </div>
@@ -65,7 +65,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                     <Separator />
                     <div className="text-sm">
                       <div className="text-muted-foreground mb-1">ETag</div>
-                      <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
+                      <code className="text-xs bg-[#ffffff] border px-2 py-1 rounded block break-all">
                         {transaction._etag}
                       </code>
                     </div>
@@ -82,7 +82,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                   <span className="font-medium">Transaction Data (Txn)</span>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                  <div className="bg-muted rounded-lg p-4 overflow-x-auto">
+                  <div className="bg-[#ffffff] border rounded-lg p-4 overflow-x-auto">
                     <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
                       {JSON.stringify(transaction.Txn, null, 2)}
                     </pre>
@@ -96,7 +96,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                   <span className="font-medium">Raw API Response</span>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                  <div className="bg-muted rounded-lg p-4 overflow-x-auto">
+                  <div className="bg-[#ffffff] border rounded-lg p-4 overflow-x-auto">
                     <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
                       {JSON.stringify(transaction, null, 2)}
                     </pre>
@@ -113,7 +113,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
                   <div className="space-y-4">
                     <div>
                       <div className="text-sm font-medium mb-2">GET Request:</div>
-                      <div className="bg-muted rounded-lg p-3">
+                      <div className="bg-[#ffffff] border rounded-lg p-3">
                         <code className="text-[11px] font-mono">
                           GET /1.0/txns?TxnType={transaction.TxnType}
                         </code>
@@ -122,7 +122,7 @@ export function TransactionDetail({ transaction, open, onOpenChange }: Transacti
 
                     <div>
                       <div className="text-sm font-medium mb-2">POST Request:</div>
-                      <div className="bg-muted rounded-lg p-3 overflow-x-auto">
+                      <div className="bg-[#ffffff] border rounded-lg p-3 overflow-x-auto">
                         <pre className="text-[11px] font-mono leading-relaxed whitespace-pre">
 {`POST /1.0/txns
 Content-Type: application/json

@@ -1306,7 +1306,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
 
       {/* View Application Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[600px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Application Details</DialogTitle>
             <DialogDescription>
@@ -1318,7 +1318,7 @@ export function ApplicationsView({ userRole, tenants, activeTenantId, onTenantCh
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Application ID</p>
-                  <code className="text-xs bg-muted px-2 py-1 rounded block break-all">
+                  <code className="text-xs bg-[#ffffff] border px-2 py-1 rounded block break-all">
                     {getApplicationId(selectedApplication)}
                   </code>
                 </div>

@@ -966,7 +966,7 @@ export function DataCaptureSpecCreateDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[700px] max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-[700px] overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             Create Data Capture Specification

@@ -332,7 +332,7 @@ export function TransactionCreateDialog({ open, onOpenChange, onSubmit, defaultT
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[800px] max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[800px] overflow-hidden">
         <DialogHeader>
           <DialogTitle>
             {defaultTxnType ? `Create ${defaultTxnType} Transaction` : 'Create New Transaction'}

@@ -64,7 +64,7 @@ export function TransactionEditDialog({ transaction, open, onOpenChange, onSubmi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[600px] max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[600px] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Edit {transaction.TxnType} Transaction</DialogTitle>
           <DialogDescription>
@@ -102,7 +102,7 @@ export function TransactionEditDialog({ transaction, open, onOpenChange, onSubmi
           {!jsonError && txnDataJson.trim() && (
             <div className="space-y-2">
               <Label>API Request Preview</Label>
-              <div className="bg-muted rounded-lg p-4 max-h-[200px] overflow-auto">
+              <div className="bg-[#ffffff] border rounded-lg p-4 max-h-[200px] overflow-auto">
                 <pre className="text-xs">
 {`PUT /1.0/txns/${transaction.TxnId}
 If-Match: ${transaction._etag}

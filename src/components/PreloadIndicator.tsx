@@ -60,7 +60,7 @@ export function PreloadIndicator({ state, onRetry }: PreloadIndicatorProps) {
           </svg>
           
           <h2 className="text-xl font-semibold text-center text-foreground mb-2">
-            Paradigm Transaction Gateway
+            NexusFlow RT
           </h2>
           
           {state.error ? (

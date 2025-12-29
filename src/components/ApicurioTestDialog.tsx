@@ -9,7 +9,7 @@ interface ApicurioTestDialogProps {
 export function ApicurioTestDialog({ open, onOpenChange }: ApicurioTestDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl overflow-hidden">
         <DialogTitle className="sr-only">API Connection Diagnostics</DialogTitle>
         <DialogDescription className="sr-only">
           Test and diagnose connections to Apicurio Registry and BFS API endpoints

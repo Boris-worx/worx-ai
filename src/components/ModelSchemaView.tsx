@@ -85,11 +85,11 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
 
   // Default columns
   const getDefaultColumns = (): ColumnConfig[] => [
-    { key: 'model', label: 'Model', enabled: true, locked: true },
+    { key: 'model', label: 'Transaction Type', enabled: true, locked: true },
     { key: 'version', label: 'Version', enabled: true },
-    { key: 'semver', label: 'Semver', enabled: true },
-    { key: 'state', label: 'State', enabled: true },
-    { key: 'properties', label: 'Properties', enabled: true },
+    { key: 'semver', label: 'Schema Version', enabled: true },
+    { key: 'state', label: 'Status', enabled: true },
+    { key: 'properties', label: 'Fields Count', enabled: true },
     { key: 'requiredFields', label: 'Required Fields', enabled: true },
     { key: 'CreateTime', label: 'Created', enabled: false },
     { key: 'UpdateTime', label: 'Updated', enabled: false },
@@ -719,7 +719,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
 
       {/* Create Schema Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-[900px] max-h-[90vh]">
+        <DialogContent className="max-w-[900px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Create New Model Schema</DialogTitle>
             <DialogDescription>
@@ -805,7 +805,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
 
       {/* Edit Schema Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-[900px] max-h-[90vh]">
+        <DialogContent className="max-w-[900px] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Edit Model Schema</DialogTitle>
             <DialogDescription>
@@ -915,7 +915,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
       {/* Schema Detail Dialog */}
       {selectedSchemaForDetail && (
         <Dialog open={isSchemaDetailOpen} onOpenChange={setIsSchemaDetailOpen}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] w-[1200px]">
+          <DialogContent className="max-w-[90vw] w-[1200px] overflow-hidden">
             <DialogHeader>
               <DialogTitle className="text-2xl mb-1">
                 {selectedSchemaForDetail.model} - v{selectedSchemaForDetail.version} ({selectedSchemaForDetail.semver})
@@ -925,7 +925,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
               </DialogDescription>
             </DialogHeader>
             {/* Header with metadata in horizontal layout */}
-            <div className="space-y-4 pb-4 border-b">
+            <div className="space-y-4 pb-4 border-b flex-shrink-0">
               <div className="sr-only"></div>
 
               {/* Metadata Row */}
@@ -970,11 +970,11 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
             </div>
 
             {/* Two equal columns */}
-            <div className="grid grid-cols-2 gap-6 h-[calc(90vh-280px)]">
+            <div className="grid grid-cols-2 gap-6 flex-1 overflow-hidden">
               {/* Left Column - JSON Schema (50%) */}
               <div className="overflow-y-auto pr-2">
                 <h4 className="mb-3">JSON Schema:</h4>
-                <ScrollArea className="h-[calc(90vh-340px)] border rounded-md bg-muted p-3">
+                <ScrollArea className="h-full border rounded-md bg-[#ffffff] p-3">
                   <pre className="text-xs font-mono leading-relaxed">
                     {JSON.stringify(selectedSchemaForDetail.jsonSchema, null, 2)}
                   </pre>
@@ -991,7 +991,7 @@ export function ModelSchemaView({ userRole, tenants, activeTenantId, onTenantCha
                 </div>
 
                 {/* Properties Table - Compact */}
-                <div className="border rounded-lg overflow-hidden h-[calc(90vh-340px)]">
+                <div className="border rounded-lg overflow-hidden h-full">
                   <ScrollArea className="h-full">
                     <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-muted/50">

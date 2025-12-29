@@ -19,7 +19,7 @@ export function TransactionSpecificationViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh]">
+      <DialogContent className="max-w-3xl overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span>{specification.SpecName}</span>
@@ -32,8 +32,8 @@ export function TransactionSpecificationViewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(90vh-8rem)]">
-          <div className="space-y-6 pr-4">
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-6 pb-6">
             {/* Basic Information */}
             <div className="space-y-3">
               <h3 className="font-semibold">Basic Information</h3>
@@ -84,7 +84,7 @@ export function TransactionSpecificationViewDialog({
             {/* JSON Schema */}
             <div className="space-y-3">
               <h3 className="font-semibold">JSON Schema</h3>
-              <div className="bg-muted/50 p-4 rounded-lg overflow-x-auto">
+              <div className="bg-[#ffffff] border p-4 rounded-lg overflow-x-auto">
                 <pre className="text-xs font-mono">
                   {JSON.stringify(specification.JsonSchema, null, 2)}
                 </pre>
@@ -100,7 +100,7 @@ export function TransactionSpecificationViewDialog({
                   <div className="space-y-2">
                     {Object.entries(specification.JsonSchema.properties).map(([key, value]: [string, any]) => (
                       <div key={key} className="flex items-start gap-3 text-sm">
-                        <code className="bg-muted px-2 py-1 rounded min-w-[120px]">{key}</code>
+                        <code className="bg-[#ffffff] border px-2 py-1 rounded min-w-[120px]">{key}</code>
                         <div className="flex-1">
                           <span className="text-muted-foreground">Type:</span>{' '}
                           <span>{value.type || 'any'}</span>

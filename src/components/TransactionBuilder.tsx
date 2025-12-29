@@ -210,7 +210,7 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
               <CardHeader className="py-2 px-3">
                 <CardTitle className="text-sm">
                   Tenants
-                  <Badge variant="secondary" className="ml-2 text-xs">
+                  <Badge variant="secondary" className="ml-2 text-xs min-w-[24px] h-[24px] flex items-center justify-center px-2" style={{ borderRadius: '100px' }}>
                     {tenants.length}
                   </Badge>
                 </CardTitle>
@@ -299,7 +299,7 @@ export function TransactionBuilder({ tenants, transactions, isLoading, refreshDa
               <CardHeader className="py-2 px-3">
                 <CardTitle className="text-sm">
                   Transactions
-                  <Badge variant="secondary" className="ml-2 text-xs">
+                  <Badge variant="secondary" className="ml-2 text-xs min-w-[24px] h-[24px] flex items-center justify-center px-2" style={{ borderRadius: '100px' }}>
                     {filteredTransactions.length}
                   </Badge>
                 </CardTitle>

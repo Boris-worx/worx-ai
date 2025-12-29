@@ -118,7 +118,7 @@ export function ColumnSelector({ columns, onColumnsChange, availableFields = [],
         >
           <FilterIcon className="h-4 w-4" />
           <span className="hidden sm:inline"></span>
-          <Badge variant="secondary" className="ml-1">
+          <Badge variant="secondary" className="ml-1 min-w-[24px] h-[24px] flex items-center justify-center px-2" style={{ borderRadius: '100px' }}>
             {enabledCount}
           </Badge>
         </Button>

@@ -357,7 +357,7 @@ export function TenantImportDialog({ open, onOpenChange, onSuccess }: TenantImpo
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <pre className="text-xs bg-muted p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap break-words">
+                <pre className="text-xs bg-[#ffffff] border p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(tenantsJSON.slice(0, 3), null, 2)}
                   {tenantsJSON.length > 3 && '\n... and ' + (tenantsJSON.length - 3) + ' more'}
                 </pre>

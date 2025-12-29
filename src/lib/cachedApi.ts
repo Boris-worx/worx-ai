@@ -17,8 +17,11 @@ import {
   DataSource,
   Application,
   TransactionSpecification,
-  ModelSchema,
+  ModelSchema
 } from './api';
+
+// Import mock data functions
+import { getMockDataByType } from './mockData';
 
 /**
  * Cached wrapper for getAllTenants
@@ -48,6 +51,7 @@ export async function getCachedTenants(forceRefresh = false): Promise<Tenant[]> 
 
 /**
  * Cached wrapper for loadTransactionTypes
+ * Now uses MOCK data instead of real API
  */
 export async function getCachedTransactionTypes(forceRefresh = false): Promise<string[]> {
   const cacheKey = dataCache.transactionTypesKey();
@@ -55,21 +59,22 @@ export async function getCachedTransactionTypes(forceRefresh = false): Promise<s
   if (!forceRefresh) {
     const cached = dataCache.get<string[]>(cacheKey);
     if (cached) {
-      console.log('📦 Using cached transaction types');
-      loadTransactionTypes().then(data => {
-        dataCache.set(cacheKey, data);
-      }).catch(console.error);
+      console.log('📦 Using cached transaction types (Mock Data)');
       return cached;
     }
   }
   
-  const data = await loadTransactionTypes();
-  dataCache.set(cacheKey, data);
-  return data;
+  // Use mock data instead of API call
+  console.log('🔄 Loading mock transaction types');
+  const { getMockTransactionTypes } = await import('./mockData');
+  const mockTypes = getMockTransactionTypes();
+  dataCache.set(cacheKey, mockTypes);
+  return mockTypes;
 }
 
 /**
  * Cached wrapper for getTransactionsByType
+ * Now uses MOCK data instead of real API
  */
 export async function getCachedTransactions(
   txnType: string,
@@ -81,17 +86,16 @@ export async function getCachedTransactions(
   if (!forceRefresh) {
     const cached = dataCache.get<Transaction[]>(cacheKey);
     if (cached) {
-      console.log(`📦 Using cached transactions for ${txnType}`);
-      getTransactionsByType(txnType, tenantId === 'global' ? undefined : tenantId).then(response => {
-        dataCache.set(cacheKey, response.data);
-      }).catch(console.error);
+      console.log(`📦 Using cached transactions for ${txnType} (Mock Data)`);
       return cached;
     }
   }
   
-  const response = await getTransactionsByType(txnType, tenantId === 'global' ? undefined : tenantId);
-  dataCache.set(cacheKey, response.data);
-  return response.data;
+  // Use mock data instead of API call
+  console.log(`🔄 Loading mock transactions for ${txnType}`);
+  const mockData = await getMockDataByType(txnType, tenantId);
+  dataCache.set(cacheKey, mockData);
+  return mockData;
 }
 
 /**
@@ -172,6 +176,7 @@ export async function getCachedTransactionSpecs(
 
 /**
  * Cached wrapper for getAllModelSchemas
+ * Now uses MOCK data instead of real API
  */
 export async function getCachedModelSchemas(forceRefresh = false): Promise<ModelSchema[]> {
   const cacheKey = dataCache.modelSchemasKey();
@@ -179,16 +184,16 @@ export async function getCachedModelSchemas(forceRefresh = false): Promise<Model
   if (!forceRefresh) {
     const cached = dataCache.get<ModelSchema[]>(cacheKey);
     if (cached) {
-      console.log('📦 Using cached model schemas');
-      getAllModelSchemas().then(data => {
-        dataCache.set(cacheKey, data.filter(s => s && s.state !== 'deleted'));
-      }).catch(console.error);
+      console.log('📦 Using cached model schemas (Mock Data)');
       return cached;
     }
   }
   
-  const data = await getAllModelSchemas();
-  const filtered = data.filter(s => s && s.state !== 'deleted');
+  // Use mock data instead of API call
+  console.log('🔄 Loading mock model schemas');
+  const { getMockModelSchemas } = await import('./mockData');
+  const mockSchemas = await getMockModelSchemas();
+  const filtered = mockSchemas.filter(s => s && s.state !== 'deleted');
   dataCache.set(cacheKey, filtered);
   return filtered;
 }
