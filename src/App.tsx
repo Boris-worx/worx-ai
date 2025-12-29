@@ -299,9 +299,8 @@ function AppContent() {
 
   // Handle login
   const handleLogin = (email: string, password: string) => {
-    // Extract username from email (part before @)
-    const username = email.split('@')[0];
-    const success = login(username, password);
+    // Use email directly as username (no extraction needed)
+    const success = login(email, password);
     
     if (success) {
       toast.success('Welcome back!');

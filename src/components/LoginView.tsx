@@ -27,7 +27,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
                   Sign In
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Enter your email and password to sign in!
+                  Enter your username and password to sign in!
                 </p>
               </div>
               <div>
@@ -53,18 +53,18 @@ export function LoginView({ onLogin }: LoginViewProps) {
                 </div>
                 <form onSubmit={handleSubmit}>
                   <div className="space-y-5">
-                    {/* Email */}
+                    {/* Username */}
                     <div>
                       <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
-                        Email<span className="text-red-500">*</span>
+                        Username<span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="email"
-                        id="email"
-                        name="email"
+                        type="text"
+                        id="username"
+                        name="username"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="info@gmail.com"
+                        placeholder="superuser"
                         className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-[#6579FF] focus:ring-3 focus:ring-[#6579FF]/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-[#6579FF]"
                         required
                       />
