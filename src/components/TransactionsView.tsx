@@ -1508,7 +1508,7 @@ export function TransactionsView({
     }
     // Fallback to old logic if Data Source not found
     const firstChar = type.charAt(0);
-    return firstChar === firstChar.toLowerCase() ? 'BFS Online' : 'NexusFlow BigTools';
+    return firstChar === firstChar.toLowerCase() ? 'NexusFlow' : 'NexusFlow';
   };
 
   // Filter types by search term and Data Source

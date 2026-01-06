@@ -5,6 +5,7 @@ import { Bell, Menu } from 'lucide-react';
 import { UserMenu } from './UserMenu';
 import { MobileNav } from './MobileNav';
 import { useSidebar } from './SidebarContext';
+import { GlobalSearch } from './GlobalSearch';
 
 interface TopBarProps {
   theme: 'light' | 'dark';
@@ -22,13 +23,13 @@ export function TopBar({ theme, onThemeChange, currentTabMetadata, activeTab, on
   
   return (
     <header className={`bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 fixed top-0 right-0 z-40 transition-all duration-300 ${isCollapsed ? 'left-0 md:left-20' : 'left-0 md:left-64'}`}>
-      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4">
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 gap-4">
         {/* Sidebar Toggle Button - Desktop Only */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="hidden md:flex mr-2 bg-[rgb(241,243,255)]"
+          className="hidden md:flex mr-2 bg-[rgb(241,243,255)] flex-shrink-0"
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <Menu className="h-5 w-5" />
@@ -38,13 +39,18 @@ export function TopBar({ theme, onThemeChange, currentTabMetadata, activeTab, on
         <MobileNav activeTab={activeTab} onTabChange={onTabChange} />
         
         {/* Page Title */}
-        <div className="flex-1 min-w-0 md:ml-0 ml-2">
+        <div className="flex-1 min-w-0 md:ml-0 ml-2 hidden lg:block">
           <h1 className="text-lg md:text-xl truncate font-bold">{currentTabMetadata.title}</h1>
           <p className="text-xs md:text-sm text-muted-foreground truncate hidden sm:block">{currentTabMetadata.subtitle}</p>
         </div>
 
+        {/* Global Search - Desktop */}
+        <div className="hidden md:flex flex-1 max-w-2xl mx-4">
+          <GlobalSearch />
+        </div>
+
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Notifications */}
           <Button
             variant="ghost"
@@ -73,6 +79,11 @@ export function TopBar({ theme, onThemeChange, currentTabMetadata, activeTab, on
           {/* User Menu */}
           <UserMenu />
         </div>
+      </div>
+      
+      {/* Global Search - Mobile (below header) */}
+      <div className="md:hidden px-4 pb-3">
+        <GlobalSearch />
       </div>
     </header>
   );

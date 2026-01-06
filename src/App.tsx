@@ -332,7 +332,7 @@ function AppContent() {
         />
 
         {/* Main Content */}
-        <main className="pt-20 md:pt-24 px-4 md:px-6 py-4 md:py-8">
+        <main className="pt-24 md:pt-24 px-4 md:px-6 py-4 md:py-8">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsContent value="dashboard">
               <DashboardView

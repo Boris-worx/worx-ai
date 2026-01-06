@@ -1,18 +1,15 @@
 // API Configuration
-const API_BASE_URL =
-  "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.0";
-const API_BASE_URL_V11 =
-  "https://dp-eastus-poc-txservices-apis.azurewebsites.net/1.1";
-const AUTH_HEADER_KEY = "X-BFS-Auth";
-const AUTH_HEADER_VALUE =
-  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const API_BASE_URL =  "";
+const API_BASE_URL_V11 =  "";
+const AUTH_HEADER_KEY = "X-Nexus-Auth";
+const AUTH_HEADER_VALUE =  "";
 
 // Apicurio Registry Configuration (v3 API)
-const APICURIO_REGISTRY_URL = "https://apicurio-poc.proudpond-b12a57e6.eastus.azurecontainerapps.io/apis/registry/v3";
+const APICURIO_REGISTRY_URL = "";
 
 // Set to true to use demo mode (no real API calls)
-// Set to false to use real BFS API
-const DEMO_MODE = false; // Always use real BFS API
+// Set to false to use real Nexus API
+const DEMO_MODE = false; // Always use real Nexus API
 
 // Export demo mode status for UI
 export const isDemoMode = () => DEMO_MODE;
@@ -159,7 +156,7 @@ export async function getAllTenants(): Promise<Tenant[]> {
   }
 
   try {
-    console.log('Attempting to connect to BFS API...');
+    console.log('Attempting to connect to Nexus API...');
     
     const response = await fetch(`${API_BASE_URL}/tenants`, {
       method: "GET",
@@ -388,7 +385,7 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
     const url = buildTxnsUrl({ TxnType: 'ModelSchema' });
     const headers = getHeaders();
     
-    console.log('🔍 Fetching global ModelSchema from BFS API (v1.1)');
+    console.log('🔍 Fetching global ModelSchema from Nexus API (v1.1)');
     console.log('   Full URL:', url);
     console.log('   Headers:', headers);
     
@@ -425,7 +422,7 @@ export async function getAllModelSchemas(): Promise<ModelSchema[]> {
     
     const responseData = JSON.parse(responseText);
     
-    // Handle BFS API response format: { status: {...}, data: { TxnType: "ModelSchema", Txns: [...] } }
+    // Handle Nexus API response format: { status: {...}, data: { TxnType: "ModelSchema", Txns: [...] } }
     let schemas: ModelSchema[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
@@ -537,7 +534,7 @@ export async function getModelSchemasForTenant(tenantId: string): Promise<ModelS
     const responseText = await response.text();
     const responseData = JSON.parse(responseText);
     
-    // Handle BFS API response format: { status: {...}, data: { TxnType: "ModelSchema", Txns: [...] } }
+    // Handle Nexus API response format: { status: {...}, data: { TxnType: "ModelSchema", Txns: [...] } }
     let schemas: ModelSchema[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
@@ -669,7 +666,7 @@ export interface TransactionTypeInfo {
 }
 
 // Fallback transaction types in case API fails
-// These are common types that should exist in most BFS deployments
+// These are common types that should exist in most Nexus deployments
 const FALLBACK_TRANSACTION_TYPES = [
   'Customer',
   'Location',
@@ -764,7 +761,7 @@ export async function loadTransactionTypes(): Promise<string[]> {
 
 // Format transaction type display name
 export const formatTransactionType = (type: string): string => {
-  // Keep original names for display (no plural 's' suffix for BFS Online types)
+  // Keep original names for display (no plural 's' suffix for Nexus Online types)
   return type;
 };
 
@@ -845,7 +842,7 @@ export async function getTransactionsByType(
     }
     
     // Build URL with filters parameter
-    // Note: BFS API does not support maxItemCount parameter - returns 400 BAD REQUEST
+    // Note: Nexus API does not support maxItemCount parameter - returns 400 BAD REQUEST
     const filtersParam = encodeURIComponent(JSON.stringify(filters));
     let url = `${API_BASE_URL_V11}/txns?filters=${filtersParam}`;
     
@@ -946,7 +943,7 @@ export async function getTransactionsByType(
       nextToken = responseData.data.ContinuationToken;
     }
     
-    // Handle BFS API response format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
+    // Handle Nexus API response format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
     // v1.1 API may return data directly or in responseData.data
     let txns: Transaction[] = [];
     
@@ -955,7 +952,7 @@ export async function getTransactionsByType(
     let returnedTxnType = txnType;
     
     if (responseData.status && responseData.data) {
-      // BFS API v1.0/v1.1 format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
+      // Nexus API v1.0/v1.1 format: { status: {...}, data: { TxnType: "...", Txns: [...] } }
       if (responseData.data.Txns && Array.isArray(responseData.data.Txns)) {
         rawTxns = responseData.data.Txns;
         returnedTxnType = responseData.data.TxnType || txnType;
@@ -972,7 +969,7 @@ export async function getTransactionsByType(
     
     // Debug logging - only for types with data
     if (rawTxns.length > 0) {
-      console.log(`📊 BFS API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
+      console.log(`📊 Nexus API Response [${returnedTxnType}] - Number of transactions:`, rawTxns.length);
       console.log(`📊 First ${returnedTxnType} transaction sample:`, rawTxns[0]);
       console.log(`📊 First ${returnedTxnType} transaction keys:`, Object.keys(rawTxns[0]));
     }
@@ -1005,11 +1002,11 @@ export async function getTransactionsByType(
             else if (rawTxn.quoteId) entityId = rawTxn.quoteId;
             else if (rawTxn.reasonCodeId) entityId = rawTxn.reasonCodeId;
             else if (rawTxn.InvoiceId) entityId = rawTxn.InvoiceId;
-            // BFS Online Inventory types (inv, inv1, inv2, inv3, invap, invdes, invloc, keyi)
+            // Nexus Online Inventory types (inv, inv1, inv2, inv3, invap, invdes, invloc, keyi)
             else if (rawTxn.invid) entityId = rawTxn.invid;
-            // BFS Online Location types (loc, loc1)
+            // Nexus Online Location types (loc, loc1)
             else if (rawTxn.loccd || rawTxn.Loccd) entityId = rawTxn.loccd || rawTxn.Loccd;
-            // BFS Online Store Code type (stocode)
+            // Nexus Online Store Code type (stocode)
             else if (rawTxn.st || rawTxn.St) entityId = rawTxn.st || rawTxn.St;
             // Use Cosmos DB Resource ID if available (always unique)
             else if (rawTxn._rid) entityId = rawTxn._rid;
@@ -1296,12 +1293,12 @@ export async function getAllDataSources(tenantId?: string): Promise<DataSource[]
     let url = `${API_BASE_URL}/datasources`;
     
     if (tenantId) {
-      // Add filter for TenantId as per API format: ?Filters={"TenantId":"BFS"}
+      // Add filter for TenantId as per API format: ?Filters={"TenantId":"Nexus"}
       const filters = JSON.stringify({ TenantId: tenantId });
       url += `?Filters=${encodeURIComponent(filters)}`;
-      console.log(`Attempting to fetch data sources for tenant ${tenantId} from BFS API...`);
+      console.log(`Attempting to fetch data sources for tenant ${tenantId} from Nexus API...`);
     } else {
-      console.log('Attempting to fetch all data sources from BFS API...');
+      console.log('Attempting to fetch all data sources from Nexus API...');
     }
     
     const response = await fetch(url, {
@@ -1351,7 +1348,7 @@ export async function getAllDataSources(tenantId?: string): Promise<DataSource[]
       console.log('✅ Format: value array');
       dataSources = data.value;
     } else if (data.status && data.data && Array.isArray(data.data.DataSources)) {
-      console.log('✅ Format: status.data.DataSources (BFS API format)');
+      console.log('✅ Format: status.data.DataSources (Nexus API format)');
       dataSources = data.data.DataSources;
     } else {
       console.log('⚠️ Unknown response format, returning empty array');
@@ -1827,7 +1824,7 @@ export async function createDataCaptureSpec(
   spec: Omit<DataCaptureSpec, 'dataCaptureSpecId' | '_etag' | '_rid' | '_ts' | '_self' | '_attachments' | 'createTime' | 'updateTime'>
 ): Promise<DataCaptureSpec> {
   try {
-    // BFS API expects specific format (based on curl example from client)
+    // Nexus API expects specific format (based on curl example from client)
     const apiPayload = {
       dataCaptureSpecName: spec.dataCaptureSpecName,
       containerName: spec.containerName,
@@ -1916,7 +1913,7 @@ export async function updateDataCaptureSpec(
   etag: string
 ): Promise<DataCaptureSpec> {
   try {
-    // BFS API expects camelCase format (same as create operation)
+    // Nexus API expects camelCase format (same as create operation)
     const apiPayload: any = {};
     // IMPORTANT: dataCaptureSpecId must match the path parameter
     apiPayload.dataCaptureSpecId = specId;
@@ -1981,8 +1978,8 @@ export async function deleteDataCaptureSpec(
   dataSourceId?: string
 ): Promise<void> {
   try {
-    // BFS API DELETE expects the dataCaptureSpecId as returned from the API
-    // NOTE: BFS API may return 404 even when deletion is successful (confirmed by Cosmos DB)
+    // Nexus API DELETE expects the dataCaptureSpecId as returned from the API
+    // NOTE: Nexus API may return 404 even when deletion is successful (confirmed by Cosmos DB)
     // We treat 404 as success since DELETE is idempotent (resource not found = deleted)
     
     let specId = specNameOrId;
@@ -2007,7 +2004,7 @@ export async function deleteDataCaptureSpec(
 
     // Treat both 2xx and 404 as success
     // DELETE is idempotent: 404 means resource doesn't exist (already deleted or never existed)
-    // BFS API physically deletes from Cosmos DB but may return 404
+    // Nexus API physically deletes from Cosmos DB but may return 404
     if (response.ok || response.status === 404) {
       console.log('   ✅ Data capture specification deleted successfully (status:', response.status, ')');
       return;
@@ -2753,9 +2750,9 @@ function getMockApplications(tenantId?: string): Application[] {
   const mockApps: Application[] = [
     {
       ApplicationId: 'app-001',
-      ApplicationName: 'myBLDR',
-      TenantId: 'BFS',
-      Version: '2.1.0',
+      ApplicationName: 'NexusFlow',
+      TenantId: 'WorxAI',
+      Version: '1.0',
       Description: 'Customer building and configuration application',
       Status: 'Active',
       CreateTime: '2025-10-15T10:00:00Z',
@@ -2829,7 +2826,7 @@ export async function getApplications(tenantId?: string): Promise<Application[]>
     const responseData = JSON.parse(responseText);
     console.log('📦 Applications API response:', responseData);
     
-    // Handle BFS API response format: { status: {...}, data: { TxnType: "Application", Txns: [...] } }
+    // Handle Nexus API response format: { status: {...}, data: { TxnType: "Application", Txns: [...] } }
     let applications: Application[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
@@ -3043,7 +3040,7 @@ export async function updateApplication(
           const mockApp: Application = {
             ApplicationId: applicationId,
             ApplicationName: updates.ApplicationName || 'Unknown',
-            TenantId: 'BFS',
+            TenantId: 'Nexus',
             Version: updates.Version,
             Description: updates.Description,
             Status: updates.Status,
@@ -3065,7 +3062,7 @@ export async function updateApplication(
         const mockApp: Application = {
           ApplicationId: applicationId,
           ApplicationName: updates.ApplicationName || 'Unknown',
-          TenantId: 'BFS',
+          TenantId: 'Nexus',
           Version: updates.Version,
           Description: updates.Description,
           Status: updates.Status,
@@ -3268,7 +3265,7 @@ function getMockTransactionSpecs(applicationId?: string, tenantId?: string): Tra
     {
       TransactionSpecId: 'txspec-001',
       ApplicationId: 'app-001',
-      TenantId: 'BFS',
+      TenantId: 'Nexus',
       SpecName: 'Customer',
       Version: '2.1',
       Description: 'Customer entity transaction specification',
@@ -3291,7 +3288,7 @@ function getMockTransactionSpecs(applicationId?: string, tenantId?: string): Tra
     {
       TransactionSpecId: 'txspec-002',
       ApplicationId: 'app-001',
-      TenantId: 'BFS',
+      TenantId: 'Nexus',
       SpecName: 'Quote',
       Version: '2.0',
       Description: 'Quote entity transaction specification',
@@ -3314,7 +3311,7 @@ function getMockTransactionSpecs(applicationId?: string, tenantId?: string): Tra
     {
       TransactionSpecId: 'txspec-003',
       ApplicationId: 'app-001',
-      TenantId: 'BFS',
+      TenantId: 'Nexus',
       SpecName: 'Order',
       Version: '2.1',
       Description: 'Order entity transaction specification',
@@ -3337,7 +3334,7 @@ function getMockTransactionSpecs(applicationId?: string, tenantId?: string): Tra
     {
       TransactionSpecId: 'txspec-004',
       ApplicationId: 'app-002',
-      TenantId: 'BFS',
+      TenantId: 'Nexus',
       SpecName: 'Customer',
       Version: '1.5',
       Description: 'Customer entity for Will Call',
@@ -3429,7 +3426,7 @@ export async function getTransactionSpecifications(
     const responseData = JSON.parse(responseText);
     console.log('📦 Transaction Specifications API response:', responseData);
     
-    // Handle BFS API response format: { status: {...}, data: { TxnType: "TransactionSpec", Txns: [...] } }
+    // Handle Nexus API response format: { status: {...}, data: { TxnType: "TransactionSpec", Txns: [...] } }
     let specs: TransactionSpecification[] = [];
     
     if (responseData.status && responseData.data && responseData.data.Txns) {
